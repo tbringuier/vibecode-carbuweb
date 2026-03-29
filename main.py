@@ -328,9 +328,67 @@ def build_database():
 
     purge_infinity(db["stats"]["min_prices"])
 
+    # Build department and region search indexes
+    dept_index = {}  # code -> { name, region, station_ids }
+    region_index = {}  # normalized_name -> { name, station_ids }
+    for sid, st in db["stations"].items():
+        cp = st["code_postal"]
+        dept_code = cp[:3] if cp.startswith("97") else cp[:2]
+        dept_name = st["departement"]
+        region_name = st["region"]
+        if dept_code not in dept_index:
+            dept_index[dept_code] = {
+                "nom": dept_name,
+                "region": region_name,
+                "nom_norm": normalize_text(dept_name),
+                "stations": [],
+            }
+        dept_index[dept_code]["stations"].append(sid)
+        if region_name not in region_index:
+            region_index[region_name] = {
+                "nom": region_name,
+                "nom_norm": normalize_text(region_name),
+                "stations": [],
+            }
+        region_index[region_name]["stations"].append(sid)
+    db["dept_index"] = dept_index
+    db["region_index"] = region_index
+
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(db, f, ensure_ascii=False)
     log.info("Database ready — %d stations.", len(db["stations"]))
+
+
+# ---------------------------------------------------------------------------
+# Minification
+# ---------------------------------------------------------------------------
+
+def minify_html(src):
+    """Lightweight HTML minifier — collapses whitespace, strips comments."""
+    src = re.sub(r"<!--.*?-->", "", src, flags=re.DOTALL)
+    src = re.sub(r">\s+<", "><", src)
+    src = re.sub(r"\s{2,}", " ", src)
+    return src.strip()
+
+
+def minify_js(src):
+    """Strip JS single-line comments and collapse blank lines."""
+    lines = []
+    for line in src.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("//"):
+            continue
+        if stripped:
+            lines.append(line.rstrip())
+    return "\n".join(lines)
+
+
+def minify_json(path_in, path_out):
+    """Re-serialize JSON without whitespace (saves ~40 %)."""
+    with open(path_in, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    with open(path_out, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 
 
 # ---------------------------------------------------------------------------
@@ -340,18 +398,21 @@ def build_database():
 def generate_site():
     os.makedirs(BUILD_DIR, exist_ok=True)
 
-    # data.json
-    shutil.copy(DB_FILE, os.path.join(BUILD_DIR, "data.json"))
+    # data.json — compact
+    minify_json(DB_FILE, os.path.join(BUILD_DIR, "data.json"))
 
-    # index.html — inject build date
+    # index.html — inject build date + minify
     with open(os.path.join(TEMPLATES_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
     html = html.replace("{{BUILD_DATE}}", TODAY)
     with open(os.path.join(BUILD_DIR, "index.html"), "w", encoding="utf-8") as f:
-        f.write(html)
+        f.write(minify_html(html))
 
-    # app.js — copy as-is
-    shutil.copy(os.path.join(TEMPLATES_DIR, "app.js"), os.path.join(BUILD_DIR, "app.js"))
+    # app.js — minify
+    with open(os.path.join(TEMPLATES_DIR, "app.js"), "r", encoding="utf-8") as f:
+        js = f.read()
+    with open(os.path.join(BUILD_DIR, "app.js"), "w", encoding="utf-8") as f:
+        f.write(minify_js(js))
 
     log.info("Static site written to %s/", BUILD_DIR)
 
