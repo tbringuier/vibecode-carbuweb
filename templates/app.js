@@ -9,7 +9,8 @@ let userRadius = parseInt(localStorage.getItem('carbuRadius')) || 15;
 let userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
 let userFavorites = JSON.parse(localStorage.getItem('carbuFavorites')) || [];
 let chartsInitialized = false;
-let currentProximitySearch = null; 
+let currentProximitySearch = null;
+let currentGeoZone = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('radius-slider').value = userRadius;
@@ -241,6 +242,7 @@ function switchTab(tab) {
 
 function goHome() {
     currentProximitySearch = null;
+    currentGeoZone = null;
     document.getElementById('station-view').classList.add('hidden');
     document.getElementById('home-view').classList.remove('hidden');
     renderFavorites();
@@ -263,6 +265,7 @@ function searchGeoZone(type, name) {
     stationView.removeAttribute('data-current-id');
     document.getElementById('btn-favorite-station').classList.add('hidden');
     currentProximitySearch = null;
+    currentGeoZone = { type, name, stationIds };
 
     let stations = stationIds
         .map(id => ({ id, station: db.stations[id] }))
@@ -428,37 +431,50 @@ async function performSearch() {
 
     let html = '';
 
-    // 1. Search departments & regions
-    let geoResults = [];
+    // 1. Search regions & departments
+    let regionResults = [];
+    let deptResults = [];
     const isDeptCode = /^\d{2,3}$/.test(normQuery);
     if (isDeptCode && db.dept_index[normQuery]) {
         const d = db.dept_index[normQuery];
-        geoResults.push({ type: 'dept', code: normQuery, nom: d.nom, region: d.region, count: d.stations.length });
+        deptResults.push({ code: normQuery, nom: d.nom, region: d.region, count: d.stations.length });
     }
     if (!isDeptCode) {
         for (const [code, d] of Object.entries(db.dept_index)) {
             if (d.nom_norm.includes(normQuery)) {
-                geoResults.push({ type: 'dept', code, nom: d.nom, region: d.region, count: d.stations.length });
+                deptResults.push({ code, nom: d.nom, region: d.region, count: d.stations.length });
             }
         }
         for (const [, r] of Object.entries(db.region_index)) {
             if (r.nom_norm.includes(normQuery)) {
-                geoResults.push({ type: 'region', nom: r.nom, count: r.stations.length });
+                regionResults.push({ nom: r.nom, count: r.stations.length });
             }
         }
     }
 
-    if (geoResults.length > 0) {
-        html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4"><i class="fas fa-map mr-1"></i> Départements & Régions</div>`;
-        geoResults.forEach(g => {
-            const icon = g.type === 'region' ? 'fa-map-marked-alt text-purple-500' : 'fa-map-pin text-indigo-500';
-            const sub = g.type === 'region' ? 'Région' : `Département · ${g.region}`;
-            const label = g.type === 'dept' ? `${g.nom} (${g.code})` : g.nom;
+    if (regionResults.length > 0) {
+        html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4"><i class="fas fa-map-marked-alt mr-1"></i> Régions</div>`;
+        regionResults.forEach(g => {
             html += `
-                <div onclick="searchGeoZone('${g.type}', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
+                <div onclick="searchGeoZone('region', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-purple-50 border border-purple-200 rounded-xl hover:shadow-md hover:border-purple-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg"><i class="fas ${icon} mr-2"></i>${label}</div>
-                        <div class="text-sm text-slate-500 mt-1">${sub} · ${g.count} stations</div>
+                        <div class="font-bold text-purple-800 group-hover:text-purple-600 transition truncate text-lg"><i class="fas fa-map-marked-alt mr-2 text-purple-500"></i>${g.nom}</div>
+                        <div class="text-sm text-purple-600 mt-1">${g.count} stations</div>
+                    </div>
+                    <i class="fas fa-chevron-right text-purple-300 group-hover:text-purple-500 transition flex-shrink-0"></i>
+                </div>
+            `;
+        });
+    }
+
+    if (deptResults.length > 0) {
+        html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4"><i class="fas fa-map-pin mr-1"></i> Départements</div>`;
+        deptResults.forEach(g => {
+            html += `
+                <div onclick="searchGeoZone('dept', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg"><i class="fas fa-map-pin mr-2 text-indigo-500"></i>${g.nom} (${g.code})</div>
+                        <div class="text-sm text-slate-500 mt-1">${g.region} · ${g.count} stations</div>
                     </div>
                     <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0"></i>
                 </div>
@@ -562,8 +578,9 @@ function findStationsNear(lat, lon, labelTitle) {
     const stationView = document.getElementById('station-view');
     stationView.classList.remove('hidden');
     stationView.removeAttribute('data-current-id');
-    document.getElementById('btn-favorite-station').classList.add('hidden'); 
-    
+    document.getElementById('btn-favorite-station').classList.add('hidden');
+
+    currentGeoZone = null;
     currentProximitySearch = { lat, lon, labelTitle };
     renderStationsList(lat, lon, labelTitle, "");
 }
@@ -792,26 +809,34 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
 
     let stationsProches = [];
     const prixActNum = prixActuel !== null ? parseFloat(prixActuel) : null;
-    
-    let centerLat = stationAct.lat;
-    let centerLon = stationAct.lon;
-    let refRadius = parseFloat(userRadius);
-    let isContextSearch = false;
-    
-    if (currentProximitySearch && currentProximitySearch.lat && currentProximitySearch.lon) {
-        centerLat = currentProximitySearch.lat;
-        centerLon = currentProximitySearch.lon;
-        isContextSearch = true;
-    }
 
-    for (const [autreId, autreStat] of Object.entries(db.stations)) {
-        if (autreId === stationId || !autreStat.lat || !autreStat.lon) continue;
-        
-        const distFromCenter = distanceHaversine(centerLat, centerLon, autreStat.lat, autreStat.lon);
-        
-        if (distFromCenter <= refRadius && autreStat.carburants_disponibles[carburant]) {
+    // If we come from a geo zone search, compare against all stations in that zone
+    if (currentGeoZone && currentGeoZone.stationIds) {
+        for (const autreId of currentGeoZone.stationIds) {
+            if (autreId === stationId) continue;
+            const autreStat = db.stations[autreId];
+            if (!autreStat || !autreStat.lat || !autreStat.lon) continue;
+            if (!autreStat.carburants_disponibles[carburant]) continue;
             const distFromCurrent = distanceHaversine(stationAct.lat, stationAct.lon, autreStat.lat, autreStat.lon);
             stationsProches.push({ id: autreId, prix: parseFloat(autreStat.carburants_disponibles[carburant].prix), dist: distFromCurrent, nom: autreStat.nom_osm || autreStat.ville, lat: autreStat.lat, lon: autreStat.lon, adresse: `${autreStat.adresse}, ${autreStat.ville}` });
+        }
+    } else {
+        let centerLat = stationAct.lat;
+        let centerLon = stationAct.lon;
+        let refRadius = parseFloat(userRadius);
+
+        if (currentProximitySearch && currentProximitySearch.lat && currentProximitySearch.lon) {
+            centerLat = currentProximitySearch.lat;
+            centerLon = currentProximitySearch.lon;
+        }
+
+        for (const [autreId, autreStat] of Object.entries(db.stations)) {
+            if (autreId === stationId || !autreStat.lat || !autreStat.lon) continue;
+            const distFromCenter = distanceHaversine(centerLat, centerLon, autreStat.lat, autreStat.lon);
+            if (distFromCenter <= refRadius && autreStat.carburants_disponibles[carburant]) {
+                const distFromCurrent = distanceHaversine(stationAct.lat, stationAct.lon, autreStat.lat, autreStat.lon);
+                stationsProches.push({ id: autreId, prix: parseFloat(autreStat.carburants_disponibles[carburant].prix), dist: distFromCurrent, nom: autreStat.nom_osm || autreStat.ville, lat: autreStat.lat, lon: autreStat.lon, adresse: `${autreStat.adresse}, ${autreStat.ville}` });
+            }
         }
     }
 
@@ -931,9 +956,11 @@ function showStation(stationId) {
     html += `</div>`; 
 
     if (alternatives.length > 0) {
-        let alternativesTitle = currentProximitySearch 
-            ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans votre zone de recherche initiale`
-            : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (-${userRadius}km)`;
+        let alternativesTitle = currentGeoZone
+            ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans ${currentGeoZone.name}`
+            : currentProximitySearch
+            ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans votre zone de recherche`
+            : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (${userRadius} km)`;
             
         html += `<h3 class="font-bold text-lg text-slate-800 mb-4">${alternativesTitle}</h3><div class="space-y-3 mb-8">`;
         let altGroup = {};
