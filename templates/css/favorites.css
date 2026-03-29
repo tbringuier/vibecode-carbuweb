@@ -1,0 +1,58 @@
+/* favorites.css — Favorites list items and their children */
+
+.fav {
+  padding: .625rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rl);
+  background: var(--sf);
+  margin-bottom: .375rem;
+  display: flex;
+  gap: .375rem;
+  align-items: flex-start;
+  transition: box-shadow .15s;
+}
+
+.fav:hover {
+  box-shadow: var(--sh);
+}
+
+.fav-h {
+  cursor: grab;
+  color: var(--t3);
+  padding: .125rem;
+  align-self: center;
+  flex-shrink: 0;
+  font-size: .75rem;
+}
+
+.fav-b {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.fav-n {
+  font-weight: 700;
+  font-size: .8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fav-s {
+  font-size: .6875rem;
+  color: var(--t2);
+  margin-top: .0625rem;
+}
+
+.fav-p {
+  display: flex;
+  gap: .1875rem;
+  flex-wrap: wrap;
+  margin-top: .25rem;
+}
+
+.fav-r {
+  flex-shrink: 0;
+  align-self: center;
+}

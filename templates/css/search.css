@@ -1,0 +1,49 @@
+/* search.css — Search result items */
+
+.s-item {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  padding: .625rem;
+  border-bottom: 1px solid var(--bl);
+  cursor: pointer;
+  transition: background .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.s-item:last-child {
+  border-bottom: none;
+}
+
+.s-item:hover {
+  background: var(--ab);
+}
+
+.s-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.s-name {
+  font-weight: 700;
+  font-size: .875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s-addr {
+  font-size: .75rem;
+  color: var(--t2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: .0625rem;
+}
+
+.s-prices {
+  display: flex;
+  gap: .25rem;
+  flex-shrink: 0;
+  align-items: center;
+}

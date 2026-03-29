@@ -1,0 +1,141 @@
+/* explore.css — Explore tab: charts, tables, palmares map */
+
+.explore-row {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-bottom: .75rem;
+  align-items: flex-end;
+}
+
+.explore-row .field {
+  flex: 1;
+  min-width: 7rem;
+}
+
+.chart-w {
+  position: relative;
+  height: 12rem;
+  margin-bottom: .75rem;
+}
+
+@media (min-width: 768px) {
+  .chart-w {
+    height: 16rem;
+  }
+}
+
+.chart-r {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  .chart-r {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.table-w {
+  overflow-x: auto;
+  border: 1px solid var(--bd);
+  border-radius: var(--rl);
+}
+
+.table-w table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .75rem;
+}
+
+.table-w th,
+.table-w td {
+  padding: .375rem .5rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table-w th {
+  background: var(--bl);
+  font-weight: 700;
+  font-size: .625rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--t2);
+  border-bottom: 1px solid var(--bd);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.table-w td {
+  border-bottom: 1px solid var(--bl);
+}
+
+.table-w tr:last-child td {
+  border-bottom: none;
+}
+
+.table-w tbody tr {
+  cursor: pointer;
+  transition: background .1s;
+}
+
+.table-w tbody tr:hover {
+  background: var(--ab);
+}
+
+.tnum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.tsort {
+  cursor: pointer;
+  user-select: none;
+}
+
+.tsort:hover {
+  color: var(--ac);
+}
+
+.tdept {
+  background: var(--bl);
+}
+
+.tdept td {
+  font-size: .6875rem;
+  color: var(--t2);
+  padding-left: 1.25rem;
+}
+
+.th-s {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bl);
+}
+
+.td-s {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--sf);
+}
+
+#palmares-map {
+  height: 14rem;
+  border-radius: var(--rl);
+  overflow: hidden;
+  border: 1px solid var(--bd);
+  margin-bottom: .75rem;
+}
+
+@media (min-width: 768px) {
+  #palmares-map {
+    height: 20rem;
+  }
+}

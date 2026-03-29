@@ -1,0 +1,36 @@
+import { state, uFuels, PRICE_EPS, PRICE_NEAR } from './state.js';
+import { E, hasFuel, notice } from './helpers.js';
+import { pClass, tankInline } from './prices.js';
+import { freshPill } from './freshness.js';
+import { mkMap, mkIcon, initMap } from './map.js';
+import { pushNav, syncHeaderFav } from './navigation.js';
+import { bestWidget } from './geolocation.js';
+
+export function searchGeo(type, name, fuel) {
+  let sids = []; if (type === 'region' && state.db.region_index[name]) sids = state.db.region_index[name].stations; else if (type === 'dept') { for (const [, d] of Object.entries(state.db.dept_index)) if (d.nom === name) { sids = d.stations; break; } }
+  if (!sids.length) return;
+  if (!document.getElementById('home-view').classList.contains('hidden')) pushNav({ type: 'home' });
+  document.getElementById('home-view').classList.add('hidden');
+  const sv = document.getElementById('station-view'); sv.classList.remove('hidden'); sv.removeAttribute('data-sid');
+  state.detailAnchor = null; state.proxSearch = null; state.geoZone = { type, name, stationIds: sids };
+  const all = sids.map(id => ({ id, station: state.db.stations[id] })).filter(s => s.station && hasFuel(s.station));
+  let sf = fuel || uFuels[0] || '', sts = [...all];
+  if (sf) { sts = sts.filter(s => s.station.carburants_disponibles[sf]); sts.sort((a, b) => parseFloat(a.station.carburants_disponibles[sf].prix) - parseFloat(b.station.carburants_disponibles[sf].prix)); }
+  const zl = type === 'region' ? name : `${name} (dép.)`;
+  document.getElementById('stitle').textContent = zl;
+  const opts = uFuels.map(f => `<option value="${f}" ${sf === f ? 'selected' : ''}>${f}</option>`).join('');
+  let minP = null; if (sf && sts.length) minP = Math.min(...sts.map(s => parseFloat(s.station.carburants_disponibles[sf].prix)));
+  let h = `<div class="zone-h"><h2>${E(zl)}</h2><div class="zone-m">${all.length} stations</div></div><div id="station-map" class="d-map"></div>${bestWidget(all)}<div style="margin-bottom:.625rem"><label class="lbl" for="geo-sort">Trier par</label><select id="geo-sort" onchange="searchGeo('${type}','${name.replace(/'/g, "\\'")}',this.value)" class="inp" style="max-width:14rem">${opts}</select></div><div class="card" style="padding:0">`;
+  if (all.length && !sts.length) h += notice('Aucune station ne propose ce carburant', '');
+  sts.forEach(r => {
+    const s = r.station; let ph = '', mmk = 'station_blue';
+    if (sf && s.carburants_disponibles[sf]) { const p = parseFloat(s.carburants_disponibles[sf].prix), d = minP !== null ? p - minP : null; let cls = ''; if (d !== null && d <= PRICE_EPS) { cls = 'cheap'; mmk = 'station_green'; } else if (d !== null && d <= PRICE_NEAR) { cls = 'mid'; mmk = 'station_orange'; } const fp = freshPill(s.carburants_disponibles[sf]); ph = `<div class="ptag ${cls}"><span class="ptag-f">${sf}</span><span class="ptag-v">${s.carburants_disponibles[sf].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[sf].prix))}</div>`; }
+    r.mk = mmk;
+    h += `<div class="s-item" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}</div><div class="s-addr">${E(s.adresse)}, ${E(s.code_postal)} ${E(s.ville)}</div></div><div class="s-prices">${ph}</div></div>`;
+  });
+  h += '</div>';
+  document.getElementById('scontent').innerHTML = h; window.scrollTo(0, 0);
+  const src = sts.length ? sts : all;
+  const mm = src.filter(s => s.station.lat && s.station.lon).map(s => ({ type: s.mk || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id }));
+  setTimeout(() => initMap(mm, true), 80); syncHeaderFav();
+}

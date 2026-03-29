@@ -1,0 +1,53 @@
+/* layout.css — main, container, home view, home layout, fav-tab rules */
+
+main {
+  flex: 1;
+  padding-bottom: calc(var(--bnavh) + var(--safeb) + .5rem);
+}
+
+@media (min-width: 768px) {
+  main {
+    padding-bottom: .5rem;
+  }
+}
+
+.ct {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 0 .75rem;
+}
+
+#home-view {
+  padding: .5rem 0;
+}
+
+.home-lay {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.home-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-aside {
+  display: none;
+  width: 20rem;
+  flex-shrink: 0;
+}
+
+@media (min-width: 1024px) {
+  .home-aside {
+    display: block;
+  }
+}
+
+#home-view.fav-tab .home-main {
+  display: none;
+}
+
+#home-view.fav-tab .home-aside {
+  display: block;
+  width: 100%;
+}

@@ -1,0 +1,20 @@
+/* map.css — Leaflet popup overrides, reduced motion */
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--r) !important;
+}
+
+.leaflet-popup-content {
+  font-family: var(--font) !important;
+  font-size: .75rem !important;
+  margin: .5rem !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}

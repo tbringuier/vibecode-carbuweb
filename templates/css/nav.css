@@ -1,0 +1,109 @@
+/* nav.css — Top nav, bottom nav, and responsive media queries */
+
+#top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--sf);
+  border-bottom: 1px solid var(--bd);
+  height: var(--navh);
+  display: flex;
+  align-items: center;
+  padding: 0 .75rem;
+  gap: .5rem;
+}
+
+.nav-brand {
+  font-weight: 800;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.nav-brand span {
+  color: var(--ac);
+}
+
+.nav-tabs {
+  display: none;
+  gap: .125rem;
+  margin-left: 1.5rem;
+}
+
+.nav-tab {
+  padding: .375rem .75rem;
+  border-radius: var(--r);
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--t2);
+  background: 0 0;
+  border: none;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.nav-tab:hover {
+  background: var(--ab);
+}
+
+.nav-tab[aria-selected="true"] {
+  background: var(--ac);
+  color: #fff;
+}
+
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  gap: .25rem;
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  .nav-tabs {
+    display: flex;
+  }
+}
+
+#bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--sf);
+  border-top: 1px solid var(--bd);
+  display: flex;
+  height: calc(var(--bnavh) + var(--safeb));
+  padding-bottom: var(--safeb);
+}
+
+#bottom-nav button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .125rem;
+  border: none;
+  background: 0 0;
+  cursor: pointer;
+  font-size: .5625rem;
+  font-weight: 600;
+  color: var(--t3);
+  transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#bottom-nav button[aria-selected="true"] {
+  color: var(--ac);
+}
+
+#bottom-nav button svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+@media (min-width: 768px) {
+  #bottom-nav {
+    display: none;
+  }
+}

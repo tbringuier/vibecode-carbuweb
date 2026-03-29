@@ -1,0 +1,95 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      TZ: Europe/Paris
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PIP_NO_PYTHON_VERSION_WARNING: "1"
+      GIT_TERMINAL_PROMPT: "0"
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Date du build (Europe/Paris)
+        id: builddate
+        run: |
+          D=$(date +%Y-%m-%d)
+          echo "date=$D" >> "$GITHUB_OUTPUT"
+          echo "CARBUWEB_BUILD_DATE=$D" >> "$GITHUB_ENV"
+
+      - name: Cache mapping OpenStreetMap (journalier)
+        id: osm-cache
+        uses: actions/cache@v5
+        with:
+          path: datasets/osm_mapping-${{ steps.builddate.outputs.date }}.json
+          key: osm-mapping-fr-${{ steps.builddate.outputs.date }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Cache environnement Python (.venv)
+        id: venv-cache
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py314-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py314-
+
+      - name: Installer les dépendances
+        run: |
+          set -euo pipefail
+          if [ ! -x .venv/bin/python ]; then
+            python -m venv .venv
+          fi
+          .venv/bin/pip install -q -U pip wheel
+          .venv/bin/pip install -q --no-compile -r requirements.txt
+
+      - name: Build
+        run: .venv/bin/python main.py
+
+      - name: Mettre à jour la branche pages (miroir)
+        run: |
+          cd build
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b pages
+          git add -A
+          git commit -m "Build $(date -u +%Y-%m-%d)"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" pages
+
+      - name: Artefact pour GitHub Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build
+
+      - name: Déployer sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

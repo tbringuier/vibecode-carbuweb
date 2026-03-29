@@ -1,0 +1,72 @@
+/* vehicles.css — Vehicle profile form components */
+
+.icon-pk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+}
+
+.icon-pk button {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--r);
+  border: 2px solid var(--bd);
+  background: var(--sf);
+  cursor: pointer;
+  font-size: .875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .15s;
+}
+
+.icon-pk button.sel {
+  border-color: var(--ac);
+  background: var(--ab);
+}
+
+.fuel-pk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+}
+
+.fuel-tg {
+  padding: .25rem .5rem;
+  border-radius: var(--r);
+  font-size: .75rem;
+  font-weight: 600;
+  border: 2px solid var(--bd);
+  background: var(--sf);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.fuel-tg.sel {
+  border-color: var(--ac);
+  background: var(--ab);
+  color: var(--ac);
+}
+
+.fuel-tg input {
+  display: none;
+}
+
+.rng {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.rng input[type="range"] {
+  flex: 1;
+  accent-color: var(--ac);
+}
+
+.rng-v {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 2rem;
+  text-align: right;
+  font-size: .875rem;
+}
