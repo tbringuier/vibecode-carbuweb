@@ -1058,10 +1058,9 @@ window.addEventListener('popstate', () => {
     isRestoringNav = false;
 });
 
-function buildBestPricesWidget(stations, restrictToFuel) {
+function buildBestPricesWidget(stations) {
     let cards = '';
-    const fuelsToShow = restrictToFuel ? [restrictToFuel] : [...userFuels];
-    fuelsToShow.forEach(fuel => {
+    userFuels.forEach(fuel => {
         const best = pickBestStationForFuelByPriceThenDistance(stations, fuel);
         if (best) {
             const stBest = db.stations[best.id];
@@ -1097,17 +1096,19 @@ function searchGeoZone(type, name, overrideFuel) {
     currentProximitySearch = null;
     currentGeoZone = { type, name, stationIds };
 
-    let stations = stationIds
+    const stationsInZoneForWidget = stationIds
         .map(id => ({ id, station: db.stations[id] }))
         .filter(s => s.station && hasTrackedFuel(s.station));
 
     let sortFuel = overrideFuel || userFuels[0] || '';
+    let stations = [...stationsInZoneForWidget];
     if (sortFuel) {
         stations = stations.filter(s => s.station.carburants_disponibles[sortFuel]);
         stations.sort((a, b) => parseFloat(a.station.carburants_disponibles[sortFuel].prix) - parseFloat(b.station.carburants_disponibles[sortFuel].prix));
     }
 
     const total = stations.length;
+    const nbZoneSuivis = stationsInZoneForWidget.length;
     const zoneLabel = type === 'region' ? name : `${name} (département)`;
 
     let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
@@ -1116,11 +1117,11 @@ function searchGeoZone(type, name, overrideFuel) {
         <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
             <div class="bg-gradient-to-r from-indigo-600 to-blue-500 p-4 sm:p-6 text-white text-center">
                 <h2 class="text-lg sm:text-2xl font-extrabold mb-1"><i class="fas fa-map-marked-alt mr-2"></i>${esc(zoneLabel)}</h2>
-                <p class="text-blue-100 text-xs sm:text-sm">${total} stations trouvées</p>
+                <p class="text-blue-100 text-xs sm:text-sm">${nbZoneSuivis} station${nbZoneSuivis > 1 ? 's' : ''} avec vos carburants suivis${sortFuel && total !== nbZoneSuivis ? ` · ${total} pour le tri « ${esc(sortFuel)} »` : ''}</p>
             </div>
             <div class="p-4 sm:p-6 md:p-8">
                 <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
-                ${buildBestPricesWidget(stations, sortFuel || null)}
+                ${stationsInZoneForWidget.length ? buildBestPricesWidget(stationsInZoneForWidget) : ''}
                 <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
                     <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Trier par prix :</label>
                     <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="min-h-[3rem] py-3 px-3 border border-slate-300 rounded-xl text-base font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto touch-manipulation">
@@ -1132,6 +1133,10 @@ function searchGeoZone(type, name, overrideFuel) {
     let minPrixListe = null;
     if (sortFuel && total > 0) {
         minPrixListe = Math.min(...stations.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
+    }
+
+    if (stationsInZoneForWidget.length > 0 && total === 0) {
+        html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200 mb-3"><i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i><b>Aucune station ne propose ce carburant dans cette zone.</b><br><span class="text-sm">Les « meilleurs prix » ci-dessus concernent tous vos carburants suivis.</span></div>`;
     }
 
     stations.forEach((res) => {
@@ -1169,7 +1174,8 @@ function searchGeoZone(type, name, overrideFuel) {
     window.scrollTo(0, 0);
 
     let mapMarkers = [];
-    stations.forEach(s => {
+    const geoMapSource = stations.length > 0 ? stations : stationsInZoneForWidget;
+    geoMapSource.forEach(s => {
         if (s.station.lat && s.station.lon) mapMarkers.push({ type: s.markerType || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station-service', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id });
     });
     setTimeout(() => initStationMap(mapMarkers, true), 100);
@@ -1467,23 +1473,22 @@ function findStationsNear(lat, lon, labelTitle) {
 }
 
 function renderStationsList(lat, lon, labelTitle, sortFuel) {
-    let stationsProches = [];
+    let stationsInRadius = [];
     for (const [id, stat] of Object.entries(db.stations)) {
         if (!stat.lat || !stat.lon) continue;
         if (!hasTrackedFuel(stat)) continue;
 
         const dist = distanceHaversine(lat, lon, stat.lat, stat.lon);
-        if (dist <= maxStraightLineKmForRadius()) stationsProches.push({ id, dist, station: stat });
+        if (dist <= maxStraightLineKmForRadius()) stationsInRadius.push({ id, dist, station: stat });
     }
 
+    let topStations = [...stationsInRadius];
     if (sortFuel) {
-        stationsProches = stationsProches.filter(s => s.station.carburants_disponibles[sortFuel]);
-        stationsProches.sort((a, b) => compareStationEntriesByPriceThenDistance(sortFuel, a, b));
+        topStations = topStations.filter(s => s.station.carburants_disponibles[sortFuel]);
+        topStations.sort((a, b) => compareStationEntriesByPriceThenDistance(sortFuel, a, b));
     } else {
-        stationsProches.sort((a, b) => a.dist - b.dist);
+        topStations.sort((a, b) => a.dist - b.dist);
     }
-
-    const topStations = stationsProches; 
 
     let html = `
         <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
@@ -1494,14 +1499,17 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
                 <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
     `;
 
-    if (topStations.length === 0) {
+    if (stationsInRadius.length === 0) {
         html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200">
             <i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i>
             Aucune station-service dans un rayon d’environ ${radiusSettingKmHtml()} autour du point.<br>
             <span class="text-sm">Modifiez vos paramètres (en haut à droite) pour élargir la recherche ou ajouter des carburants.</span>
         </div>`;
     } else {
-        html += buildBestPricesWidget(topStations, sortFuel || null);
+        html += buildBestPricesWidget(stationsInRadius);
+        if (topStations.length === 0) {
+            html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200 mb-4"><i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i><b>Aucune station ne propose ce carburant dans le rayon.</b><br><span class="text-sm">Les « meilleurs prix » ci-dessus concernent tous vos carburants suivis.</span></div>`;
+        }
         let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
         html += `
             <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
@@ -1511,43 +1519,43 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
                     ${sortOptions}
                 </select>
             </div>
-            <div class="space-y-3">
         `;
-        
-        const total = topStations.length;
-        let minPrixRayon = null;
-        if (sortFuel && total > 0) {
-            minPrixRayon = Math.min(...topStations.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
-        }
-
-        topStations.forEach((res) => {
-            let carbsHtml = "";
-            let rightContent = "";
-
-            let distText = `<div class="text-sm text-slate-500 mt-1"><i class="fas fa-route mr-1 text-slate-300"></i>à ${distanceKmSpan(res.dist)}</div>`;
-
-            if (sortFuel) {
-                const prix = res.station.carburants_disponibles[sortFuel].prix;
-                const prixNum = parseFloat(prix);
-                const badge = buildZonePriceListBadge(String(prix), prixNum, minPrixRayon);
-                res.markerType = badge.markerType;
-                rightContent = badge.html;
-                const mj = formatMajHtml(res.station.carburants_disponibles[sortFuel]);
-                carbsHtml = distText + (mj ? `<div class="text-[10px] text-slate-400 mt-0.5" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</div>` : '');
-            } else {
-                let carbsArray = [];
-                for (const [c, d] of Object.entries(res.station.carburants_disponibles)) {
-                    if(userFuels.includes(c)) {
-                        const mj = formatMajHtml(d);
-                        carbsArray.push(`<span class="font-semibold">${c}</span> ${d.prix}€${mj ? `<span class="text-slate-400 font-normal text-[10px] ml-0.5" translate="no">(${mj})</span>` : ''}`);
-                    }
-                }
-                carbsHtml = distText + `<div class="text-sm text-slate-600 mt-1.5">${carbsArray.join(' <span class="text-slate-300">·</span> ')}</div>`;
-                rightContent = '';
-                res.markerType = 'station_blue';
+        if (topStations.length > 0) {
+            html += `<div class="space-y-3">`;
+            const total = topStations.length;
+            let minPrixRayon = null;
+            if (sortFuel && total > 0) {
+                minPrixRayon = Math.min(...topStations.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
             }
-            
-            html += `
+
+            topStations.forEach((res) => {
+                let carbsHtml = "";
+                let rightContent = "";
+
+                let distText = `<div class="text-sm text-slate-500 mt-1"><i class="fas fa-route mr-1 text-slate-300"></i>à ${distanceKmSpan(res.dist)}</div>`;
+
+                if (sortFuel) {
+                    const prix = res.station.carburants_disponibles[sortFuel].prix;
+                    const prixNum = parseFloat(prix);
+                    const badge = buildZonePriceListBadge(String(prix), prixNum, minPrixRayon);
+                    res.markerType = badge.markerType;
+                    rightContent = badge.html;
+                    const mj = formatMajHtml(res.station.carburants_disponibles[sortFuel]);
+                    carbsHtml = distText + (mj ? `<div class="text-[10px] text-slate-400 mt-0.5" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</div>` : '');
+                } else {
+                    let carbsArray = [];
+                    for (const [c, d] of Object.entries(res.station.carburants_disponibles)) {
+                        if(userFuels.includes(c)) {
+                            const mj = formatMajHtml(d);
+                            carbsArray.push(`<span class="font-semibold">${c}</span> ${d.prix}€${mj ? `<span class="text-slate-400 font-normal text-[10px] ml-0.5" translate="no">(${mj})</span>` : ''}`);
+                        }
+                    }
+                    carbsHtml = distText + `<div class="text-sm text-slate-600 mt-1.5">${carbsArray.join(' <span class="text-slate-300">·</span> ')}</div>`;
+                    rightContent = '';
+                    res.markerType = 'station_blue';
+                }
+
+                html += `
                 <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center gap-3 group">
                     <div class="flex-1 min-w-0">
                         <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
@@ -1557,16 +1565,18 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
                     ${rightContent}
                 </div>
             `;
-        });
-        html += `</div>`;
+            });
+            html += `</div>`;
+        }
     }
     html += `</div></div>`;
-    
+
     document.getElementById('station-content').innerHTML = html;
     window.scrollTo(0, 0);
 
     let mapMarkers = [{ type: 'search_point', lat: lat, lon: lon, label: '📍 Point de recherche', adresse: labelTitle }];
-    topStations.forEach(s => mapMarkers.push({ type: s.markerType || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station-service', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id }));
+    const proxMapSource = topStations.length > 0 ? topStations : stationsInRadius;
+    proxMapSource.forEach(s => mapMarkers.push({ type: s.markerType || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station-service', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id }));
     setTimeout(() => initStationMap(mapMarkers, true), 100);
     syncFavoriteHeaderButton();
 }
