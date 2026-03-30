@@ -312,8 +312,6 @@ function toggleSettings() {
     const open = !modal.classList.contains('hidden');
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
-function updateRadiusDisplay() { document.getElementById('radius-display').innerText = document.getElementById('radius-slider').value; }
-
 let fuelDisplayOrder = [...ALL_FUELS];
 
 function renderFuelList() {
@@ -1230,7 +1228,7 @@ async function performSearch() {
             <div class="p-6 bg-slate-50 text-slate-500 rounded-xl text-center border border-slate-200 mt-4">
                 <i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i>
                 <b>Aucun résultat trouvé.</b><br>
-                <span class="text-sm mt-2 block">Note : les stations-services inactives depuis >7 jours, ou ne proposant pas les carburants que vous avez cochés dans vos paramètres, sont masquées.</span>
+                <span class="text-sm mt-2 block">Note : les stations-services dont les prix n'ont pas été mis à jour depuis plus de 7 jours, ou ne proposant pas les carburants que vous avez cochés dans vos paramètres, sont masquées.</span>
             </div>`;
     }
     if (currentSignal.aborted) return;
@@ -1839,8 +1837,6 @@ function initStationMap(markersData, isMultiple = false) {
     const iconGreen = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
     const iconOrange = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
     const iconRed = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
-    const iconBlack = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
-
     markersData.forEach(m => {
         if (m.type === 'search_point') {
             L.circle([m.lat, m.lon], { radius: maxStraightLineKmForRadius() * 1000, color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.05, weight: 2, dashArray: '6 4' }).addTo(stationMap);

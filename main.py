@@ -70,6 +70,9 @@ EXCEL_RT_URL = (
 
 ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]
 
+# Au-delà de ce délai (jours calendaires depuis la date de mise à jour du prix), la donnée est ignorée.
+MAX_PRICE_DATA_AGE_DAYS = 7
+
 # Colonnes flux instantané (export XLSX data.gouv, libellés FR)
 RT_FUEL_COLUMNS = (
     ("Gazole", "Prix Gazole", "Prix Gazole mis à jour le"),
@@ -173,15 +176,108 @@ def station_address_correlation_key(adresse, cp, ville):
 
 
 def normalize_price_update_iso(raw):
-    """Chaîne ISO avec offset si le fichier contient une date-heure."""
+    """Chaîne ISO 8601 exploitable (souvent avec offset) pour stockage et comparaison.
+
+    Les exports Excel utilisent souvent « YYYY-MM-DD HH:MM:SS » sans « T » ; on normalise.
+    """
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return None
     s = str(raw).strip()
     if not s or s.lower() == "nan":
         return None
     if "T" not in s:
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})[\sT]+(.+)$", s)
+        if m:
+            s = m.group(1) + "T" + m.group(2).lstrip()
+    if "T" not in s:
         return None
     return s.replace(" ", "")
+
+
+def _calendar_age_days(ref_cal: str, update_date: str) -> int | None:
+    """Nombre de jours entre update_date (AAAA-MM-JJ) et ref_cal (inclus). None si invalide."""
+    if not update_date or len(update_date) < 10:
+        return None
+    d = update_date[:10]
+    try:
+        return (
+            datetime.strptime(ref_cal, "%Y-%m-%d") - datetime.strptime(d, "%Y-%m-%d")
+        ).days
+    except ValueError:
+        return None
+
+
+def _price_row_is_stale_by_calendar(update_date: str) -> bool:
+    """True si la date de mise à jour est strictement plus vieille que MAX_PRICE_DATA_AGE_DAYS."""
+    age = _calendar_age_days(TODAY, update_date)
+    if age is None:
+        return True
+    return age > MAX_PRICE_DATA_AGE_DAYS
+
+
+def _parse_iso_datetime(s: str) -> datetime | None:
+    if not s:
+        return None
+    t = s.strip().replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(t)
+    except ValueError:
+        return None
+
+
+def _dt_naive_utc(d: datetime) -> datetime:
+    if d.tzinfo is None:
+        return d
+    return d.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+
+def _entry_price_datetime(entry: dict) -> datetime | None:
+    """Instant représentatif pour comparer deux sources (quotidien vs flux)."""
+    iso = entry.get("maj_iso")
+    if iso:
+        return _parse_iso_datetime(iso)
+    dm = (entry.get("date_maj") or "").strip()
+    if len(dm) >= 10 and dm[4] == "-" and dm[7] == "-":
+        try:
+            return datetime.strptime(dm[:10], "%Y-%m-%d")
+        except ValueError:
+            pass
+    return None
+
+
+def flux_maj_iso_and_date(raw) -> tuple[str | None, str]:
+    """(maj_iso, date AAAA-MM-JJ) pour une cellule « mis à jour le » du flux."""
+    iso = normalize_price_update_iso(raw)
+    if iso:
+        return iso, iso[:10]
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return None, ""
+    s = str(raw).strip()
+    if not s or s.lower() == "nan":
+        return None, ""
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        try:
+            datetime.strptime(s[:10], "%Y-%m-%d")
+        except ValueError:
+            return None, ""
+        rest = s[10:].strip()
+        if not rest:
+            d = s[:10]
+            return f"{d}T12:00:00", d
+    return None, ""
+
+
+def flux_replaces_daily_entry(existing: dict | None, flux_maj_iso: str) -> bool:
+    """Le flux prime s’il est au moins aussi récent que le prix quotidien déjà chargé."""
+    if not existing:
+        return True
+    ex_dt = _entry_price_datetime(existing)
+    fl_dt = _parse_iso_datetime(flux_maj_iso)
+    if fl_dt is None:
+        return False
+    if ex_dt is None:
+        return True
+    return _dt_naive_utc(fl_dt) >= _dt_naive_utc(ex_dt)
 
 
 def daily_maj_date_and_iso(cell):
@@ -403,8 +499,15 @@ def merge_flux_instantane(db):
             price = _parse_rt_price_cell(row.get(price_col))
             if price is None:
                 continue
-            maj_iso = normalize_price_update_iso(row.get(time_col))
-            date_maj = maj_iso[:10] if maj_iso else ""
+            maj_iso, flux_date = flux_maj_iso_and_date(row.get(time_col))
+            if not maj_iso or not flux_date:
+                continue
+            if _price_row_is_stale_by_calendar(flux_date):
+                continue
+            existing = st["carburants_disponibles"].get(fuel)
+            if not flux_replaces_daily_entry(existing, maj_iso):
+                continue
+            date_maj = flux_date
             st["carburants_disponibles"][fuel] = {
                 "prix": price,
                 "date_maj": date_maj,
@@ -438,10 +541,12 @@ def recompute_price_aggregates(db):
         "departemental": {},
     }
     reg_agg = {}
+    dept_agg = {}
 
     for sid, st in db["stations"].items():
         region = st["region"]
         dk = st["dept_key"]
+
         if region not in reg_agg:
             reg_agg[region] = {
                 "station_count": 0,
@@ -449,6 +554,16 @@ def recompute_price_aggregates(db):
                 "cnt": {c: 0 for c in ALL_FUELS},
             }
         reg_agg[region]["station_count"] += 1
+
+        if dk not in dept_agg:
+            dept_agg[dk] = {
+                "nom": st["departement"],
+                "region": region,
+                "station_count": 0,
+                "sum": {c: 0.0 for c in ALL_FUELS},
+                "cnt": {c: 0 for c in ALL_FUELS},
+            }
+        dept_agg[dk]["station_count"] += 1
 
         if region not in mins["regional"]:
             mins["regional"][region] = {c: float("inf") for c in ALL_FUELS}
@@ -464,6 +579,8 @@ def recompute_price_aggregates(db):
             nat_presence[fuel] += 1
             reg_agg[region]["sum"][fuel] += price
             reg_agg[region]["cnt"][fuel] += 1
+            dept_agg[dk]["sum"][fuel] += price
+            dept_agg[dk]["cnt"][fuel] += 1
             if price < mins["national"][fuel]:
                 mins["national"][fuel] = price
             if price < mins["regional"][region][fuel]:
@@ -492,36 +609,18 @@ def recompute_price_aggregates(db):
             }
             for r, d in reg_agg.items()
         },
-    }
-
-    dept_dash = {}
-    for sid, st in db["stations"].items():
-        dk = st["dept_key"]
-        if dk not in dept_dash:
-            dept_dash[dk] = {
-                "nom": st["departement"],
-                "region": st["region"],
-                "station_count": 0,
-                "sum": {c: 0.0 for c in ALL_FUELS},
-                "cnt": {c: 0 for c in ALL_FUELS},
+        "departemental": {
+            dk: {
+                "nom": d["nom"],
+                "region": d["region"],
+                "station_count": d["station_count"],
+                "avg_prices": {
+                    c: round(d["sum"][c] / d["cnt"][c], 3) if d["cnt"][c] else 0
+                    for c in ALL_FUELS
+                },
             }
-        dept_dash[dk]["station_count"] += 1
-        for c in ALL_FUELS:
-            if c in st.get("carburants_disponibles", {}):
-                p = st["carburants_disponibles"][c]["prix"]
-                dept_dash[dk]["sum"][c] += p
-                dept_dash[dk]["cnt"][c] += 1
-    db["dashboard"]["departemental"] = {
-        dk: {
-            "nom": d["nom"],
-            "region": d["region"],
-            "station_count": d["station_count"],
-            "avg_prices": {
-                c: round(d["sum"][c] / d["cnt"][c], 3) if d["cnt"][c] else 0
-                for c in ALL_FUELS
-            },
-        }
-        for dk, d in dept_dash.items()
+            for dk, d in dept_agg.items()
+        },
     }
 
 
@@ -561,14 +660,7 @@ def build_database():
         addr = str(row["adresse"]).strip()
         dk = f"{region}_{dept}"
 
-        geom = str(row["geom"]).strip()
-        lat, lon = None, None
-        if geom and "," in geom:
-            try:
-                parts = geom.split(",")
-                lat, lon = float(parts[0]), float(parts[1])
-            except ValueError:
-                pass
+        lat, lon = parse_geom_lat_lon(row["geom"])
 
         if sid not in db["stations"]:
             osm_info = osm.get(sid, {"nom": None, "url": None})
@@ -607,17 +699,13 @@ def build_database():
 
         obsolete = False
         if date_raw:
-            try:
-                age = (datetime.strptime(TODAY, "%Y-%m-%d") - datetime.strptime(date_raw, "%Y-%m-%d")).days
-                obsolete = age > 7
-            except Exception:
-                pass
+            obsolete = _price_row_is_stale_by_calendar(date_raw)
 
         if fuel:
             if obsolete:
                 db["stations"][sid]["carburants_en_rupture"][fuel] = {
                     "debut": date_raw,
-                    "motif": "Obsolète (>7 jours)",
+                    "motif": f"Obsolète (>{MAX_PRICE_DATA_AGE_DAYS} jours)",
                 }
             else:
                 price = float(row["Prix"])
