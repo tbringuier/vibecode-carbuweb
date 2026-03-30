@@ -41,7 +41,7 @@ def _resolve_build_date():
     """Date calendaire des fichiers dataset (YYYY-MM-DD).
 
     Sur CI, GitHub Actions définit CARBUWEB_BUILD_DATE (Europe/Paris) pour
-    aligner noms de fichiers et clé du cache Actions.
+    aligner les noms de fichiers avec la clé du cache OpenStreetMap.
     """
     raw = os.environ.get("CARBUWEB_BUILD_DATE", "").strip()
     if raw and re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
@@ -322,11 +322,8 @@ def parse_hours(raw):
 # Download
 # ---------------------------------------------------------------------------
 
-def download_daily_prices_if_needed():
-    """Télécharge l’export quotidien uniquement s’il est absent (ex. cache CI)."""
-    if os.path.isfile(EXCEL_FILE):
-        log.info("Fichier quotidien déjà présent, pas de retéléchargement : %s", EXCEL_FILE)
-        return
+def download_daily_prices():
+    """Télécharge l’export quotidien data.gouv (toujours, pour données à jour)."""
     log.info("Téléchargement prix quotidiens (%s) ...", TODAY)
     resp = fetch(EXCEL_URL, stream=True, timeout=180, retries=10)
     with open(EXCEL_FILE, "wb") as f:
@@ -894,12 +891,12 @@ def generate_site():
 def main():
     log.info("Carbu'Web build started for %s", TODAY)
     if os.environ.get("CARBUWEB_BUILD_DATE"):
-        log.info("Date imposée par environnement (CI/cache) : CARBUWEB_BUILD_DATE=%s", TODAY)
+        log.info("Date imposée par environnement (CI) : CARBUWEB_BUILD_DATE=%s", TODAY)
 
     cleanup_old_files()
 
     if not os.path.exists(DB_FILE):
-        download_daily_prices_if_needed()
+        download_daily_prices()
         download_flux_prices()
         if not os.path.exists(OSM_FILE):
             download_osm()
