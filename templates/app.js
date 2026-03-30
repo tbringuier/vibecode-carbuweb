@@ -42,6 +42,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         populateRegions();
         populateFuelsSelect();
         renderFavorites();
+        registerServiceWorker();
+        initPwaInstall();
     } catch (e) {
         document.getElementById('loading').innerHTML = '<p class="text-red-500 font-bold"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur serveur HTTP local.</p>';
     }
@@ -61,6 +63,80 @@ function normalizeText(text) {
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+let toastHideTimer = null;
+function showToast(message, iconClass = 'fa-check-circle') {
+    const el = document.getElementById('app-toast');
+    if (!el) return;
+    el.innerHTML = `<i class="fas ${iconClass} flex-shrink-0 text-emerald-400" aria-hidden="true"></i><span>${esc(message)}</span>`;
+    el.classList.remove('toast-hidden');
+    el.classList.add('toast-visible');
+    clearTimeout(toastHideTimer);
+    toastHideTimer = setTimeout(() => {
+        el.classList.remove('toast-visible');
+        el.classList.add('toast-hidden');
+    }, 2400);
+}
+
+let deferredInstallPrompt = null;
+
+function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (location.protocol !== 'https:' && !local) return;
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+function initPwaInstall() {
+    const bar = document.getElementById('pwa-install-bar');
+    const btn = document.getElementById('pwa-install-btn');
+    const dismiss = document.getElementById('pwa-install-dismiss');
+    const hint = document.getElementById('pwa-install-hint');
+    if (!bar || !dismiss || !hint) return;
+    if (localStorage.getItem('carbuPwaBannerDismissed')) return;
+    if (window.matchMedia('(display-mode: standalone)').matches) return;
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSafariInstalled = window.navigator.standalone === true;
+    const mobileOrCoarse = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+
+    const revealBar = () => {
+        if (localStorage.getItem('carbuPwaBannerDismissed')) return;
+        bar.classList.remove('pwa-bar-hidden');
+    };
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        if (btn) btn.classList.remove('hidden');
+        revealBar();
+    });
+
+    if (btn) {
+        btn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            try { await deferredInstallPrompt.userChoice; } catch (err) {}
+            deferredInstallPrompt = null;
+            btn.classList.add('hidden');
+            bar.classList.add('pwa-bar-hidden');
+            localStorage.setItem('carbuPwaBannerDismissed', '1');
+        });
+    }
+
+    dismiss.addEventListener('click', () => {
+        bar.classList.add('pwa-bar-hidden');
+        localStorage.setItem('carbuPwaBannerDismissed', '1');
+    });
+
+    if (isIOS && !isSafariInstalled) {
+        hint.innerHTML = 'Sur <strong>Safari</strong> : appuyez sur <span class="whitespace-nowrap"><i class="fas fa-share-from-square mx-0.5" aria-hidden="true"></i> Partager</span>, puis <strong>Sur l’écran d’accueil</strong>.';
+        if (btn) btn.classList.add('hidden');
+        setTimeout(revealBar, 1800);
+    } else if (!isIOS && mobileOrCoarse) {
+        setTimeout(revealBar, 2200);
+    }
 }
 
 function distanceHaversine(lat1, lon1, lat2, lon2) {
@@ -110,7 +186,7 @@ function renderFuelList() {
         const moy = db.dashboard.national.avg_prices[f];
         const moyText = moy ? `<span class="text-[10px] text-slate-400 ml-1">(moy. ${moy.toFixed(3)}€)</span>` : '';
         const row = document.createElement('div');
-        row.className = 'fuel-row flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 hover:bg-indigo-50 transition select-none';
+        row.className = 'fuel-row flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 hover:bg-indigo-50 transition select-none touch-manipulation';
         row.draggable = true;
         row.dataset.fuel = f;
         row.innerHTML = `
@@ -129,21 +205,47 @@ function renderFuelList() {
 function initFuelDragDrop() {
     const container = document.getElementById('fuels-checkboxes');
     let draggedEl = null;
+    let dragGhostEl = null;
+    let touchClone = null;
+    let touchOffsetX = 0;
+    let touchOffsetY = 0;
+    let activeTouchRow = null;
+
+    function cleanupDragClasses() {
+        container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+    }
+
     container.querySelectorAll('.fuel-row').forEach(row => {
         row.addEventListener('dragstart', e => {
+            if (e.target.closest('input') || e.target.closest('button')) {
+                e.preventDefault();
+                return;
+            }
             draggedEl = row;
-            row.classList.add('opacity-40');
+            row.classList.add('fuel-row-drag-source', 'fuel-row-drag-active');
+            const ghost = row.cloneNode(true);
+            ghost.style.cssText = 'position:absolute;top:-9999px;left:0;width:' + row.offsetWidth + 'px;pointer-events:none;';
+            document.body.appendChild(ghost);
+            dragGhostEl = ghost;
+            try {
+                e.dataTransfer.setDragImage(ghost, e.offsetX, e.offsetY);
+            } catch (err) {}
             e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.dataset.fuel);
         });
         row.addEventListener('dragend', () => {
-            row.classList.remove('opacity-40');
-            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+            row.classList.remove('fuel-row-drag-source', 'fuel-row-drag-active');
+            if (dragGhostEl) {
+                dragGhostEl.remove();
+                dragGhostEl = null;
+            }
+            cleanupDragClasses();
             draggedEl = null;
         });
         row.addEventListener('dragover', e => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+            cleanupDragClasses();
             row.classList.add('border-t-2', 'border-indigo-400');
         });
         row.addEventListener('drop', e => {
@@ -153,39 +255,63 @@ function initFuelDragDrop() {
             syncFuelOrderFromDOM();
         });
 
-        // Touch drag support for mobile
-        let touchStartY = 0;
-        let touchClone = null;
         row.addEventListener('touchstart', e => {
             if (e.target.closest('button') || e.target.closest('input')) return;
+            activeTouchRow = row;
             draggedEl = row;
-            touchStartY = e.touches[0].clientY;
-            row.classList.add('opacity-40');
+            const touch = e.touches[0];
+            const rect = row.getBoundingClientRect();
+            touchOffsetX = touch.clientX - rect.left;
+            touchOffsetY = touch.clientY - rect.top;
+            row.classList.add('fuel-row-drag-source');
+            touchClone = row.cloneNode(true);
+            touchClone.classList.add('fuel-touch-float');
+            touchClone.style.width = rect.width + 'px';
+            touchClone.style.left = rect.left + 'px';
+            touchClone.style.top = rect.top + 'px';
+            touchClone.querySelectorAll('input,button').forEach(n => n.remove());
+            document.body.appendChild(touchClone);
         }, { passive: true });
+
         row.addEventListener('touchmove', e => {
-            if (!draggedEl || draggedEl !== row) return;
+            if (!draggedEl || draggedEl !== row || !touchClone) return;
             e.preventDefault();
             const touch = e.touches[0];
+            touchClone.style.left = (touch.clientX - touchOffsetX) + 'px';
+            touchClone.style.top = (touch.clientY - touchOffsetY) + 'px';
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
             const targetRow = target ? target.closest('.fuel-row') : null;
-            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+            cleanupDragClasses();
             if (targetRow && targetRow !== draggedEl) targetRow.classList.add('border-t-2', 'border-indigo-400');
         }, { passive: false });
-        row.addEventListener('touchend', e => {
-            if (!draggedEl || draggedEl !== row) return;
+
+        function finishTouchDrag(e, cancelled) {
+            if (activeTouchRow !== row) return;
+            activeTouchRow = null;
+            if (touchClone) {
+                touchClone.remove();
+                touchClone = null;
+            }
+            row.classList.remove('fuel-row-drag-source');
+            if (!draggedEl || draggedEl !== row) {
+                draggedEl = null;
+                return;
+            }
             const touch = e.changedTouches[0];
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
             const targetRow = target ? target.closest('.fuel-row') : null;
-            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
-            row.classList.remove('opacity-40');
-            if (targetRow && targetRow !== draggedEl) {
+            cleanupDragClasses();
+            if (!cancelled && targetRow && targetRow !== draggedEl) {
                 container.insertBefore(draggedEl, targetRow);
                 syncFuelOrderFromDOM();
             }
             draggedEl = null;
-        });
+        }
+
+        row.addEventListener('touchend', e => finishTouchDrag(e, false));
+        row.addEventListener('touchcancel', e => finishTouchDrag(e, true));
     });
-    // Allow drop at end of list
+
     container.addEventListener('dragover', e => e.preventDefault());
     container.addEventListener('drop', e => {
         if (draggedEl && e.target === container) {
@@ -290,22 +416,26 @@ function resetSettings() {
 function toggleFavoriteAddress(lat, lon, name) {
     const idStr = `${lat}-${lon}`;
     const idx = userFavorites.findIndex(f => f.id === idStr);
-    if (idx > -1) userFavorites.splice(idx, 1);
+    const wasFav = idx > -1;
+    if (wasFav) userFavorites.splice(idx, 1);
     else userFavorites.push({ id: idStr, type: 'address', name, lat, lon });
     localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     renderFavorites();
-    debouncedSearch(); 
+    debouncedSearch();
+    showToast(wasFav ? 'Lieu retiré des favoris' : 'Lieu ajouté aux favoris', wasFav ? 'fa-bookmark' : 'fa-star');
 }
 
 function toggleFavoriteCurrentStation() {
     const sid = document.getElementById('station-view').getAttribute('data-current-id');
     const s = db.stations[sid];
     const idx = userFavorites.findIndex(f => f.id === sid);
-    if (idx > -1) userFavorites.splice(idx, 1);
+    const wasFav = idx > -1;
+    if (wasFav) userFavorites.splice(idx, 1);
     else userFavorites.push({ id: sid, type: 'station', name: s.nom_osm || 'Station-service', adresse: `${s.adresse}, ${s.ville}` });
     localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     updateStarUI(sid);
     renderFavorites();
+    showToast(wasFav ? 'Station retirée des favoris' : 'Station ajoutée aux favoris', wasFav ? 'fa-circle-minus' : 'fa-star');
 }
 
 function updateStarUI(sid) {
@@ -326,6 +456,7 @@ function removeFavorite(id) {
     userFavorites = userFavorites.filter(f => f.id !== id);
     localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     renderFavorites();
+    showToast('Favori retiré', 'fa-bookmark');
 }
 
 function renderFavorites() {

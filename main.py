@@ -445,6 +445,11 @@ def generate_site():
     with open(os.path.join(BUILD_DIR, "app.js"), "w", encoding="utf-8") as f:
         f.write(minify_js(js))
 
+    for extra in ("manifest.webmanifest", "sw.js", "icon.svg"):
+        src = os.path.join(TEMPLATES_DIR, extra)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(BUILD_DIR, extra))
+
     log.info("Static site written to %s/", BUILD_DIR)
 
 

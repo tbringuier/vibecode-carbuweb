@@ -2,7 +2,11 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Carbu'Web">
     <title>Carbu'Web</title>
     <meta name="description" content="Carbu'Web : Trouvez instantanément le carburant le moins cher autour de vous. Comparez les prix des stations-services en temps réel en France.">
     <meta name="keywords" content="prix carburant, essence moins chère, station-service, gazole, SP95, E10, E85, GPLc, comparateur carburant france, carte essence">
@@ -11,6 +15,8 @@
     <meta property="og:type" content="website">
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛽</text></svg>">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -30,6 +36,14 @@
         input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
         select, input[type="text"] { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        .fuel-row.fuel-row-drag-source { opacity: 0.45; transform: scale(0.98); box-shadow: inset 0 0 0 2px #818cf8; }
+        .fuel-row.fuel-row-drag-active { cursor: grabbing; }
+        .fuel-touch-float { position: fixed; z-index: 9999; pointer-events: none; box-shadow: 0 20px 50px rgba(79, 70, 229, 0.35); border: 2px solid #6366f1; border-radius: 0.75rem; background: #f8fafc; opacity: 0.96; transform: scale(1.03); }
+        #app-toast { transition: opacity 0.25s ease, transform 0.25s ease; }
+        #app-toast.toast-hidden { opacity: 0; transform: translate(-50%, 12px); pointer-events: none; }
+        #app-toast.toast-visible { opacity: 1; transform: translate(-50%, 0); }
+        #pwa-install-bar { transition: transform 0.3s ease, opacity 0.3s ease; }
+        #pwa-install-bar.pwa-bar-hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
@@ -182,6 +196,21 @@
             <div id="station-content"></div>
         </div>
     </main>
+
+    <div id="app-toast" role="status" aria-live="polite" class="toast-hidden fixed bottom-20 left-1/2 z-[90] max-w-[min(92vw,20rem)] px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-xl flex items-center gap-2 justify-center text-center"></div>
+
+    <div id="pwa-install-bar" class="pwa-bar-hidden fixed bottom-0 left-0 right-0 z-[85] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]">
+        <div class="mx-auto max-w-4xl rounded-2xl bg-indigo-600 text-white shadow-lg border border-indigo-500/30 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex-1 min-w-0">
+                <p class="font-bold text-sm sm:text-base"><i class="fas fa-mobile-screen-button mr-2"></i>Installer Carbu'Web</p>
+                <p id="pwa-install-hint" class="text-xs sm:text-sm text-indigo-100 mt-1 leading-snug">Ajoutez l’app à l’écran d’accueil pour un accès plus rapide.</p>
+            </div>
+            <div class="flex flex-shrink-0 gap-2 items-center">
+                <button type="button" id="pwa-install-btn" class="hidden whitespace-nowrap bg-white text-indigo-700 font-bold px-4 py-2.5 rounded-xl text-sm hover:bg-indigo-50 transition">Installer</button>
+                <button type="button" id="pwa-install-dismiss" class="text-indigo-200 hover:text-white p-2 rounded-lg transition" aria-label="Fermer"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+    </div>
 
     <footer class="text-center py-8 text-slate-400 text-sm mt-auto border-t border-slate-200 space-y-1.5 bg-white">
         <a href="https://github.com/tbringuier/vibecode-carburant" target="_blank" class="hover:text-indigo-500 transition font-semibold inline-flex items-center gap-1.5"><i class="fab fa-github"></i>Projet vibecodé</a><br>
