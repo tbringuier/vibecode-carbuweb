@@ -30,6 +30,13 @@ function saveVehicles() {
 }
 
 function applyActiveVehicle() {
+    if (userVehicles.length === 0) {
+        activeVehicleId = null;
+        localStorage.removeItem('carbuActiveVehicle');
+        localStorage.removeItem('carbuFuels');
+        userFuels = [...ALL_FUELS];
+        return;
+    }
     if (activeVehicleId) {
         const v = userVehicles.find(v => v.id === activeVehicleId);
         if (v) {
@@ -37,10 +44,10 @@ function applyActiveVehicle() {
         } else {
             activeVehicleId = null;
             localStorage.removeItem('carbuActiveVehicle');
-            userFuels = [...ALL_FUELS];
+            userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || [...ALL_FUELS];
         }
     } else {
-        userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
+        userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || [...ALL_FUELS];
     }
 }
 
@@ -102,9 +109,11 @@ function updateVehicle(id, name, icon, fuels) {
 function deleteVehicle(id) {
     userVehicles = userVehicles.filter(v => v.id !== id);
     saveVehicles();
-    if (activeVehicleId === id) {
-        activeVehicleId = null;
-        localStorage.removeItem('carbuActiveVehicle');
+    if (activeVehicleId === id || userVehicles.length === 0) {
+        if (userVehicles.length === 0) {
+            activeVehicleId = null;
+            localStorage.removeItem('carbuActiveVehicle');
+        }
         applyActiveVehicle();
     }
 }
@@ -129,6 +138,8 @@ function renderVehicleBar() {
 
 let chartsInitialized = false;
 let currentProximitySearch = null;
+/** Point de recherche pour carte / comparaison quand on ouvre une station depuis un favori adresse (sans être passé par l’écran liste). */
+let stationDetailSearchAnchor = null;
 let currentGeoZone = null;
 let navStack = [];
 let isRestoringNav = false;
@@ -569,12 +580,17 @@ function saveSettings() {
 }
 
 function resetSettings() {
-    localStorage.removeItem('carbuRadius');
-    localStorage.removeItem('carbuFavorites');
-    localStorage.removeItem('carbuWelcomeDismissed');
-    localStorage.removeItem('carbuVehicles');
-    localStorage.removeItem('carbuActiveVehicle');
-    location.reload();
+    try {
+        localStorage.removeItem('carbuRadius');
+        localStorage.removeItem('carbuFavorites');
+        localStorage.removeItem('carbuWelcomeDismissed');
+        localStorage.removeItem('carbuVehicles');
+        localStorage.removeItem('carbuActiveVehicle');
+        localStorage.removeItem('carbuFuels');
+    } catch (e) {
+        console.warn('resetSettings', e);
+    }
+    window.location.reload();
 }
 
 // Lieux Favoris
@@ -640,7 +656,10 @@ function toggleFavoriteAddress(lat, lon, name) {
     else userFavorites.push({ id: idStr, type: 'address', name, lat: la, lon: lo });
     localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     renderFavorites();
-    debouncedSearch();
+    if (!document.getElementById('home-view').classList.contains('hidden')) {
+        debouncedSearch();
+    }
+    syncFavoriteHeaderButton();
     showToast(wasFav ? 'Lieu retiré des favoris' : 'Lieu ajouté aux favoris', wasFav ? 'fa-bookmark' : 'fa-star');
 }
 
@@ -671,10 +690,87 @@ function updateStarUI(sid) {
     }
 }
 
+/** Point de recherche actif pour carte station + comparaison de prix (liste proximité ou favori adresse). */
+function getActiveSearchOrigin() {
+    if (currentProximitySearch) {
+        const la = parseCoord(currentProximitySearch.lat);
+        const lo = parseCoord(currentProximitySearch.lon);
+        if (Number.isFinite(la) && Number.isFinite(lo)) {
+            return { lat: la, lon: lo, labelTitle: currentProximitySearch.labelTitle || '' };
+        }
+    }
+    if (stationDetailSearchAnchor) {
+        const la = parseCoord(stationDetailSearchAnchor.lat);
+        const lo = parseCoord(stationDetailSearchAnchor.lon);
+        if (Number.isFinite(la) && Number.isFinite(lo)) {
+            return { lat: la, lon: lo, labelTitle: stationDetailSearchAnchor.labelTitle || '' };
+        }
+    }
+    return null;
+}
+
+function showStationWithFavoriteOrigin(stationId, lat, lon, labelTitle) {
+    const la = parseCoord(lat);
+    const lo = parseCoord(lon);
+    if (Number.isFinite(la) && Number.isFinite(lo)) {
+        stationDetailSearchAnchor = { lat: la, lon: lo, labelTitle: labelTitle || 'Lieu favori' };
+    } else {
+        stationDetailSearchAnchor = null;
+    }
+    showStation(stationId);
+}
+
+function toggleFavoriteProximitySearchPoint() {
+    if (!currentProximitySearch) return;
+    const la = parseCoord(currentProximitySearch.lat);
+    const lo = parseCoord(currentProximitySearch.lon);
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) return;
+    toggleFavoriteAddress(la, lo, currentProximitySearch.labelTitle || 'Lieu');
+}
+
+/**
+ * Étoile d’en-tête : station (fiche) ou lieu de la recherche « autour de ».
+ */
+function syncFavoriteHeaderButton() {
+    const btn = document.getElementById('btn-favorite-station');
+    const stationView = document.getElementById('station-view');
+    if (!btn || !stationView || stationView.classList.contains('hidden')) return;
+
+    const sid = stationView.getAttribute('data-current-id');
+    if (sid && db && db.stations[sid]) {
+        btn.classList.remove('hidden');
+        btn.onclick = () => toggleFavoriteCurrentStation();
+        updateStarUI(sid);
+        btn.setAttribute('aria-label', userFavorites.some(f => f.id === sid) ? 'Retirer cette station des favoris' : 'Ajouter cette station aux favoris');
+        return;
+    }
+
+    if (currentProximitySearch) {
+        const la = parseCoord(currentProximitySearch.lat);
+        const lo = parseCoord(currentProximitySearch.lon);
+        if (Number.isFinite(la) && Number.isFinite(lo)) {
+            btn.classList.remove('hidden');
+            const key = addressFavoriteKey(la, lo);
+            const isFav = key && userFavorites.some(f => f.type === 'address' && addressFavoriteKey(f.lat, f.lon) === key);
+            btn.onclick = () => toggleFavoriteProximitySearchPoint();
+            btn.innerHTML = isFav
+                ? '<i class="fas fa-star text-yellow-400" aria-hidden="true"></i>'
+                : '<i class="far fa-star text-slate-300 hover:text-yellow-400" aria-hidden="true"></i>';
+            btn.title = isFav ? 'Retirer ce lieu des favoris' : 'Ajouter ce lieu aux favoris';
+            btn.setAttribute('aria-label', btn.title);
+            btn.className = `touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-2xl transition hover:scale-110 active:scale-95 rounded-full${isFav ? ' hover:text-red-400' : ''}`;
+            return;
+        }
+    }
+
+    btn.classList.add('hidden');
+}
+
 function removeFavorite(id) {
     userFavorites = userFavorites.filter(f => f.id !== id);
     localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     renderFavorites();
+    syncFavoriteHeaderButton();
     showToast('Favori retiré', 'fa-bookmark');
 }
 
@@ -739,7 +835,7 @@ function renderFavorites() {
                         const stB = db.stations[best.id];
                         const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
                         const maj = fd ? formatMajHtml(fd) : "";
-                        bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div>${maj ? `<div class="text-[8px] text-green-600 font-medium leading-tight" translate="no">${maj}</div>` : ''}<div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
+                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div>${maj ? `<div class="text-[8px] text-green-600 font-medium leading-tight" translate="no">${maj}</div>` : ''}<div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
                     }
                 });
                 }
@@ -936,6 +1032,7 @@ function pushNav(state) {
 function goHome() {
     navStack = [];
     currentProximitySearch = null;
+    stationDetailSearchAnchor = null;
     currentGeoZone = null;
     document.getElementById('station-view').classList.add('hidden');
     document.getElementById('home-view').classList.remove('hidden');
@@ -961,9 +1058,10 @@ window.addEventListener('popstate', () => {
     isRestoringNav = false;
 });
 
-function buildBestPricesWidget(stations) {
+function buildBestPricesWidget(stations, restrictToFuel) {
     let cards = '';
-    userFuels.forEach(fuel => {
+    const fuelsToShow = restrictToFuel ? [restrictToFuel] : [...userFuels];
+    fuelsToShow.forEach(fuel => {
         const best = pickBestStationForFuelByPriceThenDistance(stations, fuel);
         if (best) {
             const stBest = db.stations[best.id];
@@ -995,7 +1093,7 @@ function searchGeoZone(type, name, overrideFuel) {
     const stationView = document.getElementById('station-view');
     stationView.classList.remove('hidden');
     stationView.removeAttribute('data-current-id');
-    document.getElementById('btn-favorite-station').classList.add('hidden');
+    stationDetailSearchAnchor = null;
     currentProximitySearch = null;
     currentGeoZone = { type, name, stationIds };
 
@@ -1022,7 +1120,7 @@ function searchGeoZone(type, name, overrideFuel) {
             </div>
             <div class="p-4 sm:p-6 md:p-8">
                 <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
-                ${buildBestPricesWidget(stations)}
+                ${buildBestPricesWidget(stations, sortFuel || null)}
                 <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
                     <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Trier par prix :</label>
                     <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="min-h-[3rem] py-3 px-3 border border-slate-300 rounded-xl text-base font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto touch-manipulation">
@@ -1075,6 +1173,7 @@ function searchGeoZone(type, name, overrideFuel) {
         if (s.station.lat && s.station.lon) mapMarkers.push({ type: s.markerType || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station-service', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id });
     });
     setTimeout(() => initStationMap(mapMarkers, true), 100);
+    syncFavoriteHeaderButton();
 }
 
 function applyGeoSort(type, name, fuel) {
@@ -1195,6 +1294,7 @@ async function performSearch() {
     const normQuery = normalizeText(query);
     const resultsContainer = document.getElementById('search-results');
     currentProximitySearch = null;
+    stationDetailSearchAnchor = null;
 
     if (normQuery.length < 3) { resultsContainer.innerHTML = ''; return; }
     resultsContainer.innerHTML = '<div class="text-center text-slate-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Recherche en cours...</div>';
@@ -1359,9 +1459,9 @@ function findStationsNear(lat, lon, labelTitle) {
     const stationView = document.getElementById('station-view');
     stationView.classList.remove('hidden');
     stationView.removeAttribute('data-current-id');
-    document.getElementById('btn-favorite-station').classList.add('hidden');
 
     currentGeoZone = null;
+    stationDetailSearchAnchor = null;
     currentProximitySearch = { lat, lon, labelTitle };
     renderStationsList(lat, lon, labelTitle, userFuels[0] || "");
 }
@@ -1401,7 +1501,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
             <span class="text-sm">Modifiez vos paramètres (en haut à droite) pour élargir la recherche ou ajouter des carburants.</span>
         </div>`;
     } else {
-        html += buildBestPricesWidget(topStations);
+        html += buildBestPricesWidget(topStations, sortFuel || null);
         let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
         html += `
             <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
@@ -1468,6 +1568,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
     let mapMarkers = [{ type: 'search_point', lat: lat, lon: lon, label: '📍 Point de recherche', adresse: labelTitle }];
     topStations.forEach(s => mapMarkers.push({ type: s.markerType || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station-service', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id }));
     setTimeout(() => initStationMap(mapMarkers, true), 100);
+    syncFavoriteHeaderButton();
 }
 
 // ==========================================
@@ -1611,9 +1712,10 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
         let centerLon = stationAct.lon;
         const maxStraight = maxStraightLineKmForRadius();
 
-        if (currentProximitySearch && currentProximitySearch.lat && currentProximitySearch.lon) {
-            centerLat = currentProximitySearch.lat;
-            centerLon = currentProximitySearch.lon;
+        const searchOrigin = getActiveSearchOrigin();
+        if (searchOrigin) {
+            centerLat = searchOrigin.lat;
+            centerLon = searchOrigin.lon;
         }
 
         for (const [autreId, autreStat] of Object.entries(db.stations)) {
@@ -1708,6 +1810,10 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
 
 function showStation(stationId) {
     const station = db.stations[stationId];
+    if (!station) return;
+    if (currentProximitySearch) {
+        stationDetailSearchAnchor = null;
+    }
     const stationViewEl = document.getElementById('station-view');
     const skipNavPush =
         stationViewEl &&
@@ -1728,8 +1834,7 @@ function showStation(stationId) {
     stationView.classList.remove('hidden');
     stationView.setAttribute('data-current-id', stationId);
 
-    document.getElementById('btn-favorite-station').classList.remove('hidden');
-    updateStarUI(stationId);
+    syncFavoriteHeaderButton();
     
     const gmapsLink = getGoogleMapsLink(station.lat, station.lon, `${station.adresse}, ${station.code_postal} ${station.ville}`);
     
@@ -1757,8 +1862,9 @@ function showStation(stationId) {
     if (station.lat && station.lon) {
         mapMarkersData.push({ type: 'station_green', lat: station.lat, lon: station.lon, label: station.nom_osm || 'Ici', adresse: `${station.adresse}, ${station.ville}`, id: stationId });
     }
-    if (currentProximitySearch && currentProximitySearch.lat && currentProximitySearch.lon) {
-        mapMarkersData.push({ type: 'search_point', lat: currentProximitySearch.lat, lon: currentProximitySearch.lon, label: '📍 Point de recherche initial', adresse: currentProximitySearch.labelTitle });
+    const mapOrigin = getActiveSearchOrigin();
+    if (mapOrigin) {
+        mapMarkersData.push({ type: 'search_point', lat: mapOrigin.lat, lon: mapOrigin.lon, label: '📍 Point de recherche initial', adresse: mapOrigin.labelTitle });
     }
 
     let aDesPrixAffiches = false;
@@ -1814,10 +1920,11 @@ function showStation(stationId) {
     html += `</div>`; 
 
     if (alternatives.length > 0) {
+        const altOrigin = getActiveSearchOrigin();
         let alternativesTitle = currentGeoZone
             ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans ${esc(currentGeoZone.name)}`
-            : currentProximitySearch
-            ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans votre zone de recherche`
+            : altOrigin
+            ? `<i class="fas fa-car-side mr-2"></i>Alternatives autour de ${esc(altOrigin.labelTitle || 'votre point de recherche')}`
             : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (${radiusSettingKmHtml()})`;
             
         html += `<h3 class="font-bold text-lg text-slate-800 mb-2">${alternativesTitle}</h3><p class="text-sm text-slate-500 mb-4">Stations où vous pouvez payer moins cher pour un ou plusieurs de vos carburants suivis — à titre indicatif dans la zone affichée.</p><div class="space-y-3 mb-8">`;
