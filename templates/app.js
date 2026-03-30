@@ -63,17 +63,30 @@ function switchVehicle(vehicleId) {
     nearbyStationCache.clear();
     renderVehicleBar();
     renderFavorites();
-    refreshActiveViews();
+    refreshActiveViews({ resetSortToFirst: true });
 }
 
-function refreshActiveViews() {
+function refreshActiveViews(opts) {
+    const resetSort = opts && opts.resetSortToFirst === true;
     if (currentProximitySearch) {
-        const sortEl = document.getElementById('sort-fuel-select');
-        const sf = sortEl ? sortEl.value : '';
+        let sf = '';
+        if (resetSort) {
+            sf = userFuels[0] || '';
+        } else {
+            const sortEl = document.getElementById('sort-fuel-select');
+            sf = sortEl ? sortEl.value : '';
+            if (sf && !userFuels.includes(sf)) sf = userFuels[0] || '';
+        }
         renderStationsList(currentProximitySearch.lat, currentProximitySearch.lon, currentProximitySearch.labelTitle, sf);
     } else if (currentGeoZone) {
-        const sortEl = document.getElementById('geo-sort-select');
-        const gf = sortEl ? sortEl.value : (userFuels[0] || '');
+        let gf;
+        if (resetSort) {
+            gf = userFuels[0] || '';
+        } else {
+            const sortEl = document.getElementById('geo-sort-select');
+            gf = sortEl ? sortEl.value : (userFuels[0] || '');
+            if (gf && !userFuels.includes(gf)) gf = userFuels[0] || '';
+        }
         searchGeoZone(currentGeoZone.type, currentGeoZone.name, gf);
     } else if (!document.getElementById('home-view').classList.contains('hidden')) {
         debouncedSearch();
@@ -538,7 +551,7 @@ function saveVehicleForm() {
     renderVehicleBar();
     nearbyStationCache.clear();
     renderFavorites();
-    refreshActiveViews();
+    refreshActiveViews({ resetSortToFirst: true });
 }
 
 function confirmDeleteVehicle(id) {
@@ -549,7 +562,7 @@ function confirmDeleteVehicle(id) {
     renderVehiclesList();
     renderVehicleBar();
     renderFavorites();
-    refreshActiveViews();
+    refreshActiveViews({ resetSortToFirst: true });
 }
 
 // Paramètres & Sauvegarde
