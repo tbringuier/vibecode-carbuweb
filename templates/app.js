@@ -578,12 +578,66 @@ function resetSettings() {
 }
 
 // Lieux Favoris
+/** Parse lat/lon (nombre, chaîne OSM, virgule décimale éventuelle). */
+function parseCoord(v) {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const s = String(v).trim().replace(',', '.');
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : NaN;
+}
+
+/** Clé stable pour un favori « adresse » (évite incohérences id / recherche OSM). */
+function addressFavoriteKey(lat, lon) {
+    const la = parseCoord(lat);
+    const lo = parseCoord(lon);
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) return '';
+    return `${la.toFixed(6)}-${lo.toFixed(6)}`;
+}
+
+/** Migre coords + id des favoris adresse et supprime les doublons géographiques. */
+function migrateAddressFavoritesCoords() {
+    let changed = false;
+    const seenKeys = new Set();
+    const next = [];
+    for (const f of userFavorites) {
+        if (f.type === 'station') {
+            next.push(f);
+            continue;
+        }
+        if (f.type !== 'address') {
+            next.push(f);
+            continue;
+        }
+        const la = parseCoord(f.lat);
+        const lo = parseCoord(f.lon);
+        if (!Number.isFinite(la) || !Number.isFinite(lo)) {
+            changed = true;
+            continue;
+        }
+        const key = addressFavoriteKey(la, lo);
+        if (!key || seenKeys.has(key)) {
+            changed = true;
+            continue;
+        }
+        seenKeys.add(key);
+        if (f.id !== key || f.lat !== la || f.lon !== lo) changed = true;
+        next.push({ ...f, id: key, lat: la, lon: lo });
+    }
+    if (changed) {
+        userFavorites = next;
+        localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
+    }
+}
+
 function toggleFavoriteAddress(lat, lon, name) {
-    const idStr = `${lat}-${lon}`;
-    const idx = userFavorites.findIndex(f => f.id === idStr);
+    const la = parseCoord(lat);
+    const lo = parseCoord(lon);
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) return;
+    const idStr = addressFavoriteKey(la, lo);
+    const idx = userFavorites.findIndex(f => f.type === 'address' && addressFavoriteKey(f.lat, f.lon) === idStr);
     const wasFav = idx > -1;
     if (wasFav) userFavorites.splice(idx, 1);
-    else userFavorites.push({ id: idStr, type: 'address', name, lat, lon });
+    else userFavorites.push({ id: idStr, type: 'address', name, lat: la, lon: lo });
     localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     renderFavorites();
     debouncedSearch();
@@ -627,6 +681,7 @@ function removeFavorite(id) {
 function renderFavorites() {
     const container = document.getElementById('favorites-container');
     const list = document.getElementById('favorites-list');
+    migrateAddressFavoritesCoords();
     const prevLen = userFavorites.length;
     userFavorites = userFavorites.filter(f => f.type !== 'station' || (db && db.stations[f.id]));
     if (userFavorites.length !== prevLen) localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
@@ -668,22 +723,18 @@ function renderFavorites() {
         } else {
             let bestCards = '';
             if (db && f.lat && f.lon) {
-                const favLat = parseFloat(f.lat);
-                const favLon = parseFloat(f.lon);
+                const favLat = parseCoord(f.lat);
+                const favLon = parseCoord(f.lon);
+                if (Number.isFinite(favLat) && Number.isFinite(favLon)) {
                 let nearbyStations = [];
+                const maxKm = maxStraightLineKmForRadius();
                 for (const [id, s] of Object.entries(db.stations)) {
                     if (!s.lat || !s.lon || !hasTrackedFuel(s)) continue;
-                    if (distanceHaversine(favLat, favLon, s.lat, s.lon) <= maxStraightLineKmForRadius()) nearbyStations.push({ id, station: s });
+                    const straight = distanceHaversine(favLat, favLon, s.lat, s.lon);
+                    if (straight <= maxKm) nearbyStations.push({ id, station: s, dist: straight });
                 }
                 userFuels.forEach(fuel => {
-                    let best = null;
-                    for (const ns of nearbyStations) {
-                        const d = ns.station.carburants_disponibles[fuel];
-                        if (d) {
-                            const p = parseFloat(d.prix);
-                            if (!best || p < best.prix) best = { prix: p, nom: ns.station.nom_osm || ns.station.ville, id: ns.id };
-                        }
-                    }
+                    const best = pickBestStationForFuelByPriceThenDistance(nearbyStations, fuel);
                     if (best) {
                         const stB = db.stations[best.id];
                         const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
@@ -691,6 +742,7 @@ function renderFavorites() {
                         bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div>${maj ? `<div class="text-[8px] text-green-600 font-medium leading-tight" translate="no">${maj}</div>` : ''}<div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
                     }
                 });
+                }
             }
             const widgetRow = bestCards ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
             allHtml += `
@@ -720,6 +772,31 @@ function compareStationEntriesByPriceThenDistance(sortFuel, a, b) {
     const pb = parseFloat(b.station.carburants_disponibles[sortFuel].prix);
     if (Math.abs(pa - pb) > PRICE_EPS) return pa - pb;
     return a.dist - b.dist;
+}
+
+/**
+ * Meilleur prix pour un carburant parmi des entrées { id, station, dist? }.
+ * Même règle que le tri proximité : prix puis distance (dist omise → 0, ex. zone géo).
+ */
+function pickBestStationForFuelByPriceThenDistance(candidates, fuel) {
+    let best = null;
+    for (const entry of candidates) {
+        const row = entry.station.carburants_disponibles[fuel];
+        if (!row) continue;
+        const prix = parseFloat(row.prix);
+        if (!Number.isFinite(prix)) continue;
+        const dist = Number.isFinite(entry.dist) ? entry.dist : 0;
+        if (!best) {
+            best = { prix, id: entry.id, nom: entry.station.nom_osm || entry.station.ville, dist };
+            continue;
+        }
+        const dp = prix - best.prix;
+        if (dp < -PRICE_EPS || (Math.abs(dp) <= PRICE_EPS && dist < best.dist - 1e-12)) {
+            best = { prix, id: entry.id, nom: entry.station.nom_osm || entry.station.ville, dist };
+        }
+    }
+    if (!best) return null;
+    return { prix: best.prix, id: best.id, nom: best.nom };
 }
 
 function formatFrEuros(n) {
@@ -887,18 +964,13 @@ window.addEventListener('popstate', () => {
 function buildBestPricesWidget(stations) {
     let cards = '';
     userFuels.forEach(fuel => {
-        let best = null;
-        stations.forEach(s => {
-            const d = s.station.carburants_disponibles[fuel];
-            if (d && (!best || parseFloat(d.prix) < best.prix)) {
-                best = { prix: parseFloat(d.prix), nom: s.station.nom_osm || s.station.ville, addr: `${s.station.adresse}, ${s.station.ville}`, id: s.id };
-            }
-        });
+        const best = pickBestStationForFuelByPriceThenDistance(stations, fuel);
         if (best) {
             const stBest = db.stations[best.id];
+            const addr = stBest ? `${stBest.adresse}, ${stBest.ville}` : '';
             const fd = stBest && stBest.carburants_disponibles ? stBest.carburants_disponibles[fuel] : null;
             const maj = fd ? formatMajHtml(fd) : "";
-            cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div>${maj ? `<div class="text-[9px] text-green-600/90 font-medium" translate="no"><i class="fas fa-clock mr-0.5"></i>${maj}</div>` : ''}<div class="text-[10px] text-green-600 truncate leading-tight">${esc(best.nom)}</div><div class="text-[9px] text-green-500 truncate leading-tight">${esc(best.addr)}</div></div>`;
+            cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div>${maj ? `<div class="text-[9px] text-green-600/90 font-medium" translate="no"><i class="fas fa-clock mr-0.5"></i>${maj}</div>` : ''}<div class="text-[10px] text-green-600 truncate leading-tight">${esc(best.nom)}</div><div class="text-[9px] text-green-500 truncate leading-tight">${esc(addr)}</div></div>`;
         }
     });
     if (!cards) return '';
@@ -1224,7 +1296,8 @@ async function performSearch() {
                 const parts = place.display_name.split(',');
                 const name = parts[0];
                 const desc = parts.slice(1, -2).join(',').trim();
-                const isFav = userFavorites.some(f => f.id === `${place.lat}-${place.lon}`);
+                const placeKey = addressFavoriteKey(place.lat, place.lon);
+                const isFav = placeKey && userFavorites.some(f => f.type === 'address' && addressFavoriteKey(f.lat, f.lon) === placeKey);
 
                 html += `
                     <div class="bg-indigo-50 border border-indigo-100 rounded-xl hover:shadow-md hover:border-indigo-300 transition flex items-center group mb-2 overflow-hidden">
