@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 11 * * *"
+    # UTC — exécution toutes les 10 minutes (déploiement + données flux à jour)
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -48,6 +49,12 @@ jobs:
         with:
           path: datasets/osm_mapping-${{ steps.builddate.outputs.date }}.json
           key: osm-mapping-fr-${{ steps.builddate.outputs.date }}
+
+      - name: Cache export XLSX quotidien (data.gouv)
+        uses: actions/cache@v5
+        with:
+          path: datasets/prix-carburant-${{ steps.builddate.outputs.date }}.xlsx
+          key: prix-quotidien-xlsx-${{ steps.builddate.outputs.date }}
 
       - uses: actions/setup-python@v6
         with:

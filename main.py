@@ -224,17 +224,27 @@ def parse_hours(raw):
 # Download
 # ---------------------------------------------------------------------------
 
-def download_prices():
-    for label, url, path in (
-        ("prix quotidiens", EXCEL_URL, EXCEL_FILE),
-        ("flux instantané", EXCEL_RT_URL, EXCEL_RT_FILE),
-    ):
-        log.info("Downloading %s (%s) ...", label, TODAY)
-        resp = fetch(url, stream=True, timeout=180, retries=10)
-        with open(path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                f.write(chunk)
-        log.info("%s OK → %s", label, path)
+def download_daily_prices_if_needed():
+    """Télécharge l’export quotidien uniquement s’il est absent (ex. cache CI)."""
+    if os.path.isfile(EXCEL_FILE):
+        log.info("Fichier quotidien déjà présent, pas de retéléchargement : %s", EXCEL_FILE)
+        return
+    log.info("Téléchargement prix quotidiens (%s) ...", TODAY)
+    resp = fetch(EXCEL_URL, stream=True, timeout=180, retries=10)
+    with open(EXCEL_FILE, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8192):
+            f.write(chunk)
+    log.info("Prix quotidiens OK → %s", EXCEL_FILE)
+
+
+def download_flux_prices():
+    """Toujours retélécharger le flux instantané (ne pas réutiliser un fichier figé)."""
+    log.info("Téléchargement flux instantané (%s) ...", TODAY)
+    resp = fetch(EXCEL_RT_URL, stream=True, timeout=180, retries=10)
+    with open(EXCEL_RT_FILE, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8192):
+            f.write(chunk)
+    log.info("Flux instantané OK → %s", EXCEL_RT_FILE)
 
 
 def download_osm():
@@ -735,14 +745,8 @@ def main():
     cleanup_old_files()
 
     if not os.path.exists(DB_FILE):
-        if not os.path.exists(EXCEL_FILE):
-            download_prices()
-        elif not os.path.exists(EXCEL_RT_FILE):
-            log.info("Téléchargement du flux instantané (fichier quotidien déjà présent) ...")
-            resp = fetch(EXCEL_RT_URL, stream=True, timeout=180, retries=10)
-            with open(EXCEL_RT_FILE, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=8192):
-                    f.write(chunk)
+        download_daily_prices_if_needed()
+        download_flux_prices()
         if not os.path.exists(OSM_FILE):
             download_osm()
         build_database()

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'carbuweb-shell-v1';
+const CACHE_NAME = 'carbuweb-shell-v2';
 const SHELL_URLS = ['index.html', 'app.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -8,7 +8,12 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -22,17 +27,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // data.json : toujours réseau d’abord, sans mise en cache durable (prix / flux actualisés côté serveur).
   if (url.pathname.endsWith('data.json')) {
     event.respondWith(
-      fetch(request)
-        .then((resp) => {
-          if (resp.ok) {
-            const copy = resp.clone();
-            caches.open(CACHE_NAME).then((c) => c.put(request, copy));
-          }
-          return resp;
-        })
-        .catch(() => caches.match(request))
+      fetch(new Request(request.url, { method: 'GET', cache: 'no-store', headers: request.headers })).catch(
+        () => caches.match(request)
+      )
     );
     return;
   }

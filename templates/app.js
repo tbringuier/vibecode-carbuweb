@@ -19,6 +19,86 @@ let chartNatPrices = null;
 let chartNatFuels = null;
 let searchAbortController = null;
 
+/** Rafraîchissement des données publiées (aligné sur les builds CI ~10 min). */
+const DATA_REFRESH_MS = 20 * 60 * 1000;
+let dataRefreshTimerId = null;
+
+async function fetchDataJsonFresh() {
+    const url = `data.json?_=${Date.now()}`;
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
+function refreshVisibleViewsAfterDbSwap() {
+    nearbyStationCache.clear();
+    chartsInitialized = false;
+
+    renderFuelList();
+    populateRegions();
+    populateFuelsSelect();
+    renderFavorites();
+
+    const homeView = document.getElementById('home-view');
+    const stationView = document.getElementById('station-view');
+    const statsPane = document.getElementById('pane-statistiques');
+
+    if (homeView && !homeView.classList.contains('hidden')) {
+        debouncedSearch();
+    }
+
+    if (stationView && !stationView.classList.contains('hidden')) {
+        const sid = stationView.getAttribute('data-current-id');
+        if (sid) {
+            if (db.stations[sid]) showStation(sid);
+            else goHome();
+        } else if (currentProximitySearch) {
+            const sortEl = document.getElementById('sort-fuel-select');
+            const sf = sortEl ? sortEl.value : '';
+            renderStationsList(
+                currentProximitySearch.lat,
+                currentProximitySearch.lon,
+                currentProximitySearch.labelTitle,
+                sf
+            );
+        } else if (currentGeoZone) {
+            const sortEl = document.getElementById('geo-sort-select');
+            const gf = sortEl ? sortEl.value : (userFuels[0] || '');
+            searchGeoZone(currentGeoZone.type, currentGeoZone.name, gf);
+        }
+    }
+
+    if (statsPane && !statsPane.classList.contains('hidden')) {
+        renderDashboard();
+    }
+
+    const palmTab = document.getElementById('tab-palmares');
+    if (palmTab && palmTab.classList.contains('border-indigo-600')) {
+        try {
+            findCheapest();
+        } catch (e) {
+            console.warn('findCheapest après refresh', e);
+        }
+    }
+}
+
+async function refreshCarbuDataFromNetwork() {
+    if (!db) return;
+    try {
+        const next = await fetchDataJsonFresh();
+        if (!next || !next.stations) return;
+        db = next;
+        refreshVisibleViewsAfterDbSwap();
+    } catch (e) {
+        console.warn('Actualisation data.json', e);
+    }
+}
+
+function startPeriodicDataRefresh() {
+    if (dataRefreshTimerId !== null) clearInterval(dataRefreshTimerId);
+    dataRefreshTimerId = setInterval(refreshCarbuDataFromNetwork, DATA_REFRESH_MS);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('radius-slider').value = userRadius;
     document.getElementById('radius-display').innerText = userRadius;
@@ -29,8 +109,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     try {
-        const response = await fetch('data.json');
-        db = await response.json();
+        db = await fetchDataJsonFresh();
         
         renderFuelList();
 
@@ -46,6 +125,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderFavorites();
         registerServiceWorker();
         initPwaInstall();
+        startPeriodicDataRefresh();
     } catch (e) {
         document.getElementById('loading').innerHTML = '<p class="text-red-500 font-bold"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur serveur HTTP local.</p>';
     }
@@ -1287,7 +1367,18 @@ function populateFuelsSelect() {
 
 function populateRegions() {
     const regionSelect = document.getElementById('select-region');
-    Object.keys(db.geo_tree).sort().forEach(r => { if (r !== "Inconnue") regionSelect.add(new Option(r, r)); });
+    const prev = regionSelect.value;
+    regionSelect.innerHTML = '';
+    regionSelect.add(new Option('🇫🇷 Toute la France', 'national'));
+    Object.keys(db.geo_tree).sort().forEach(r => {
+        if (r !== "Inconnue") regionSelect.add(new Option(r, r));
+    });
+    if ([...regionSelect.options].some(o => o.value === prev)) {
+        regionSelect.value = prev;
+    } else {
+        regionSelect.value = 'national';
+    }
+    updateDepartments();
 }
 
 function updateDepartments() {
@@ -1502,12 +1593,20 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
 
 function showStation(stationId) {
     const station = db.stations[stationId];
-    if (currentGeoZone) {
-        pushNav({ type: 'geoZone', geoType: currentGeoZone.type, name: currentGeoZone.name });
-    } else if (currentProximitySearch) {
-        pushNav({ type: 'proximity', lat: currentProximitySearch.lat, lon: currentProximitySearch.lon, label: currentProximitySearch.labelTitle });
-    } else if (!document.getElementById('home-view').classList.contains('hidden')) {
-        pushNav({ type: 'home' });
+    const stationViewEl = document.getElementById('station-view');
+    const skipNavPush =
+        stationViewEl &&
+        !stationViewEl.classList.contains('hidden') &&
+        stationViewEl.getAttribute('data-current-id') === stationId;
+
+    if (!skipNavPush) {
+        if (currentGeoZone) {
+            pushNav({ type: 'geoZone', geoType: currentGeoZone.type, name: currentGeoZone.name });
+        } else if (currentProximitySearch) {
+            pushNav({ type: 'proximity', lat: currentProximitySearch.lat, lon: currentProximitySearch.lon, label: currentProximitySearch.labelTitle });
+        } else if (!document.getElementById('home-view').classList.contains('hidden')) {
+            pushNav({ type: 'home' });
+        }
     }
     document.getElementById('home-view').classList.add('hidden');
     const stationView = document.getElementById('station-view');
