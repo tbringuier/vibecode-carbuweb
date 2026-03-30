@@ -72,7 +72,9 @@ function refreshActiveViews() {
         const sf = sortEl ? sortEl.value : '';
         renderStationsList(currentProximitySearch.lat, currentProximitySearch.lon, currentProximitySearch.labelTitle, sf);
     } else if (currentGeoZone) {
-        searchGeoZone(currentGeoZone.type, currentGeoZone.name);
+        const sortEl = document.getElementById('geo-sort-select');
+        const gf = sortEl ? sortEl.value : (userFuels[0] || '');
+        searchGeoZone(currentGeoZone.type, currentGeoZone.name, gf);
     } else if (!document.getElementById('home-view').classList.contains('hidden')) {
         debouncedSearch();
     }
@@ -534,9 +536,9 @@ function saveVehicleForm() {
     closeVehicleForm();
     renderVehiclesList();
     renderVehicleBar();
-    if (activeVehicleId) {
-        applyActiveVehicle();
-    }
+    nearbyStationCache.clear();
+    renderFavorites();
+    refreshActiveViews();
 }
 
 function confirmDeleteVehicle(id) {
