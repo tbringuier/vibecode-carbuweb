@@ -13,9 +13,25 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Paris
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Date du build (Europe/Paris)
+        id: builddate
+        run: |
+          D=$(date +%Y-%m-%d)
+          echo "date=$D" >> "$GITHUB_OUTPUT"
+          echo "CARBUWEB_BUILD_DATE=$D" >> "$GITHUB_ENV"
+
+      - name: Cache mapping OpenStreetMap (journalier)
+        id: osm-cache
+        uses: actions/cache@v5
+        with:
+          path: datasets/osm_mapping-${{ steps.builddate.outputs.date }}.json
+          key: osm-mapping-fr-${{ steps.builddate.outputs.date }}
 
       - uses: actions/setup-python@v6
         with:
@@ -23,6 +39,14 @@ jobs:
           cache: pip
 
       - run: pip install -r requirements.txt
+
+      - name: Statut cache OSM
+        run: |
+          if [ "${{ steps.osm-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "::notice::Cache OSM — pas d'appel Overpass pour ${{ steps.builddate.outputs.date }}."
+          else
+            echo "::notice::Pas de cache OSM — téléchargement Overpass si nécessaire."
+          fi
 
       - run: python main.py
 

@@ -33,7 +33,20 @@ DATASETS_DIR = os.path.join(BASE_DIR, "datasets")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 BUILD_DIR = os.path.join(BASE_DIR, "build")
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
+
+def _resolve_build_date():
+    """Date calendaire des fichiers dataset (YYYY-MM-DD).
+
+    Sur CI, GitHub Actions définit CARBUWEB_BUILD_DATE (Europe/Paris) pour
+    aligner noms de fichiers et clé du cache Actions.
+    """
+    raw = os.environ.get("CARBUWEB_BUILD_DATE", "").strip()
+    if raw and re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        return raw
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+TODAY = _resolve_build_date()
 
 EXCEL_FILE = os.path.join(DATASETS_DIR, f"prix-carburant-{TODAY}.xlsx")
 OSM_FILE = os.path.join(DATASETS_DIR, f"osm_mapping-{TODAY}.json")
@@ -500,6 +513,8 @@ def generate_site():
 
 def main():
     log.info("Carbu'Web build started for %s", TODAY)
+    if os.environ.get("CARBUWEB_BUILD_DATE"):
+        log.info("Date imposée par environnement (CI/cache) : CARBUWEB_BUILD_DATE=%s", TODAY)
 
     cleanup_old_files()
 
