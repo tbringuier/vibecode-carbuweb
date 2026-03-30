@@ -12,6 +12,10 @@ let chartsInitialized = false;
 let currentProximitySearch = null;
 let currentGeoZone = null;
 let navStack = [];
+let isRestoringNav = false;
+let chartNatPrices = null;
+let chartNatFuels = null;
+let searchAbortController = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('radius-slider').value = userRadius;
@@ -52,6 +56,11 @@ function dismissWelcome() {
 function normalizeText(text) {
     if (!text) return "";
     return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-']/g, " ").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function distanceHaversine(lat1, lon1, lat2, lon2) {
@@ -270,7 +279,10 @@ function saveSettings() {
 }
 
 function resetSettings() {
-    localStorage.clear();
+    localStorage.removeItem('carbuRadius');
+    localStorage.removeItem('carbuFuels');
+    localStorage.removeItem('carbuFavorites');
+    localStorage.removeItem('carbuWelcomeDismissed');
     location.reload();
 }
 
@@ -319,6 +331,9 @@ function removeFavorite(id) {
 function renderFavorites() {
     const container = document.getElementById('favorites-container');
     const list = document.getElementById('favorites-list');
+    const prevLen = userFavorites.length;
+    userFavorites = userFavorites.filter(f => f.type !== 'station' || (db && db.stations[f.id]));
+    if (userFavorites.length !== prevLen) localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     if (userFavorites.length === 0) {
         container.classList.add('hidden');
         return;
@@ -344,8 +359,8 @@ function renderFavorites() {
                 <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-xl hover:shadow-md hover:border-yellow-300 transition group">
                     <div class="flex justify-between items-start">
                         <div onclick="showStation('${f.id}')" class="flex-1 min-w-0 cursor-pointer">
-                            <div class="font-bold text-yellow-800 truncate"><i class="fas fa-gas-pump mr-2 text-yellow-600"></i>${f.name}</div>
-                            <div class="text-xs text-yellow-700 truncate mt-1">${f.adresse}</div>
+                            <div class="font-bold text-yellow-800 truncate"><i class="fas fa-gas-pump mr-2 text-yellow-600"></i>${esc(f.name)}</div>
+                            <div class="text-xs text-yellow-700 truncate mt-1">${esc(f.adresse)}</div>
                         </div>
                         <button onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="ml-2 flex-shrink-0 text-yellow-400 hover:text-red-500 transition" title="Retirer des favoris"><i class="fas fa-star text-lg"></i></button>
                     </div>
@@ -371,7 +386,7 @@ function renderFavorites() {
                             if (!best || p < best.prix) best = { prix: p, nom: ns.station.nom_osm || ns.station.ville, id: ns.id };
                         }
                     }
-                    if (best) bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div><div class="text-[9px] text-green-600 truncate">${best.nom}</div></div>`;
+                    if (best) bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div><div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
                 });
             }
             const widgetRow = bestCards ? `<div class="grid grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
@@ -379,7 +394,7 @@ function renderFavorites() {
                 <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl hover:shadow-md hover:border-indigo-300 transition group">
                     <div class="flex justify-between items-center">
                         <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="flex-1 min-w-0 cursor-pointer">
-                            <div class="font-bold text-indigo-800 truncate"><i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>${f.name}</div>
+                            <div class="font-bold text-indigo-800 truncate"><i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>${esc(f.name)}</div>
                             <div class="text-xs text-indigo-700 mt-1">Adresse favorite · ${userRadius} km</div>
                         </div>
                         <button onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="ml-2 flex-shrink-0 text-yellow-400 hover:text-red-500 transition" title="Retirer des favoris"><i class="fas fa-star text-lg"></i></button>
@@ -391,17 +406,29 @@ function renderFavorites() {
     list.innerHTML = allHtml;
 }
 
+const nearbyStationCache = new Map();
+function getNearbyStations(stationId) {
+    if (nearbyStationCache.has(stationId)) return nearbyStationCache.get(stationId);
+    const st = db.stations[stationId];
+    if (!st || !st.lat || !st.lon) { nearbyStationCache.set(stationId, []); return []; }
+    const ids = [];
+    for (const [id, s] of Object.entries(db.stations)) {
+        if (id === stationId || !s.lat || !s.lon) continue;
+        if (distanceHaversine(st.lat, st.lon, s.lat, s.lon) <= 15) ids.push(id);
+    }
+    nearbyStationCache.set(stationId, ids);
+    return ids;
+}
+
 function prixColorTag(stationId, carburant, prix) {
     const st = db.stations[stationId];
     if (!st || !st.lat || !st.lon) return { bg: 'bg-slate-100', text: 'text-slate-700' };
     const prixNum = parseFloat(prix);
+    const nearbyIds = getNearbyStations(stationId);
     let nearby = [prixNum];
-    for (const [id, s] of Object.entries(db.stations)) {
-        if (id === stationId || !s.lat || !s.lon) continue;
-        if (!s.carburants_disponibles[carburant]) continue;
-        if (distanceHaversine(st.lat, st.lon, s.lat, s.lon) <= 15) {
-            nearby.push(parseFloat(s.carburants_disponibles[carburant].prix));
-        }
+    for (const id of nearbyIds) {
+        const s = db.stations[id];
+        if (s.carburants_disponibles[carburant]) nearby.push(parseFloat(s.carburants_disponibles[carburant].prix));
     }
     if (nearby.length < 2) return { bg: 'bg-slate-100', text: 'text-slate-700' };
     nearby.sort((a, b) => a - b);
@@ -431,6 +458,7 @@ function switchTab(tab) {
 }
 
 function pushNav(state) {
+    if (isRestoringNav) return;
     navStack.push(state);
     history.pushState({ idx: navStack.length }, '');
 }
@@ -445,15 +473,23 @@ function goHome() {
 }
 
 function goBack() {
-    if (navStack.length === 0) { goHome(); return; }
-    const prev = navStack.pop();
-    if (prev.type === 'home') { goHome(); }
-    else if (prev.type === 'proximity') { navStack = []; findStationsNear(prev.lat, prev.lon, prev.label); }
-    else if (prev.type === 'geoZone') { navStack = []; searchGeoZone(prev.geoType, prev.name); }
-    else { goHome(); }
+    if (navStack.length > 0) {
+        history.back();
+    } else {
+        goHome();
+    }
 }
 
-window.addEventListener('popstate', () => goBack());
+window.addEventListener('popstate', () => {
+    if (navStack.length === 0) { goHome(); return; }
+    const prev = navStack.pop();
+    isRestoringNav = true;
+    if (prev.type === 'home') goHome();
+    else if (prev.type === 'proximity') findStationsNear(prev.lat, prev.lon, prev.label);
+    else if (prev.type === 'geoZone') searchGeoZone(prev.geoType, prev.name);
+    else goHome();
+    isRestoringNav = false;
+});
 
 function buildBestPricesWidget(stations) {
     let cards = '';
@@ -465,7 +501,7 @@ function buildBestPricesWidget(stations) {
                 best = { prix: parseFloat(d.prix), nom: s.station.nom_osm || s.station.ville, addr: `${s.station.adresse}, ${s.station.ville}`, id: s.id };
             }
         });
-        if (best) cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate leading-tight">${best.nom}</div><div class="text-[9px] text-green-500 truncate leading-tight">${best.addr}</div></div>`;
+        if (best) cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate leading-tight">${esc(best.nom)}</div><div class="text-[9px] text-green-500 truncate leading-tight">${esc(best.addr)}</div></div>`;
     });
     if (!cards) return '';
     return `<div class="mb-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4"><h4 class="text-base font-extrabold text-green-800 mb-3 flex items-center"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Les meilleurs prix</h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div><p class="text-[10px] text-green-600 mt-2 text-center"><i class="fas fa-info-circle mr-1"></i>Distances calculées à vol d'oiseau</p></div>`;
@@ -511,7 +547,7 @@ function searchGeoZone(type, name, overrideFuel) {
     let html = `
         <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
             <div class="bg-gradient-to-r from-indigo-600 to-blue-500 p-4 sm:p-6 text-white text-center">
-                <h2 class="text-lg sm:text-2xl font-extrabold mb-1"><i class="fas fa-map-marked-alt mr-2"></i>${zoneLabel}</h2>
+                <h2 class="text-lg sm:text-2xl font-extrabold mb-1"><i class="fas fa-map-marked-alt mr-2"></i>${esc(zoneLabel)}</h2>
                 <p class="text-blue-100 text-xs sm:text-sm">${total} stations trouvées</p>
             </div>
             <div class="p-4 sm:p-6 md:p-8">
@@ -546,8 +582,8 @@ function searchGeoZone(type, name, overrideFuel) {
         html += `
             <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group">
                 <div class="flex-1 min-w-0">
-                    <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${res.station.nom_osm || 'Station-service'}</div>
-                    <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${res.station.adresse}, ${res.station.code_postal} ${res.station.ville}${dateMaj}</div>
+                    <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                    <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.code_postal)} ${esc(res.station.ville)}${dateMaj}</div>
                 </div>
                 ${rightContent}
             </div>`;
@@ -578,19 +614,21 @@ let dashSortDir = 'asc';
 function renderDashboard() {
     if (!chartsInitialized) {
         chartsInitialized = true;
+        if (chartNatPrices) { chartNatPrices.destroy(); chartNatPrices = null; }
+        if (chartNatFuels) { chartNatFuels.destroy(); chartNatFuels = null; }
         const dash = db.dashboard;
         const fuels = Object.keys(dash.national.avg_prices).filter(f => dash.national.avg_prices[f] > 0);
         const avgPrices = fuels.map(f => dash.national.avg_prices[f]);
         const fuelCounts = fuels.map(f => dash.national.fuel_presence[f]);
         const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-        new Chart(document.getElementById('chart-nat-prices'), {
+        chartNatPrices = new Chart(document.getElementById('chart-nat-prices'), {
             type: 'bar',
             data: { labels: fuels, datasets: [{ label: 'Prix moyen (€)', data: avgPrices, backgroundColor: colors }] },
             options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
         });
 
-        new Chart(document.getElementById('chart-nat-fuels'), {
+        chartNatFuels = new Chart(document.getElementById('chart-nat-fuels'), {
             type: 'pie',
             data: { labels: fuels, datasets: [{ data: fuelCounts, backgroundColor: colors }] },
             options: { responsive: true }
@@ -636,7 +674,7 @@ function renderRegionsTable() {
 
     for (const [region, data] of regions) {
         const slug = region.replace(/[^a-zA-Z0-9]/g, '_');
-        tableHtml += `<tr class="border-b hover:bg-slate-50 cursor-pointer" onclick="toggleRegionAccordion('${slug}')"><td class="px-4 py-3 font-bold sticky left-0 bg-white/90 backdrop-blur z-10"><i id="chevron-${slug}" class="fas fa-chevron-right text-xs text-slate-400 mr-2 transition-transform"></i>${region}</td><td class="px-4 py-3 text-center">${data.station_count}</td>`;
+        tableHtml += `<tr class="border-b hover:bg-slate-50 cursor-pointer" onclick="toggleRegionAccordion('${slug}')"><td class="px-4 py-3 font-bold sticky left-0 bg-white/90 backdrop-blur z-10"><i id="chevron-${slug}" class="fas fa-chevron-right text-xs text-slate-400 mr-2 transition-transform"></i>${esc(region)}</td><td class="px-4 py-3 text-center">${data.station_count}</td>`;
         fuels.forEach(f => {
             let p = data.avg_prices[f];
             tableHtml += `<td class="px-4 py-3 text-center font-medium">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
@@ -646,7 +684,7 @@ function renderRegionsTable() {
         if (dash.departemental) {
             const deptRows = Object.entries(dash.departemental).filter(([, d]) => d.region === region).sort((a, b) => a[1].nom.localeCompare(b[1].nom));
             for (const [, dept] of deptRows) {
-                tableHtml += `<tr class="dept-row-${slug} hidden border-b bg-slate-50/50"><td class="px-4 py-2 pl-10 text-slate-600 sticky left-0 bg-slate-50/90 backdrop-blur z-10">${dept.nom}</td><td class="px-4 py-2 text-center text-slate-500">${dept.station_count}</td>`;
+                tableHtml += `<tr class="dept-row-${slug} hidden border-b bg-slate-50/50"><td class="px-4 py-2 pl-10 text-slate-600 sticky left-0 bg-slate-50/90 backdrop-blur z-10">${esc(dept.nom)}</td><td class="px-4 py-2 text-center text-slate-500">${dept.station_count}</td>`;
                 fuels.forEach(f => {
                     let p = dept.avg_prices[f];
                     tableHtml += `<td class="px-4 py-2 text-center text-slate-500">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
@@ -669,11 +707,14 @@ function debouncedSearch() {
 }
 
 async function performSearch() {
+    if (searchAbortController) searchAbortController.abort();
+    searchAbortController = new AbortController();
+    const currentSignal = searchAbortController.signal;
     const query = document.getElementById('search-input').value;
     const normQuery = normalizeText(query);
     const resultsContainer = document.getElementById('search-results');
-    currentProximitySearch = null; 
-    
+    currentProximitySearch = null;
+
     if (normQuery.length < 3) { resultsContainer.innerHTML = ''; return; }
     resultsContainer.innerHTML = '<div class="text-center text-slate-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Recherche en cours...</div>';
 
@@ -706,7 +747,7 @@ async function performSearch() {
             html += `
                 <div onclick="searchGeoZone('region', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-purple-50 border border-purple-200 rounded-xl hover:shadow-md hover:border-purple-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-purple-800 group-hover:text-purple-600 transition truncate text-lg"><i class="fas fa-map-marked-alt mr-2 text-purple-500"></i>${g.nom}</div>
+                        <div class="font-bold text-purple-800 group-hover:text-purple-600 transition truncate text-lg"><i class="fas fa-map-marked-alt mr-2 text-purple-500"></i>${esc(g.nom)}</div>
                         <div class="text-sm text-purple-600 mt-1">${g.count} stations</div>
                     </div>
                     <i class="fas fa-chevron-right text-purple-300 group-hover:text-purple-500 transition flex-shrink-0"></i>
@@ -721,8 +762,8 @@ async function performSearch() {
             html += `
                 <div onclick="searchGeoZone('dept', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg"><i class="fas fa-map-pin mr-2 text-indigo-500"></i>${g.nom} (${g.code})</div>
-                        <div class="text-sm text-slate-500 mt-1">${g.region} · ${g.count} stations</div>
+                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg"><i class="fas fa-map-pin mr-2 text-indigo-500"></i>${esc(g.nom)} (${esc(g.code)})</div>
+                        <div class="text-sm text-slate-500 mt-1">${esc(g.region)} · ${g.count} stations</div>
                     </div>
                     <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0"></i>
                 </div>
@@ -751,8 +792,8 @@ async function performSearch() {
             html += `
                 <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg">${res.station.nom_osm || 'Station-service'}</div>
-                        <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${res.station.adresse}, ${res.station.code_postal} ${res.station.ville}</div>
+                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                        <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.code_postal)} ${esc(res.station.ville)}</div>
                     </div>
                     <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0"></i>
                 </div>
@@ -761,7 +802,7 @@ async function performSearch() {
     }
 
     try {
-        const osmResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=fr&limit=4`);
+        const osmResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=fr&limit=4`, { signal: currentSignal });
         const osmData = await osmResponse.json();
         
         if (osmData.length > 0) {
@@ -776,8 +817,8 @@ async function performSearch() {
                     <div class="bg-indigo-50 border border-indigo-100 rounded-xl hover:shadow-md hover:border-indigo-300 transition flex items-center group mb-2 overflow-hidden">
                         <div onclick="findStationsNear(${place.lat}, ${place.lon}, '${name.replace(/'/g, "\\'")}')" class="p-4 flex-1 min-w-0 cursor-pointer flex justify-between items-center">
                             <div class="min-w-0">
-                                <div class="font-bold text-indigo-800 group-hover:text-indigo-600 transition truncate text-lg">${name}</div>
-                                <div class="text-xs text-indigo-500 truncate mt-1"><i class="fas fa-search-location mr-1"></i>${desc}</div>
+                                <div class="font-bold text-indigo-800 group-hover:text-indigo-600 transition truncate text-lg">${esc(name)}</div>
+                                <div class="text-xs text-indigo-500 truncate mt-1"><i class="fas fa-search-location mr-1"></i>${esc(desc)}</div>
                             </div>
                             <i class="fas fa-arrow-right text-indigo-300 group-hover:text-indigo-500 transition ml-3"></i>
                         </div>
@@ -798,6 +839,7 @@ async function performSearch() {
                 <span class="text-sm mt-2 block">Note : les stations-services inactives depuis >7 jours, ou ne proposant pas les carburants que vous avez cochés dans vos paramètres, sont masquées.</span>
             </div>`;
     }
+    if (currentSignal.aborted) return;
     resultsContainer.innerHTML = html;
 }
 
@@ -858,7 +900,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
     let html = `
         <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
             <div class="bg-gradient-to-r from-indigo-600 to-blue-500 p-4 sm:p-6 text-white text-center">
-                <h2 class="text-lg sm:text-2xl font-extrabold"><i class="fas fa-location-arrow mr-2"></i>Stations autour de ${labelTitle}</h2>
+                <h2 class="text-lg sm:text-2xl font-extrabold"><i class="fas fa-location-arrow mr-2"></i>Stations autour de ${esc(labelTitle)}</h2>
             </div>
             <div class="p-4 sm:p-6 md:p-8">
                 <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
@@ -929,8 +971,8 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
             html += `
                 <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group">
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${res.station.nom_osm || 'Station-service'}</div>
-                        <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${res.station.adresse}, ${res.station.ville}</div>
+                        <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                        <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.ville)}</div>
                         ${carbsHtml}
                     </div>
                     ${rightContent}
@@ -1031,8 +1073,8 @@ function findCheapest() {
             <div onclick="showStation('${res.id}')" class="p-4 border rounded-xl flex items-center cursor-pointer hover:shadow-md hover:border-indigo-300 transition gap-2 group ${medailleClass}">
                 ${badge}
                 <div class="flex-1 min-w-0">
-                    <div class="font-bold text-slate-800 text-lg truncate group-hover:text-indigo-600 transition">${res.station.nom_osm || 'Station-service'}</div>
-                    <div class="text-xs text-slate-500 truncate">${res.station.ville} (${res.station.code_postal})</div>
+                    <div class="font-bold text-slate-800 text-lg truncate group-hover:text-indigo-600 transition">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                    <div class="text-xs text-slate-500 truncate">${esc(res.station.ville)} (${esc(res.station.code_postal)})</div>
                 </div>
                 <div class="font-black ${colorPrix} text-xl ml-2 bg-white px-3 py-1 rounded-lg shadow-sm border border-slate-100 flex-shrink-0">${res.prixInfo.toFixed(3)} €</div>
             </div>
@@ -1120,7 +1162,7 @@ function showStation(stationId) {
     if (currentGeoZone) {
         pushNav({ type: 'geoZone', geoType: currentGeoZone.type, name: currentGeoZone.name });
     } else if (currentProximitySearch) {
-        navStack.push({ type: 'proximity', lat: currentProximitySearch.lat, lon: currentProximitySearch.lon, label: currentProximitySearch.labelTitle });
+        pushNav({ type: 'proximity', lat: currentProximitySearch.lat, lon: currentProximitySearch.lon, label: currentProximitySearch.labelTitle });
     } else if (!document.getElementById('home-view').classList.contains('hidden')) {
         pushNav({ type: 'home' });
     }
@@ -1137,10 +1179,10 @@ function showStation(stationId) {
     let html = `
         <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
             <div class="bg-gradient-to-r from-indigo-600 to-blue-500 p-4 sm:p-6 text-white relative">
-                <h2 class="text-xl sm:text-3xl font-extrabold mb-2 sm:mb-3 drop-shadow-md pr-10">${station.nom_osm || 'Station-service'}</h2>
+                <h2 class="text-xl sm:text-3xl font-extrabold mb-2 sm:mb-3 drop-shadow-md pr-10">${esc(station.nom_osm) || 'Station-service'}</h2>
                 <a href="${gmapsLink}" target="_blank" class="inline-flex items-start text-blue-100 hover:text-white transition group text-sm font-medium bg-black/20 px-4 py-3 rounded-xl hover:bg-black/30 w-full md:w-max">
-                    <i class="fas fa-directions mr-2 mt-1 group-hover:scale-110 transition-transform flex-shrink-0"></i> 
-                    <span>${station.adresse}<br>${station.code_postal} ${station.ville}</span>
+                    <i class="fas fa-directions mr-2 mt-1 group-hover:scale-110 transition-transform flex-shrink-0"></i>
+                    <span>${esc(station.adresse)}<br>${esc(station.code_postal)} ${esc(station.ville)}</span>
                 </a>
             </div>
             
@@ -1215,7 +1257,7 @@ function showStation(stationId) {
 
     if (alternatives.length > 0) {
         let alternativesTitle = currentGeoZone
-            ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans ${currentGeoZone.name}`
+            ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans ${esc(currentGeoZone.name)}`
             : currentProximitySearch
             ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans votre zone de recherche`
             : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (${userRadius} km)`;
@@ -1239,7 +1281,7 @@ function showStation(stationId) {
             html += `
                 <button onclick="showStation('${altId}')" class="w-full text-left p-4 ${t.bg} border-2 ${t.border} rounded-xl ${t.hoverBg} ${t.hoverBorder} transition shadow-sm flex justify-between items-center group gap-4">
                     <div class="flex-1 min-w-0">
-                        <div class="font-extrabold ${t.textMain} text-lg group-hover:opacity-80 transition truncate">${info.nom}</div>
+                        <div class="font-extrabold ${t.textMain} text-lg group-hover:opacity-80 transition truncate">${esc(info.nom)}</div>
                         <div class="text-sm font-semibold ${t.textSub} mt-1"><i class="fas fa-route mr-1"></i> à ${info.dist.toFixed(1)} km d'ici</div>
                         <div class="text-sm text-slate-600 mt-2 bg-white inline-block px-3 py-1.5 rounded-lg border ${t.badgeBorder} truncate max-w-full shadow-sm leading-tight">📉 <b>${t.title} :</b><br> ${info.carbs.join('<br> ')}</div>
                     </div>
@@ -1250,8 +1292,6 @@ function showStation(stationId) {
         html += `</div>`;
     }
 
-    let horairesDisponibles = station.horaires.automate_24_24 ||
-        !Object.values(station.horaires.jours).every(v => v === "Horaires indisponibles" || v === "Horaires indisponibles");
     let hasRealHours = station.horaires.automate_24_24 ||
         Object.values(station.horaires.jours).some(v => v !== "Horaires indisponibles");
 
@@ -1315,7 +1355,7 @@ function initStationMap(markersData, isMultiple = false) {
     markersData.forEach(m => {
         if (m.type === 'search_point') {
             L.circle([m.lat, m.lon], { radius: parseFloat(userRadius) * 1000, color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.05, weight: 2, dashArray: '6 4' }).addTo(stationMap);
-            L.circleMarker([m.lat, m.lon], { radius: 10, color: '#1e1b4b', fillColor: '#4f46e5', fillOpacity: 0.9, weight: 3 }).bindPopup(`<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${m.label || 'Point'}</b><span class="text-xs text-slate-500 block">${m.adresse || ''}</span><span class="text-xs text-indigo-500 font-bold block mt-1">Rayon : ${userRadius} km</span></div>`).addTo(stationMap).openPopup();
+            L.circleMarker([m.lat, m.lon], { radius: 10, color: '#1e1b4b', fillColor: '#4f46e5', fillOpacity: 0.9, weight: 3 }).bindPopup(`<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 block">${esc(m.adresse) || ''}</span><span class="text-xs text-indigo-500 font-bold block mt-1">Rayon : ${userRadius} km</span></div>`).addTo(stationMap).openPopup();
             bounds.push([m.lat, m.lon]);
             return;
         }
@@ -1325,7 +1365,7 @@ function initStationMap(markersData, isMultiple = false) {
         else if (m.type === 'station_red') icon = iconRed;
 
         let popupBtn = m.id ? `<button onclick="showStation('${m.id}')" class="mt-2 w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir la station-service</button>` : '';
-        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${m.label || 'Point'}</b><span class="text-xs text-slate-500 leading-tight block">${m.adresse || ''}</span>${popupBtn}</div>`;
+        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 leading-tight block">${esc(m.adresse) || ''}</span>${popupBtn}</div>`;
 
         L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(stationMap);
         bounds.push([m.lat, m.lon]);
@@ -1352,7 +1392,7 @@ function initPalmaresMap(markersData) {
     markersData.forEach(m => {
         let icon = m.isAsc ? iconGold : iconRed;
         let colorText = m.isAsc ? 'text-green-600' : 'text-red-600';
-        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${m.label}</b><span class="text-xs text-slate-500 leading-tight block mb-2">${m.adresse}</span><div class="font-black ${colorText} text-lg mb-2">${m.prix.toFixed(3)} €</div><button onclick="showStation('${m.id}')" class="w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir</button></div>`;
+        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label)}</b><span class="text-xs text-slate-500 leading-tight block mb-2">${esc(m.adresse)}</span><div class="font-black ${colorText} text-lg mb-2">${m.prix.toFixed(3)} €</div><button onclick="showStation('${m.id}')" class="w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir</button></div>`;
         
         L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(palmaresMap);
         bounds.push([m.lat, m.lon]);
