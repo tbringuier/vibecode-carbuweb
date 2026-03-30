@@ -105,7 +105,7 @@ function renderFuelList() {
         row.draggable = true;
         row.dataset.fuel = f;
         row.innerHTML = `
-            <i class="fas fa-grip-vertical text-slate-300 text-sm hidden sm:block cursor-grab"></i>
+            <i class="fas fa-grip-vertical text-slate-300 text-sm cursor-grab"></i>
             <button type="button" onclick="event.preventDefault(); moveFuel('${f}', -1)" class="sm:hidden h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 text-slate-500 hover:bg-indigo-100 active:bg-indigo-200 text-xs flex-shrink-0"><i class="fas fa-chevron-up"></i></button>
             <button type="button" onclick="event.preventDefault(); moveFuel('${f}', 1)" class="sm:hidden h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 text-slate-500 hover:bg-indigo-100 active:bg-indigo-200 text-xs flex-shrink-0"><i class="fas fa-chevron-down"></i></button>
             ${rankLabel}
@@ -142,6 +142,38 @@ function initFuelDragDrop() {
             if (!draggedEl || draggedEl === row) return;
             container.insertBefore(draggedEl, row);
             syncFuelOrderFromDOM();
+        });
+
+        // Touch drag support for mobile
+        let touchStartY = 0;
+        let touchClone = null;
+        row.addEventListener('touchstart', e => {
+            if (e.target.closest('button') || e.target.closest('input')) return;
+            draggedEl = row;
+            touchStartY = e.touches[0].clientY;
+            row.classList.add('opacity-40');
+        }, { passive: true });
+        row.addEventListener('touchmove', e => {
+            if (!draggedEl || draggedEl !== row) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const targetRow = target ? target.closest('.fuel-row') : null;
+            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+            if (targetRow && targetRow !== draggedEl) targetRow.classList.add('border-t-2', 'border-indigo-400');
+        }, { passive: false });
+        row.addEventListener('touchend', e => {
+            if (!draggedEl || draggedEl !== row) return;
+            const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const targetRow = target ? target.closest('.fuel-row') : null;
+            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+            row.classList.remove('opacity-40');
+            if (targetRow && targetRow !== draggedEl) {
+                container.insertBefore(draggedEl, targetRow);
+                syncFuelOrderFromDOM();
+            }
+            draggedEl = null;
         });
     });
     // Allow drop at end of list
@@ -185,7 +217,25 @@ function onFuelToggle(fuel) {
         userFuels = userFuels.filter(f => f !== fuel);
     }
     renderFuelList();
+    renderFuelWarning();
     debouncedSaveSettings();
+}
+
+function renderFuelWarning() {
+    let warning = document.getElementById('fuel-warning');
+    if (!warning) {
+        warning = document.createElement('div');
+        warning.id = 'fuel-warning';
+        const container = document.getElementById('fuels-checkboxes');
+        container.parentNode.insertBefore(warning, container.nextSibling);
+    }
+    if (userFuels.length === 0) {
+        warning.className = 'mt-2 p-3 bg-red-50 border border-red-300 rounded-xl text-sm text-red-700 font-semibold flex items-center gap-2';
+        warning.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500"></i> Veuillez cocher au moins un carburant pour utiliser l\'application.';
+    } else {
+        warning.className = 'hidden';
+        warning.innerHTML = '';
+    }
 }
 
 function saveSettings() {
@@ -193,8 +243,8 @@ function saveSettings() {
     localStorage.setItem('carbuRadius', userRadius);
 
     if (userFuels.length === 0) {
-        userFuels = [...ALL_FUELS];
-        renderFuelList();
+        renderFuelWarning();
+        return;
     }
     localStorage.setItem('carbuFuels', JSON.stringify(userFuels));
     
@@ -203,10 +253,18 @@ function saveSettings() {
         const sortSelect = document.getElementById('sort-fuel-select');
         const sf = sortSelect ? sortSelect.value : "";
         applyFuelSort(sf);
+    } else if (currentGeoZone) {
+        searchGeoZone(currentGeoZone.type, currentGeoZone.name);
     } else if (!document.getElementById('home-view').classList.contains('hidden')) {
         debouncedSearch();
     }
-    
+
+    // Re-render dashboard if visible
+    if (!document.getElementById('pane-statistiques').classList.contains('hidden')) {
+        chartsInitialized = false;
+        renderDashboard();
+    }
+
     const currentViewId = document.getElementById('station-view').getAttribute('data-current-id');
     if (currentViewId && !document.getElementById('station-view').classList.contains('hidden')) showStation(currentViewId);
 }
@@ -235,12 +293,27 @@ function toggleFavoriteCurrentStation() {
     else userFavorites.push({ id: sid, type: 'station', name: s.nom_osm || 'Station-service', adresse: `${s.adresse}, ${s.ville}` });
     localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
     updateStarUI(sid);
+    renderFavorites();
 }
 
 function updateStarUI(sid) {
     const btn = document.getElementById('btn-favorite-station');
     const isFav = userFavorites.some(f => f.id === sid);
-    btn.innerHTML = `<i class="fas fa-star ${isFav ? 'text-yellow-400' : 'text-slate-300 hover:text-yellow-400'}"></i>`;
+    if (isFav) {
+        btn.innerHTML = `<i class="fas fa-star text-yellow-400"></i>`;
+        btn.title = 'Retirer des favoris';
+        btn.className = 'text-2xl transition hover:scale-110 hover:text-red-400';
+    } else {
+        btn.innerHTML = `<i class="far fa-star text-slate-300 hover:text-yellow-400"></i>`;
+        btn.title = 'Ajouter aux favoris';
+        btn.className = 'text-2xl transition hover:scale-110';
+    }
+}
+
+function removeFavorite(id) {
+    userFavorites = userFavorites.filter(f => f.id !== id);
+    localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
+    renderFavorites();
 }
 
 function renderFavorites() {
@@ -268,15 +341,15 @@ function renderFavorites() {
                 if (tags.length) pricesHtml = `<div class="flex flex-wrap gap-1 mt-1.5">${tags.join('')}</div>`;
             }
             allHtml += `
-                <div onclick="showStation('${f.id}')" class="p-3 bg-yellow-50 border border-yellow-200 rounded-xl cursor-pointer hover:shadow-md hover:border-yellow-300 transition group">
+                <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-xl hover:shadow-md hover:border-yellow-300 transition group">
                     <div class="flex justify-between items-start">
-                        <div class="flex-1 min-w-0">
+                        <div onclick="showStation('${f.id}')" class="flex-1 min-w-0 cursor-pointer">
                             <div class="font-bold text-yellow-800 truncate"><i class="fas fa-gas-pump mr-2 text-yellow-600"></i>${f.name}</div>
                             <div class="text-xs text-yellow-700 truncate mt-1">${f.adresse}</div>
                         </div>
-                        <i class="fas fa-chevron-right text-yellow-400 group-hover:text-yellow-600 mt-1 ml-2 flex-shrink-0"></i>
+                        <button onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="ml-2 flex-shrink-0 text-yellow-400 hover:text-red-500 transition" title="Retirer des favoris"><i class="fas fa-star text-lg"></i></button>
                     </div>
-                    ${pricesHtml}
+                    <div onclick="showStation('${f.id}')" class="cursor-pointer">${pricesHtml}</div>
                 </div>`;
         } else {
             let bestCards = '';
@@ -303,15 +376,15 @@ function renderFavorites() {
             }
             const widgetRow = bestCards ? `<div class="grid grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
             allHtml += `
-                <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl cursor-pointer hover:shadow-md hover:border-indigo-300 transition group">
+                <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl hover:shadow-md hover:border-indigo-300 transition group">
                     <div class="flex justify-between items-center">
-                        <div class="flex-1 min-w-0">
+                        <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="flex-1 min-w-0 cursor-pointer">
                             <div class="font-bold text-indigo-800 truncate"><i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>${f.name}</div>
                             <div class="text-xs text-indigo-700 mt-1">Adresse favorite · ${userRadius} km</div>
                         </div>
-                        <i class="fas fa-chevron-right text-indigo-400 group-hover:text-indigo-600 flex-shrink-0"></i>
+                        <button onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="ml-2 flex-shrink-0 text-yellow-400 hover:text-red-500 transition" title="Retirer des favoris"><i class="fas fa-star text-lg"></i></button>
                     </div>
-                    ${widgetRow}
+                    <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="cursor-pointer">${widgetRow}</div>
                 </div>`;
         }
     }
@@ -395,7 +468,7 @@ function buildBestPricesWidget(stations) {
         if (best) cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate leading-tight">${best.nom}</div><div class="text-[9px] text-green-500 truncate leading-tight">${best.addr}</div></div>`;
     });
     if (!cards) return '';
-    return `<div class="mb-4"><h4 class="text-sm font-bold text-slate-600 mb-2"><i class="fas fa-trophy text-yellow-500 mr-1.5"></i>Meilleurs prix <span class="font-normal text-slate-400">(à vol d'oiseau)</span></h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div></div>`;
+    return `<div class="mb-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4"><h4 class="text-base font-extrabold text-green-800 mb-3 flex items-center"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Les meilleurs prix</h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div><p class="text-[10px] text-green-600 mt-2 text-center"><i class="fas fa-info-circle mr-1"></i>Distances calculées à vol d'oiseau</p></div>`;
 }
 
 function searchGeoZone(type, name, overrideFuel) {
@@ -1230,7 +1303,7 @@ function initStationMap(markersData, isMultiple = false) {
     }
 
     stationMap = L.map('station-map', { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap France', maxZoom: 20, detectRetina: true }).addTo(stationMap);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap, © CARTO', maxZoom: 20, detectRetina: true }).addTo(stationMap);
 
     let bounds = [];
     const iconBlue = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
@@ -1270,7 +1343,7 @@ function initPalmaresMap(markersData) {
     if (palmaresMap) { palmaresMap.remove(); }
     
     palmaresMap = L.map('palmares-map', { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap France', maxZoom: 20, detectRetina: true }).addTo(palmaresMap);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap, © CARTO', maxZoom: 20, detectRetina: true }).addTo(palmaresMap);
 
     let bounds = [];
     const iconGold = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
