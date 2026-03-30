@@ -47,6 +47,22 @@ EXCEL_URL = (
 
 ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]
 
+# Instances Overpass publiques (rotation en cas de 504 / surcharge). Ordre : miroir FR puis instance principale.
+# Voir https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances
+OVERPASS_ENDPOINTS = (
+    "https://overpass.openstreetmap.fr/api/interpreter",        # Miroir FR, parfait pour tes données
+    "https://overpass-api.de/api/interpreter",                  # Instance principale (fiable mais limites strictes)
+)
+
+OVERPASS_MAX_ATTEMPTS = 100
+
+# Ton User-Agent est parfait : explicite, pointe vers le repo et donne la raison d'utilisation. 
+# C'est la meilleure pratique pour éviter les bannissements sur ces API publiques.
+HTTP_USER_AGENT = (
+    "CarbuWeb-build/1.0 (+https://github.com/tbringuier/vibecode-carburant; "
+    "dataset enrichment ref:FR:prix-carburants)"
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -140,20 +156,45 @@ def download_prices():
 
 
 def download_osm():
-    log.info("Querying Overpass API for station names ...")
+    log.info(
+        "Querying Overpass API for station names (up to %d attempts, %d mirrors) ...",
+        OVERPASS_MAX_ATTEMPTS,
+        len(OVERPASS_ENDPOINTS),
+    )
     query = (
         '[out:json][timeout:300];'
         '(node["ref:FR:prix-carburants"];'
         'way["ref:FR:prix-carburants"];'
         'relation["ref:FR:prix-carburants"];);out tags;'
     )
-    resp = fetch(
-        "http://overpass-api.de/api/interpreter",
-        method="post",
-        data={"data": query},
-        timeout=300,
-        retries=10,
-    )
+    headers = {"User-Agent": HTTP_USER_AGENT}
+    payload = {"data": query}
+    last_exc = None
+    resp = None
+    for attempt in range(1, OVERPASS_MAX_ATTEMPTS + 1):
+        url = OVERPASS_ENDPOINTS[(attempt - 1) % len(OVERPASS_ENDPOINTS)]
+        try:
+            r = requests.post(url, data=payload, headers=headers, timeout=300)
+            r.raise_for_status()
+            resp = r
+            log.info("Overpass OK on attempt %d/%d (%s)", attempt, OVERPASS_MAX_ATTEMPTS, url)
+            break
+        except Exception as exc:
+            last_exc = exc
+            log.warning(
+                "Attempt %d/%d failed (%s): %s",
+                attempt,
+                OVERPASS_MAX_ATTEMPTS,
+                url,
+                exc,
+            )
+            if attempt < OVERPASS_MAX_ATTEMPTS:
+                # Pause plus longue après plusieurs échecs d’affilée sur le même miroir
+                cycle = (attempt - 1) // len(OVERPASS_ENDPOINTS) + 1
+                time.sleep(min(5 * cycle, 120))
+    if resp is None:
+        raise last_exc
+
     mapping = {}
     for el in resp.json().get("elements", []):
         tags = el.get("tags", {})
