@@ -9,11 +9,13 @@ Usage:
 """
 
 import glob
+import html as html_lib
 import json
 import logging
 import os
 import re
 import shutil
+import subprocess
 import time
 import unicodedata
 from datetime import datetime
@@ -700,6 +702,62 @@ def minify_json(path_in, path_out):
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 
 
+def _format_fr_int(n):
+    """Espace fin insécable comme séparateur de milliers (usage affichage FR)."""
+    s = f"{int(n):,}"
+    return s.replace(",", "\u202f")
+
+
+def _resolve_git_footer_placeholders():
+    """SHA et URL de commit pour le pied de page (CI : GITHUB_SHA / GITHUB_REPOSITORY)."""
+    sha = os.environ.get("GITHUB_SHA", "").strip()
+    repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if not sha:
+        try:
+            sha = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                cwd=BASE_DIR,
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            ).strip()
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            sha = ""
+    short = sha[:7] if len(sha) >= 7 else sha
+    if not repo:
+        try:
+            url = subprocess.check_output(
+                ["git", "remote", "get-url", "origin"],
+                cwd=BASE_DIR,
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            ).strip()
+            m = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", url)
+            if m:
+                repo = f"{m.group(1)}/{m.group(2)}"
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            repo = ""
+    commit_url = f"https://github.com/{repo}/commit/{sha}" if repo and sha else ""
+    return short, commit_url
+
+
+def _git_commit_footer_html(commit_short, commit_url):
+    """Fragment HTML sûr pour le pied de page (lien commit ou texte seul)."""
+    label = html_lib.escape(commit_short or "—", quote=False)
+    if commit_url:
+        aria = html_lib.escape(
+            f"Code source sur GitHub, commit {commit_short or ''} (build depuis la branche main)",
+            quote=True,
+        )
+        return (
+            f'<a href="{html_lib.escape(commit_url, quote=True)}" class="footer-git-commit" '
+            f'rel="noopener noreferrer" target="_blank" aria-label="{aria}">'
+            f'<code>{label}</code></a>'
+        )
+    return f"<code>{label}</code>"
+
+
 # ---------------------------------------------------------------------------
 # Site generation
 # ---------------------------------------------------------------------------
@@ -710,12 +768,20 @@ def generate_site():
     # data.json — compact
     minify_json(DB_FILE, os.path.join(BUILD_DIR, "data.json"))
 
-    # index.html — inject build date + minify
+    # index.html — métadonnées de build + minify
     with open(os.path.join(TEMPLATES_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
-    build_paris = datetime.now(ZoneInfo("Europe/Paris")).strftime("%d/%m/%Y à %H:%M")
+    build_dt = datetime.now(ZoneInfo("Europe/Paris"))
+    build_paris = build_dt.strftime("%d/%m/%Y à %H:%M")
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+        db_for_count = json.load(f)
+    station_count = len(db_for_count.get("stations") or {})
+    commit_short, commit_url = _resolve_git_footer_placeholders()
     html = html.replace("{{BUILD_DATE}}", TODAY)
     html = html.replace("{{BUILD_DATETIME_PARIS}}", build_paris)
+    html = html.replace("{{BUILD_DATETIME_ISO}}", build_dt.isoformat(timespec="minutes"))
+    html = html.replace("{{STATION_COUNT}}", _format_fr_int(station_count))
+    html = html.replace("{{GIT_COMMIT_HTML}}", _git_commit_footer_html(commit_short, commit_url))
     with open(os.path.join(BUILD_DIR, "index.html"), "w", encoding="utf-8") as f:
         f.write(minify_html(html))
 

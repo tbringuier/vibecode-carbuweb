@@ -9,10 +9,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Carbu'Web">
     <title>Carbu'Web</title>
-    <meta name="description" content="Carbu'Web : Trouvez instantanément le carburant le moins cher autour de vous. Comparez les prix des stations-services en temps réel en France.">
+    <meta name="description" content="Comparez les prix des carburants en France : recherche par lieu, autour de vous, palmarès et statistiques (données ouvertes).">
     <meta name="keywords" content="prix carburant, essence moins chère, station-service, gazole, SP95, E10, E85, GPLc, comparateur carburant france, carte essence">
     <meta property="og:title" content="Carbu'Web - Prix des Carburants en France">
-    <meta property="og:description" content="Trouvez instantanément le carburant le moins cher autour de vous grâce à notre comparateur rapide et factuel.">
+    <meta property="og:description" content="Stations-service en France : prix à jour, carte et classements à partir des jeux de données publics.">
     <meta property="og:type" content="website">
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛽</text></svg>">
@@ -32,6 +32,16 @@
         @media (min-width: 1024px) {
             :root { --map-h: clamp(22rem, 50dvh, 32rem); }
         }
+        @media (min-width: 1280px) {
+            :root { --map-h: clamp(24rem, 52dvh, 38rem); }
+        }
+        @media (min-width: 1536px) {
+            :root { --map-h: clamp(26rem, 55dvh, 44rem); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+            .loader { animation: none; border-top-color: #4f46e5; }
+        }
         html {
             scroll-behavior: smooth;
             -webkit-text-size-adjust: 100%;
@@ -44,6 +54,83 @@
             min-height: 100vh;
             min-height: 100dvh;
             -webkit-tap-highlight-color: rgba(79, 70, 229, 0.12);
+        }
+        .layout-shell {
+            width: 100%;
+            max-width: none;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .skip-link {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        .skip-link:focus {
+            position: fixed;
+            left: max(0.75rem, env(safe-area-inset-left, 0px));
+            top: max(0.75rem, env(safe-area-inset-top, 0px));
+            z-index: 100;
+            width: auto;
+            height: auto;
+            margin: 0;
+            padding: 0.625rem 1rem;
+            clip: auto;
+            overflow: visible;
+            white-space: normal;
+            background: #fff;
+            color: #3730a3;
+            font-weight: 600;
+            font-size: 0.875rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+            outline: 2px solid #4f46e5;
+            outline-offset: 2px;
+        }
+        .page-title {
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+        .section-heading {
+            letter-spacing: -0.015em;
+            line-height: 1.25;
+        }
+        .footer-meta {
+            font-variant-numeric: tabular-nums;
+        }
+        .footer-git-commit {
+            color: inherit;
+            text-decoration: underline;
+            text-decoration-color: rgba(100, 116, 139, 0.45);
+            text-underline-offset: 2px;
+        }
+        .footer-git-commit:hover {
+            color: #475569;
+            text-decoration-color: rgba(71, 85, 105, 0.7);
+        }
+        .footer-git-commit:focus-visible {
+            outline: 2px solid #6366f1;
+            outline-offset: 2px;
+            border-radius: 0.25rem;
+        }
+        .footer-git-commit code {
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 2px solid #6366f1;
+            outline-offset: 2px;
         }
         .search-source-pill {
             display: inline-flex;
@@ -162,65 +249,67 @@
         #pwa-install-bar.pwa-bar-hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen min-h-[100dvh] flex flex-col">
-    <nav class="bg-gradient-to-r from-indigo-600 to-blue-500 text-white pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] pt-[max(0.625rem,env(safe-area-inset-top,0px))] pb-2.5 sm:pb-3 md:pb-4 shadow-lg sticky top-0 z-50 backdrop-blur-sm supports-[backdrop-filter]:bg-indigo-600/95">
-        <div class="container mx-auto flex justify-between items-center gap-2 max-w-4xl">
-            <h1 class="text-lg sm:text-2xl font-extrabold cursor-pointer tracking-tight min-w-0 truncate touch-manipulation py-1" onclick="goHome()">
-                <i class="fas fa-gas-pump mr-1.5 sm:mr-2 text-yellow-300 shrink-0"></i>Carbu'Web
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen min-h-[100dvh] flex flex-col text-[0.9375rem] leading-relaxed sm:text-base sm:leading-relaxed">
+    <a href="#app" class="skip-link">Aller au contenu principal</a>
+    <nav class="bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg sticky top-0 z-50 backdrop-blur-sm supports-[backdrop-filter]:bg-indigo-600/95" aria-label="En-tête">
+        <div class="layout-shell flex justify-between items-center gap-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] pt-[max(0.625rem,env(safe-area-inset-top,0px))] pb-2.5 sm:pb-3 md:pb-4">
+            <h1 class="page-title text-lg sm:text-2xl md:text-[1.65rem] font-extrabold cursor-pointer min-w-0 truncate touch-manipulation py-1" onclick="goHome()">
+                <i class="fas fa-gas-pump mr-1.5 sm:mr-2 text-yellow-300 shrink-0" aria-hidden="true"></i>Carbu'Web
             </h1>
-            <button type="button" onclick="toggleSettings()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] sm:min-h-0 sm:min-w-0 hover:text-yellow-300 transition text-xl rounded-full hover:bg-white/10 active:bg-white/15" aria-label="Paramètres">
-                <i class="fas fa-cog"></i>
+            <button type="button" id="btn-open-settings" onclick="toggleSettings()" aria-expanded="false" aria-controls="settings-modal" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] sm:min-h-0 sm:min-w-0 hover:text-yellow-300 transition text-xl rounded-full hover:bg-white/10 active:bg-white/15 shrink-0" aria-label="Ouvrir les paramètres (rayon, carburants)">
+                <i class="fas fa-cog" aria-hidden="true"></i>
             </button>
         </div>
     </nav>
 
-    <div id="settings-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+    <div id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
         <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[min(90dvh,90vh)] sm:max-h-[85dvh] overflow-y-auto custom-scrollbar animate-[fadeIn_0.15s_ease-out] pb-[max(1rem,env(safe-area-inset-bottom,0px))] sm:pb-6">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-sliders-h mr-2 text-indigo-500"></i>Paramètres</h2>
-                <button type="button" onclick="toggleSettings()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] -mr-1 text-slate-400 hover:text-red-500 transition rounded-lg" aria-label="Fermer les paramètres"><i class="fas fa-times text-xl"></i></button>
+            <div class="flex justify-between items-center gap-3 mb-5">
+                <h2 id="settings-modal-title" class="section-heading text-xl font-bold text-slate-800"><i class="fas fa-sliders-h mr-2 text-indigo-500" aria-hidden="true"></i>Paramètres</h2>
+                <button type="button" onclick="toggleSettings()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] -mr-1 text-slate-400 hover:text-red-500 transition rounded-lg" aria-label="Fermer les paramètres"><i class="fas fa-times text-xl" aria-hidden="true"></i></button>
             </div>
             
             <div class="mb-6">
-                <label class="block text-sm font-semibold text-slate-700 mb-2">
-                    Rayon autour du point : <span id="radius-display" class="text-indigo-600 font-bold">10</span> km <span class="font-normal text-slate-500">(estimation trajet)</span>
+                <label class="block text-sm font-semibold text-slate-700 mb-2" for="radius-slider">
+                    Rayon de recherche : <span id="radius-display" class="text-indigo-600 font-bold tabular-nums">10</span>&nbsp;km <span class="font-normal text-slate-500 font-medium">(ordre de grandeur route)</span>
                 </label>
-                <input type="range" id="radius-slider" min="1" max="50" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
-                <p class="text-xs text-slate-500 mt-1.5 leading-snug">Les stations listées tiennent dans ce délai approximatif en voiture ; les distances affichées utilisent la même estimation.</p>
+                <input type="range" id="radius-slider" min="1" max="50" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" aria-valuemin="1" aria-valuemax="50" aria-describedby="radius-help">
+                <p id="radius-help" class="text-xs text-slate-500 mt-1.5 leading-snug">Les stations proposées et les distances affichées s’appuient sur une estimation de trajet routier, pas à vol d’oiseau.</p>
             </div>
 
             <div class="mb-4">
-                <label class="block text-sm font-semibold text-slate-700 mb-2">Carburants de votre véhicule <span class="font-normal text-slate-400">(glissez pour réordonner)</span> :</label>
-                <div class="flex flex-col gap-1.5" id="fuels-checkboxes"></div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2" id="fuels-pref-label">Vos carburants <span class="font-normal text-slate-400 font-medium">(glisser pour l’ordre d’affichage)</span></label>
+                <div class="flex flex-col gap-1.5" id="fuels-checkboxes" role="group" aria-labelledby="fuels-pref-label"></div>
             </div>
 
-            <button type="button" onclick="resetSettings()" class="touch-manipulation w-full text-sm text-red-500 hover:text-red-700 font-bold underline py-3 min-h-[2.75rem] mt-4 transition text-center flex justify-center items-center rounded-lg">
-                <i class="fas fa-trash-alt mr-2"></i> Tout réinitialiser (Paramètres & Lieux favoris)
+            <button type="button" onclick="resetSettings()" class="touch-manipulation w-full text-sm text-red-600 hover:text-red-800 font-semibold underline underline-offset-2 py-3 min-h-[2.75rem] mt-4 transition text-center flex justify-center items-center rounded-lg">
+                <i class="fas fa-trash-alt mr-2" aria-hidden="true"></i>Réinitialiser paramètres et favoris
             </button>
         </div>
     </div>
 
-    <main class="container mx-auto pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] py-3 sm:py-4 max-w-4xl mt-2 sm:mt-4 flex-grow w-full min-w-0" id="app">
+    <main class="layout-shell flex-grow w-full min-w-0 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] py-3 sm:py-5 mt-2 sm:mt-4" id="app" tabindex="-1">
         <div id="loading" class="text-center mt-20">
             <div class="loader"></div>
-            <p class="text-slate-500 font-medium mt-4 animate-pulse">Chargement des stations-services...</p>
+            <p class="text-slate-500 font-medium mt-4 animate-pulse">Chargement des stations…</p>
         </div>
 
         <div id="home-view" class="hidden">
             
             <div id="welcome-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-4 sm:mb-6 relative">
                 <button type="button" onclick="dismissWelcome()" class="touch-manipulation absolute top-3 right-3 sm:top-4 sm:right-4 inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-slate-300 hover:text-slate-500 transition rounded-lg" aria-label="Fermer"><i class="fas fa-times text-lg"></i></button>
-                <h2 class="text-lg font-bold text-slate-800 mb-2 pr-6">👋 Bienvenue sur Carbu'Web !</h2>
-                <p class="text-sm text-slate-600 mb-4">Trouvez le carburant le moins cher près de chez vous :</p>
-                <ul class="text-sm text-slate-600 space-y-3">
-                    <li class="flex items-start"><i class="fas fa-search text-indigo-500 w-6 mt-1 text-center"></i> <div><b>Recherche :</b> Saisissez une adresse ou cliquez sur "Autour de moi".</div></li>
-                    <li class="flex items-start"><i class="fas fa-chart-pie text-purple-500 w-6 mt-1 text-center"></i> <div><b>Statistiques :</b> Consultez le tableau de bord national.</div></li>
-                    <li class="flex items-start"><i class="fas fa-cog text-slate-500 w-6 mt-1 text-center"></i> <div><b>Personnalisation :</b> Ajustez vos carburants et la distance via la roue crantée.</div></li>
+                <h2 class="section-heading text-lg sm:text-xl font-bold text-slate-800 mb-2 pr-10">Bienvenue</h2>
+                <p class="text-sm text-slate-600 mb-4 max-w-prose">Prix à jour, sources officielles. Trois accès rapides :</p>
+                <ul class="text-sm text-slate-600 space-y-3 max-w-prose">
+                    <li class="flex gap-3 items-start"><i class="fas fa-search text-indigo-500 w-5 shrink-0 mt-0.5 text-center" aria-hidden="true"></i> <span><strong class="text-slate-700">Recherche</strong> — adresse, ville ou code postal, ou position actuelle.</span></li>
+                    <li class="flex gap-3 items-start"><i class="fas fa-trophy text-amber-500 w-5 shrink-0 mt-0.5 text-center" aria-hidden="true"></i> <span><strong class="text-slate-700">Palmarès</strong> — classement par carburant et zone.</span></li>
+                    <li class="flex gap-3 items-start"><i class="fas fa-chart-pie text-purple-500 w-5 shrink-0 mt-0.5 text-center" aria-hidden="true"></i> <span><strong class="text-slate-700">Statistiques</strong> — moyennes nationales et par région.</span></li>
                 </ul>
+                <p class="text-xs text-slate-500 mt-4">Rayon et carburants : icône <span class="whitespace-nowrap">« paramètres »</span> en haut à droite.</p>
             </div>
 
             <div id="favorites-container" class="mb-6 hidden">
-                <h2 class="text-lg font-extrabold text-slate-800 mb-3"><i class="fas fa-star text-yellow-400 mr-2"></i>Mes lieux favoris</h2>
+                <h2 class="section-heading text-lg font-bold text-slate-800 mb-3"><i class="fas fa-star text-yellow-400 mr-2" aria-hidden="true"></i>Lieux enregistrés</h2>
                 <div id="favorites-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
             </div>
 
@@ -234,48 +323,47 @@
                 <div class="p-4 sm:p-5 md:p-8">
                     <div id="pane-recherche" class="space-y-4">
                         <button type="button" onclick="geolocateMe()" class="touch-manipulation w-full bg-indigo-100 text-indigo-700 font-bold py-3.5 sm:py-3 min-h-[3rem] rounded-xl hover:bg-indigo-200 active:bg-indigo-200/90 transition flex justify-center items-center gap-2 mb-4 px-3 text-sm sm:text-base text-center leading-snug">
-                            <i class="fas fa-location-arrow shrink-0"></i> <span>Trouver les stations autour de moi</span>
+                            <i class="fas fa-location-arrow shrink-0" aria-hidden="true"></i><span>Stations autour de ma position</span>
                         </button>
                         
                         <div class="relative">
+                            <label for="search-input" class="sr-only">Rechercher une adresse ou une station</label>
                             <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-base" aria-hidden="true"></i>
-                            <input type="search" id="search-input" enterkeyhint="search" autocomplete="street-address" placeholder="Adresse, ville, station…" class="w-full min-h-[3rem] py-3 pl-11 pr-4 text-base bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium" oninput="debouncedSearch()">
+                            <input type="search" id="search-input" enterkeyhint="search" autocomplete="street-address" placeholder="Adresse, ville, code postal…" class="w-full min-h-[3rem] py-3 pl-11 pr-4 text-base bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium" oninput="debouncedSearch()">
                         </div>
                         <div id="search-results" class="space-y-3 max-h-[min(60dvh,60vh)] overflow-y-auto pr-1 sm:pr-2 custom-scrollbar scroll-touch"></div>
                     </div>
 
                     <div id="pane-palmares" class="hidden space-y-5">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <p class="text-sm text-slate-600 -mt-1 max-w-prose">Choisissez un carburant et une zone, puis lancez le classement.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                             <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1">Carburant</label>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="palmares-carb">Carburant</label>
                                 <select id="palmares-carb" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base"></select>
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1">Classement</label>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="palmares-sort">Ordre de tri</label>
                                 <select id="palmares-sort" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base">
-                                    <option value="asc">Les moins chers d'abord</option>
-                                    <option value="desc">Les plus chers d'abord</option>
+                                    <option value="asc">Prix croissant</option>
+                                    <option value="desc">Prix décroissant</option>
                                 </select>
                             </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1">Région</label>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="select-region">Région</label>
                                 <select id="select-region" onchange="updateDepartments()" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base">
                                     <option value="national">🇫🇷 Toute la France</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1">Département</label>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="select-dept">Département</label>
                                 <select id="select-dept" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base disabled:opacity-50" disabled>
-                                    <option value="">-- Optionnel --</option>
+                                    <option value="">Optionnel</option>
                                 </select>
                             </div>
                         </div>
 
                         <button type="button" onclick="findCheapest()" class="touch-manipulation w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-extrabold py-3.5 sm:py-4 min-h-[3rem] rounded-xl hover:from-yellow-500 hover:to-orange-600 active:opacity-95 transition shadow-lg flex justify-center items-center gap-2 text-base sm:text-lg px-3">
-                            <i class="fas fa-search-dollar shrink-0"></i> Afficher le Palmarès
+                            <i class="fas fa-search-dollar shrink-0" aria-hidden="true"></i>Afficher le palmarès
                         </button>
                         
                         <div id="palmares-map" class="hidden border border-slate-200 rounded-xl overflow-hidden mt-4 mb-2"></div>
@@ -283,22 +371,23 @@
                     </div>
 
                     <div id="pane-statistiques" class="hidden space-y-6">
-                        <h2 class="text-xl sm:text-2xl font-bold text-slate-800"><i class="fas fa-chart-bar mr-2 text-purple-500"></i>Tableau de bord national</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-white p-3 sm:p-4 border rounded-xl shadow-sm">
-                                <h3 class="font-bold mb-3 sm:mb-4 text-center text-slate-700 text-sm sm:text-base">Prix moyens nationaux</h3>
-                                <div class="relative mx-auto w-full h-[200px] sm:h-[260px] max-w-full">
-                                    <canvas id="chart-nat-prices"></canvas>
+                        <h2 class="section-heading text-xl sm:text-2xl font-bold text-slate-800"><i class="fas fa-chart-bar mr-2 text-purple-500" aria-hidden="true"></i>Vue d’ensemble nationale</h2>
+                        <p class="text-sm text-slate-600 -mt-2 max-w-prose">Moyennes et répartition calculées sur les stations du jeu de données courant.</p>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 xl:gap-8">
+                            <div class="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm">
+                                <h3 class="section-heading font-bold mb-3 sm:mb-4 text-center text-slate-700 text-sm sm:text-base">Prix moyens par carburant</h3>
+                                <div class="relative mx-auto w-full h-[210px] sm:h-[270px] lg:h-[300px] max-w-full">
+                                    <canvas id="chart-nat-prices" role="img" aria-label="Graphique des prix moyens nationaux par type de carburant"></canvas>
                                 </div>
                             </div>
-                            <div class="bg-white p-3 sm:p-4 border rounded-xl shadow-sm">
-                                <h3 class="font-bold mb-3 sm:mb-4 text-center text-slate-700 text-sm sm:text-base">Proportion des carburants</h3>
-                                <div class="relative mx-auto w-full h-[200px] sm:h-[260px] max-w-full flex items-center justify-center">
-                                    <canvas id="chart-nat-fuels"></canvas>
+                            <div class="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm">
+                                <h3 class="section-heading font-bold mb-3 sm:mb-4 text-center text-slate-700 text-sm sm:text-base">Stations proposant chaque carburant</h3>
+                                <div class="relative mx-auto w-full h-[210px] sm:h-[270px] lg:h-[300px] max-w-full flex items-center justify-center">
+                                    <canvas id="chart-nat-fuels" role="img" aria-label="Répartition du nombre de stations par carburant"></canvas>
                                 </div>
                             </div>
                         </div>
-                        <h2 class="text-xl sm:text-2xl font-bold text-slate-800 mt-6 sm:mt-8"><i class="fas fa-map-marked-alt mr-2 text-indigo-500"></i>Moyennes par Région</h2>
+                        <h2 class="section-heading text-xl sm:text-2xl font-bold text-slate-800 mt-6 sm:mt-8"><i class="fas fa-map-marked-alt mr-2 text-indigo-500" aria-hidden="true"></i>Moyennes par région</h2>
                         <div class="overflow-x-auto touch-pan-x bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar">
                             <table class="w-full text-sm text-left text-slate-600" id="table-regions"></table>
                         </div>
@@ -310,9 +399,9 @@
         <div id="station-view" class="hidden">
             <div class="flex justify-between items-center gap-2 mb-4 sm:mb-6">
                 <button type="button" onclick="goBack()" class="touch-manipulation text-indigo-600 font-bold hover:text-indigo-800 transition flex items-center bg-indigo-50 px-4 py-2.5 min-h-[2.75rem] rounded-full hover:bg-indigo-100 active:bg-indigo-100/80 text-sm sm:text-base shrink-0">
-                    <i class="fas fa-arrow-left mr-2"></i> Retour
+                    <i class="fas fa-arrow-left mr-2" aria-hidden="true"></i>Retour
                 </button>
-                <button type="button" id="btn-favorite-station" onclick="toggleFavoriteCurrentStation()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-2xl transition hover:scale-110 active:scale-95 rounded-full" title="Ajouter aux favoris"><i class="far fa-star text-slate-300 hover:text-yellow-400"></i></button>
+                <button type="button" id="btn-favorite-station" onclick="toggleFavoriteCurrentStation()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-2xl transition hover:scale-110 active:scale-95 rounded-full" title="Enregistrer comme favori" aria-label="Enregistrer cette station dans les favoris"><i class="far fa-star text-slate-300 hover:text-yellow-400" aria-hidden="true"></i></button>
             </div>
             <div id="station-content"></div>
         </div>
@@ -321,21 +410,38 @@
     <div id="app-toast" role="status" aria-live="polite" class="toast-hidden fixed left-1/2 z-[90] max-w-[min(92vw,20rem)] px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-xl flex items-center gap-2 justify-center text-center" style="bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem));"></div>
 
     <div id="pwa-install-bar" class="pwa-bar-hidden fixed bottom-0 left-0 right-0 z-[85] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]">
-        <div class="mx-auto max-w-4xl rounded-2xl bg-indigo-600 text-white shadow-lg border border-indigo-500/30 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="layout-shell mx-auto rounded-2xl bg-indigo-600 text-white shadow-lg border border-indigo-500/30 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 max-w-none sm:max-w-none">
             <div class="flex-1 min-w-0">
-                <p class="font-bold text-sm sm:text-base"><i class="fas fa-mobile-screen-button mr-2"></i>Installer Carbu'Web</p>
-                <p id="pwa-install-hint" class="text-xs sm:text-sm text-indigo-100 mt-1 leading-snug">Ajoutez l’app à l’écran d’accueil pour un accès plus rapide.</p>
+                <p class="font-bold text-sm sm:text-base"><i class="fas fa-mobile-screen-button mr-2" aria-hidden="true"></i>Installer l’application</p>
+                <p id="pwa-install-hint" class="text-xs sm:text-sm text-indigo-100 mt-1 leading-snug">Raccourci sur l’écran d’accueil pour rouvrir le site plus vite.</p>
             </div>
             <div class="flex flex-shrink-0 gap-2 items-center">
                 <button type="button" id="pwa-install-btn" class="hidden whitespace-nowrap bg-white text-indigo-700 font-bold px-4 py-2.5 rounded-xl text-sm hover:bg-indigo-50 transition">Installer</button>
-                <button type="button" id="pwa-install-dismiss" class="text-indigo-200 hover:text-white p-2 rounded-lg transition" aria-label="Fermer"><i class="fas fa-times"></i></button>
+                <button type="button" id="pwa-install-dismiss" class="text-indigo-200 hover:text-white p-2 rounded-lg transition" aria-label="Fermer la proposition d’installation"><i class="fas fa-times" aria-hidden="true"></i></button>
             </div>
         </div>
     </div>
 
-    <footer class="text-center py-6 sm:py-8 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] px-3 text-slate-400 text-xs sm:text-sm mt-auto border-t border-slate-200 space-y-1.5 bg-white">
-        <a href="https://github.com/tbringuier/vibecode-carburant" target="_blank" class="hover:text-indigo-500 transition font-semibold inline-flex items-center gap-1.5"><i class="fab fa-github"></i>Projet vibecodé</a><br>
-        <span class="text-slate-300 block max-w-xl mx-auto leading-relaxed">Sources : jeu <a href="https://data.economie.gouv.fr/explore/dataset/prix-carburants-quotidien/information/" target="_blank" rel="noopener noreferrer" class="hover:text-indigo-500 transition hover:underline">prix-carburants-quotidien</a> (jour {{BUILD_DATE}}) et <a href="https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/information/" target="_blank" rel="noopener noreferrer" class="hover:text-indigo-500 transition hover:underline">flux instantané</a> — compilation {{BUILD_DATETIME_PARIS}} (Europe/Paris).</span>
+    <footer class="mt-auto border-t border-slate-200/90 bg-white/90 text-slate-500" role="contentinfo">
+        <div class="layout-shell py-5 sm:py-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))]">
+            <div class="footer-meta text-center text-[0.6875rem] sm:text-xs leading-relaxed text-slate-500 max-w-4xl mx-auto">
+                <p class="text-slate-600">
+                    <span class="whitespace-nowrap"><span id="footer-station-count" class="tabular-nums font-medium text-slate-700">{{STATION_COUNT}}</span> stations indexées</span>
+                    <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
+                    <span class="whitespace-nowrap">Mise à jour <time datetime="{{BUILD_DATETIME_ISO}}" title="Heure de Paris">{{BUILD_DATETIME_PARIS}}</time> (Paris)</span>
+                    <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
+                    <span class="whitespace-nowrap">Commit {{GIT_COMMIT_HTML}}</span>
+                </p>
+                <p class="mt-3 text-slate-400 max-w-3xl mx-auto">
+                    Données ouvertes : <a href="https://data.economie.gouv.fr/explore/dataset/prix-carburants-quotidien/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500">prix-carburants-quotidien</a>
+                    <span class="text-slate-300 mx-1" aria-hidden="true">(</span>jour {{BUILD_DATE}}<span class="text-slate-300 mx-1" aria-hidden="true">)</span>
+                    et <a href="https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500">flux instantané</a>.
+                </p>
+                <p class="mt-3">
+                    <a href="https://github.com/tbringuier/vibecode-carbuweb" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-slate-500 font-medium hover:text-indigo-600 transition underline decoration-transparent hover:decoration-indigo-300 underline-offset-2"><i class="fab fa-github text-base" aria-hidden="true"></i>Code source sur GitHub</a>
+                </p>
+            </div>
+        </div>
     </footer>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

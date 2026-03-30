@@ -88,6 +88,7 @@ async function refreshCarbuDataFromNetwork() {
         const next = await fetchDataJsonFresh();
         if (!next || !next.stations) return;
         db = next;
+        syncFooterStationCount();
         refreshVisibleViewsAfterDbSwap();
     } catch (e) {
         console.warn('Actualisation data.json', e);
@@ -123,6 +124,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         populateRegions();
         populateFuelsSelect();
         renderFavorites();
+        syncFooterStationCount();
         registerServiceWorker();
         initPwaInstall();
         startPeriodicDataRefresh();
@@ -145,6 +147,18 @@ function normalizeText(text) {
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatFrInt(n) {
+    const num = typeof n === 'number' ? n : parseInt(String(n).replace(/\u202f/g, ''), 10);
+    if (!Number.isFinite(num)) return '';
+    return String(Math.trunc(num)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+}
+
+function syncFooterStationCount() {
+    const el = document.getElementById('footer-station-count');
+    if (!el || !db || !db.stations) return;
+    el.textContent = formatFrInt(Object.keys(db.stations).length);
 }
 
 let toastHideTimer = null;
@@ -290,7 +304,14 @@ function debouncedSaveSettings() {
     saveTimeout = setTimeout(saveSettings, 300);
 }
 
-function toggleSettings() { document.getElementById('settings-modal').classList.toggle('hidden'); }
+function toggleSettings() {
+    const modal = document.getElementById('settings-modal');
+    const btn = document.getElementById('btn-open-settings');
+    if (!modal) return;
+    modal.classList.toggle('hidden');
+    const open = !modal.classList.contains('hidden');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
 function updateRadiusDisplay() { document.getElementById('radius-display').innerText = document.getElementById('radius-slider').value; }
 
 let fuelDisplayOrder = [...ALL_FUELS];
@@ -1384,7 +1405,7 @@ function populateRegions() {
 function updateDepartments() {
     const region = document.getElementById('select-region').value;
     const deptSelect = document.getElementById('select-dept');
-    deptSelect.innerHTML = '<option value="">-- Optionnel --</option>';
+    deptSelect.innerHTML = '<option value="">Optionnel</option>';
     if (!region || region === "national") { deptSelect.disabled = true; return; }
     
     deptSelect.disabled = false;
