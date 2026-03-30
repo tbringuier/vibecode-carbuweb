@@ -448,9 +448,11 @@
         <div class="layout-shell py-5 sm:py-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))]">
             <div class="footer-meta text-center text-[0.6875rem] sm:text-xs leading-relaxed text-slate-500 max-w-4xl mx-auto">
                 <p class="text-slate-600">
+                    {{FUEL_DATA_UPDATE_FOOTER_HTML}}
+                    <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
                     <span class="whitespace-nowrap"><span id="footer-station-count" class="tabular-nums font-medium text-slate-700">{{STATION_COUNT}}</span> stations indexées</span>
                     <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
-                    <span class="whitespace-nowrap">Mise à jour <time datetime="{{BUILD_DATETIME_ISO}}" title="Heure de Paris">{{BUILD_DATETIME_PARIS}}</time> (Paris)</span>
+                    <span class="whitespace-nowrap">Site généré <time datetime="{{BUILD_DATETIME_ISO}}" title="Heure de Paris (build)">{{BUILD_DATETIME_PARIS}}</time></span>
                     <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
                     <span class="whitespace-nowrap">Commit {{GIT_COMMIT_HTML}}</span>
                 </p>

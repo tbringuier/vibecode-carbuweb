@@ -217,6 +217,7 @@ async function refreshCarbuDataFromNetwork() {
         if (!next || !next.stations) return;
         db = next;
         syncFooterStationCount();
+        syncFooterFuelDataUpdate();
         refreshVisibleViewsAfterDbSwap();
     } catch (e) {
         console.warn('Actualisation data.json', e);
@@ -255,6 +256,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         populateFuelsSelect();
         renderFavorites();
         syncFooterStationCount();
+        syncFooterFuelDataUpdate();
         registerServiceWorker();
         initPwaInstall();
         startPeriodicDataRefresh();
@@ -289,6 +291,17 @@ function syncFooterStationCount() {
     const el = document.getElementById('footer-station-count');
     if (!el || !db || !db.stations) return;
     el.textContent = formatFrInt(Object.keys(db.stations).length);
+}
+
+function syncFooterFuelDataUpdate() {
+    const el = document.getElementById('footer-fuel-data-datetime');
+    if (!el || !db || !db.meta) return;
+    const iso = db.meta.latest_fuel_price_update_iso;
+    const label = db.meta.latest_fuel_price_update_label_fr;
+    if (label) el.textContent = label;
+    if (iso && el.tagName === 'TIME') {
+        el.setAttribute('datetime', iso);
+    }
 }
 
 let toastHideTimer = null;

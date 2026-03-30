@@ -245,6 +245,63 @@ def _entry_price_datetime(entry: dict) -> datetime | None:
     return None
 
 
+def compute_latest_fuel_price_update_meta(db: dict) -> dict:
+    """Date/heure la plus récente parmi tous les prix affichés (quotidien + flux fusionné)."""
+    best_utc = None
+    best_has_iso = False
+    for st in db.get("stations", {}).values():
+        for entry in st.get("carburants_disponibles", {}).values():
+            dt = _entry_price_datetime(entry)
+            if dt is None:
+                continue
+            has_iso = bool(entry.get("maj_iso"))
+            if dt.tzinfo is None:
+                u = dt.replace(tzinfo=ZoneInfo("UTC"))
+            else:
+                u = dt.astimezone(ZoneInfo("UTC"))
+            if best_utc is None or u > best_utc:
+                best_utc = u
+                best_has_iso = has_iso
+    if best_utc is None:
+        return {
+            "latest_fuel_price_update_iso": "",
+            "latest_fuel_price_update_label_fr": "—",
+        }
+    paris = best_utc.astimezone(ZoneInfo("Europe/Paris"))
+    iso_attr = paris.isoformat(timespec="minutes")
+    if best_has_iso:
+        label_fr = paris.strftime("%d/%m/%Y à %H:%M")
+    else:
+        label_fr = paris.strftime("%d/%m/%Y")
+    return {
+        "latest_fuel_price_update_iso": iso_attr,
+        "latest_fuel_price_update_label_fr": label_fr,
+    }
+
+
+def footer_fuel_data_update_html(meta: dict) -> str:
+    """Fragment HTML sûr pour le pied de page (date d’actualisation des prix)."""
+    iso = (meta.get("latest_fuel_price_update_iso") or "").strip()
+    label = (meta.get("latest_fuel_price_update_label_fr") or "—").strip() or "—"
+    label_e = html_lib.escape(label, quote=False)
+    title = html_lib.escape(
+        "Dernière mise à jour relevée sur un prix (jeu quotidien ou flux instantané, après fusion)",
+        quote=True,
+    )
+    if iso:
+        iso_e = html_lib.escape(iso, quote=True)
+        return (
+            '<span class="whitespace-nowrap">Dernière actualisation prix carburants\u202f: '
+            f'<time id="footer-fuel-data-datetime" datetime="{iso_e}" '
+            f'class="font-medium text-slate-700 tabular-nums" title="{title}">{label_e}</time>'
+            "</span>"
+        )
+    return (
+        '<span class="whitespace-nowrap">Dernière actualisation prix carburants\u202f: '
+        f'<span id="footer-fuel-data-datetime" class="font-medium text-slate-600">{label_e}</span></span>'
+    )
+
+
 def flux_maj_iso_and_date(raw) -> tuple[str | None, str]:
     """(maj_iso, date AAAA-MM-JJ) pour une cellule « mis à jour le » du flux."""
     iso = normalize_price_update_iso(raw)
@@ -723,6 +780,11 @@ def build_database():
 
     merge_flux_instantane(db)
     recompute_price_aggregates(db)
+    db.setdefault("meta", {}).update(compute_latest_fuel_price_update_meta(db))
+    log.info(
+        "Dernière actualisation prix carburants (max. toutes stations) : %s",
+        db["meta"].get("latest_fuel_price_update_label_fr"),
+    )
 
     # Build department and region search indexes
     dept_index = {}  # code -> { name, region, station_ids }
@@ -849,23 +911,37 @@ def _git_commit_footer_html(commit_short, commit_url):
 
 def generate_site():
     os.makedirs(BUILD_DIR, exist_ok=True)
+    build_json = os.path.join(BUILD_DIR, "data.json")
 
-    # data.json — compact
-    minify_json(DB_FILE, os.path.join(BUILD_DIR, "data.json"))
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+        db_out = json.load(f)
+
+    meta = db_out.get("meta") if isinstance(db_out.get("meta"), dict) else {}
+    if not (meta.get("latest_fuel_price_update_iso") or "").strip():
+        meta = {**meta, **compute_latest_fuel_price_update_meta(db_out)}
+    db_out.setdefault("meta", {})
+    db_out["meta"]["latest_fuel_price_update_iso"] = meta.get("latest_fuel_price_update_iso", "")
+    db_out["meta"]["latest_fuel_price_update_label_fr"] = meta.get(
+        "latest_fuel_price_update_label_fr", "—"
+    )
+
+    with open(build_json, "w", encoding="utf-8") as f:
+        json.dump(db_out, f, ensure_ascii=False, separators=(",", ":"))
 
     # index.html — métadonnées de build + minify
     with open(os.path.join(TEMPLATES_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
     build_dt = datetime.now(ZoneInfo("Europe/Paris"))
     build_paris = build_dt.strftime("%d/%m/%Y à %H:%M")
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        db_for_count = json.load(f)
-    station_count = len(db_for_count.get("stations") or {})
+    station_count = len(db_out.get("stations") or {})
     commit_short, commit_url = _resolve_git_footer_placeholders()
     html = html.replace("{{BUILD_DATE}}", TODAY)
     html = html.replace("{{BUILD_DATETIME_PARIS}}", build_paris)
     html = html.replace("{{BUILD_DATETIME_ISO}}", build_dt.isoformat(timespec="minutes"))
     html = html.replace("{{STATION_COUNT}}", _format_fr_int(station_count))
+    html = html.replace(
+        "{{FUEL_DATA_UPDATE_FOOTER_HTML}}", footer_fuel_data_update_html(db_out["meta"])
+    )
     html = html.replace("{{GIT_COMMIT_HTML}}", _git_commit_footer_html(commit_short, commit_url))
     with open(os.path.join(BUILD_DIR, "index.html"), "w", encoding="utf-8") as f:
         f.write(minify_html(html))
