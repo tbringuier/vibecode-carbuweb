@@ -1619,8 +1619,34 @@ function showStation(stationId) {
 }
 
 // ==========================================
-// MOTEUR CARTES LEAFLET
+// MOTEUR CARTES LEAFLET (open source)
+// Tuiles : OpenStreetMap France (serveurs en France, gratuit, données OSM).
 // ==========================================
+
+const LEAFLET_OSM_FR_ATTRIBUTION =
+    '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer">Contributeurs OpenStreetMap</a> ' +
+    '&middot; Tuiles &copy; <a href="https://www.openstreetmap.fr/" rel="noopener noreferrer">OpenStreetMap France</a>';
+
+/** Carte Leaflet : zoom molette, contrôles FR, fond OSM France, rendu net sur écrans HiDPI. */
+function createFrenchLeafletMap(containerId) {
+    const map = L.map(containerId, {
+        scrollWheelZoom: true,
+        zoomControl: false,
+    });
+    L.control.zoom({
+        position: 'topleft',
+        zoomInTitle: 'Zoomer',
+        zoomOutTitle: 'Dézoomer',
+    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+        subdomains: 'abc',
+        maxZoom: 20,
+        minZoom: 2,
+        attribution: LEAFLET_OSM_FR_ATTRIBUTION,
+        detectRetina: true,
+    }).addTo(map);
+    return map;
+}
 
 function initStationMap(markersData, isMultiple = false) {
     if (stationMap) { stationMap.remove(); }
@@ -1630,8 +1656,7 @@ function initStationMap(markersData, isMultiple = false) {
         return;
     }
 
-    stationMap = L.map('station-map', { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap, © CARTO', maxZoom: 20, detectRetina: true }).addTo(stationMap);
+    stationMap = createFrenchLeafletMap('station-map');
 
     let bounds = [];
     const iconBlue = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
@@ -1670,8 +1695,7 @@ function initPalmaresMap(markersData) {
     document.getElementById('palmares-map').classList.remove('hidden');
     if (palmaresMap) { palmaresMap.remove(); }
     
-    palmaresMap = L.map('palmares-map', { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap, © CARTO', maxZoom: 20, detectRetina: true }).addTo(palmaresMap);
+    palmaresMap = createFrenchLeafletMap('palmares-map');
 
     let bounds = [];
     const iconGold = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
