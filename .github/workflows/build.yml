@@ -7,6 +7,10 @@ on:
     - cron: "0 11 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -15,9 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TZ: Europe/Paris
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PIP_NO_PYTHON_VERSION_WARNING: "1"
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
 
       - name: Date du build (Europe/Paris)
         id: builddate
@@ -36,19 +44,40 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
-          cache: pip
 
-      - run: pip install -r requirements.txt
+      - name: Cache environnement Python (.venv)
+        id: venv-cache
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py314-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py314-
 
-      - name: Statut cache OSM
+      - name: Installer les dépendances
+        run: |
+          set -euo pipefail
+          if [ ! -x .venv/bin/python ]; then
+            python -m venv .venv
+          fi
+          .venv/bin/pip install -q -U pip wheel
+          .venv/bin/pip install -q -r requirements.txt
+
+      - name: Statut caches
         run: |
           if [ "${{ steps.osm-cache.outputs.cache-hit }}" = "true" ]; then
             echo "::notice::Cache OSM — pas d'appel Overpass pour ${{ steps.builddate.outputs.date }}."
           else
             echo "::notice::Pas de cache OSM — téléchargement Overpass si nécessaire."
           fi
+          if [ "${{ steps.venv-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "::notice::Cache .venv — dépendances restaurées (hash requirements.txt)."
+          else
+            echo "::notice::Pas de cache .venv complet — pip a installé ou mis à jour les paquets."
+          fi
 
-      - run: python main.py
+      - name: Build
+        run: .venv/bin/python main.py
 
       - name: Push build to pages branch
         run: |
