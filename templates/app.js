@@ -585,6 +585,14 @@ const PRICE_EPS = 0.0005;
 /** Au-delà de cet écart vs le minimum, on affiche un message « vous pouvez faire mieux ». */
 const PRICE_NEAR_MAX = 0.03;
 
+/** Tri par prix croissant pour un carburant ; à prix équivalent (dans PRICE_EPS), par distance croissante (km). */
+function compareStationEntriesByPriceThenDistance(sortFuel, a, b) {
+    const pa = parseFloat(a.station.carburants_disponibles[sortFuel].prix);
+    const pb = parseFloat(b.station.carburants_disponibles[sortFuel].prix);
+    if (Math.abs(pa - pb) > PRICE_EPS) return pa - pb;
+    return a.dist - b.dist;
+}
+
 function formatFrEuros(n) {
     return n.toFixed(3).replace('.', ',');
 }
@@ -1138,7 +1146,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
 
     if (sortFuel) {
         stationsProches = stationsProches.filter(s => s.station.carburants_disponibles[sortFuel]);
-        stationsProches.sort((a, b) => parseFloat(a.station.carburants_disponibles[sortFuel].prix) - parseFloat(b.station.carburants_disponibles[sortFuel].prix));
+        stationsProches.sort((a, b) => compareStationEntriesByPriceThenDistance(sortFuel, a, b));
     } else {
         stationsProches.sort((a, b) => a.dist - b.dist);
     }
@@ -1381,7 +1389,11 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
         };
     }
 
-    stationsProches.sort((a, b) => a.prix - b.prix);
+    stationsProches.sort((a, b) => {
+        const dp = a.prix - b.prix;
+        if (Math.abs(dp) > PRICE_EPS) return dp;
+        return a.dist - b.dist;
+    });
     const meilleurAutre = stationsProches[0];
 
     if (prixActNum === null) {
