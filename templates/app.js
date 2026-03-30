@@ -26,21 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const response = await fetch('data.json');
         db = await response.json();
         
-        const cbContainer = document.getElementById('fuels-checkboxes');
-        ALL_FUELS.forEach(f => {
-            const checked = userFuels.includes(f) ? 'checked' : '';
-            const rank = userFuels.indexOf(f);
-            const rankBadge = rank >= 0 ? `<span class="fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold ml-auto">${rank + 1}</span>` : `<span class="fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-200 text-slate-400 text-[10px] font-bold ml-auto">-</span>`;
-            const moy = db.dashboard.national.avg_prices[f];
-            const moyText = moy ? `<div class="text-[10px] text-slate-500 leading-none mt-1">Moy. ${moy.toFixed(3)}€</div>` : '';
-            cbContainer.innerHTML += `
-                <label class="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-indigo-50 transition">
-                    <input type="checkbox" value="${f}" class="fuel-checkbox form-checkbox h-5 w-5 text-indigo-600 rounded" ${checked} onchange="onFuelToggle('${f}')">
-                    <div class="flex flex-col flex-1"><span class="text-slate-800 font-bold leading-tight">${f}</span>${moyText}</div>
-                    ${rankBadge}
-                </label>
-            `;
-        });
+        renderFuelList();
 
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('home-view').classList.remove('hidden');
@@ -100,6 +86,86 @@ function debouncedSaveSettings() {
 function toggleSettings() { document.getElementById('settings-modal').classList.toggle('hidden'); }
 function updateRadiusDisplay() { document.getElementById('radius-display').innerText = document.getElementById('radius-slider').value; }
 
+let fuelDisplayOrder = [...ALL_FUELS];
+
+function renderFuelList() {
+    const container = document.getElementById('fuels-checkboxes');
+    // Sort: checked fuels in userFuels order first, then unchecked in ALL_FUELS order
+    fuelDisplayOrder = [...userFuels, ...ALL_FUELS.filter(f => !userFuels.includes(f))];
+    container.innerHTML = '';
+    fuelDisplayOrder.forEach((f, i) => {
+        const checked = userFuels.includes(f) ? 'checked' : '';
+        const rank = userFuels.indexOf(f);
+        const rankLabel = rank >= 0
+            ? `<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-600 text-white text-xs font-bold">${rank + 1}</span>`
+            : `<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-200 text-slate-400 text-xs font-bold">-</span>`;
+        const moy = db.dashboard.national.avg_prices[f];
+        const moyText = moy ? `<span class="text-[10px] text-slate-400 ml-1">(moy. ${moy.toFixed(3)}€)</span>` : '';
+        const row = document.createElement('div');
+        row.className = 'fuel-row flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 cursor-grab active:cursor-grabbing hover:bg-indigo-50 transition select-none';
+        row.draggable = true;
+        row.dataset.fuel = f;
+        row.innerHTML = `
+            <i class="fas fa-grip-vertical text-slate-300 text-sm"></i>
+            ${rankLabel}
+            <input type="checkbox" value="${f}" class="fuel-checkbox form-checkbox h-5 w-5 text-indigo-600 rounded flex-shrink-0" ${checked} onchange="onFuelToggle('${f}')">
+            <span class="text-slate-800 font-bold text-sm leading-tight">${f}</span>${moyText}
+        `;
+        container.appendChild(row);
+    });
+    initFuelDragDrop();
+}
+
+function initFuelDragDrop() {
+    const container = document.getElementById('fuels-checkboxes');
+    let draggedEl = null;
+    container.querySelectorAll('.fuel-row').forEach(row => {
+        row.addEventListener('dragstart', e => {
+            draggedEl = row;
+            row.classList.add('opacity-40');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', () => {
+            row.classList.remove('opacity-40');
+            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+            draggedEl = null;
+        });
+        row.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
+            row.classList.add('border-t-2', 'border-indigo-400');
+        });
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            if (!draggedEl || draggedEl === row) return;
+            container.insertBefore(draggedEl, row);
+            syncFuelOrderFromDOM();
+        });
+    });
+    // Allow drop at end of list
+    container.addEventListener('dragover', e => e.preventDefault());
+    container.addEventListener('drop', e => {
+        if (draggedEl && e.target === container) {
+            container.appendChild(draggedEl);
+            syncFuelOrderFromDOM();
+        }
+    });
+}
+
+function syncFuelOrderFromDOM() {
+    const rows = document.querySelectorAll('#fuels-checkboxes .fuel-row');
+    const newOrder = [];
+    rows.forEach(r => {
+        const fuel = r.dataset.fuel;
+        const cb = r.querySelector('.fuel-checkbox');
+        if (cb && cb.checked) newOrder.push(fuel);
+    });
+    userFuels = newOrder;
+    renderFuelList();
+    debouncedSaveSettings();
+}
+
 function onFuelToggle(fuel) {
     const cb = document.querySelector(`.fuel-checkbox[value="${fuel}"]`);
     if (cb.checked) {
@@ -107,19 +173,8 @@ function onFuelToggle(fuel) {
     } else {
         userFuels = userFuels.filter(f => f !== fuel);
     }
-    updateFuelRanks();
+    renderFuelList();
     debouncedSaveSettings();
-}
-
-function updateFuelRanks() {
-    document.querySelectorAll('.fuel-checkbox').forEach(cb => {
-        const rank = userFuels.indexOf(cb.value);
-        const badge = cb.closest('label').querySelector('.fuel-rank');
-        if (badge) {
-            if (rank >= 0) { badge.className = 'fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold ml-auto'; badge.textContent = rank + 1; }
-            else { badge.className = 'fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-200 text-slate-400 text-[10px] font-bold ml-auto'; badge.textContent = '-'; }
-        }
-    });
 }
 
 function saveSettings() {
@@ -128,8 +183,7 @@ function saveSettings() {
 
     if (userFuels.length === 0) {
         userFuels = [...ALL_FUELS];
-        document.querySelectorAll('.fuel-checkbox').forEach(cb => cb.checked = true);
-        updateFuelRanks();
+        renderFuelList();
     }
     localStorage.setItem('carbuFuels', JSON.stringify(userFuels));
     
@@ -213,13 +267,33 @@ function renderFavorites() {
                 </div>
             `;
         } else {
+            let bestCards = '';
+            if (db && f.lat && f.lon) {
+                let nearby = [];
+                for (const [id, s] of Object.entries(db.stations)) {
+                    if (!s.lat || !s.lon || !hasTrackedFuel(s)) continue;
+                    if (distanceHaversine(f.lat, f.lon, s.lat, s.lon) <= parseFloat(userRadius)) nearby.push({ id, station: s });
+                }
+                userFuels.forEach(fuel => {
+                    let best = null;
+                    nearby.forEach(s => {
+                        const d = s.station.carburants_disponibles[fuel];
+                        if (d && (!best || parseFloat(d.prix) < best.prix)) best = { prix: parseFloat(d.prix), nom: s.station.nom_osm || s.station.ville, id: s.id };
+                    });
+                    if (best) bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div><div class="text-[9px] text-green-600 truncate">${best.nom}</div></div>`;
+                });
+            }
+            let widgetRow = bestCards ? `<div class="grid grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
             list.innerHTML += `
-                <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl cursor-pointer hover:shadow-md hover:border-indigo-300 transition flex justify-between items-center group">
-                    <div class="flex-1 min-w-0">
-                        <div class="font-bold text-indigo-800 truncate"><i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>${f.name}</div>
-                        <div class="text-xs text-indigo-700 mt-1">Adresse favorite</div>
+                <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl cursor-pointer hover:shadow-md hover:border-indigo-300 transition group">
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold text-indigo-800 truncate"><i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>${f.name}</div>
+                            <div class="text-xs text-indigo-700 mt-1">Adresse favorite · ${userRadius} km</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-indigo-400 group-hover:text-indigo-600 flex-shrink-0"></i>
                     </div>
-                    <i class="fas fa-chevron-right text-indigo-400 group-hover:text-indigo-600"></i>
+                    ${widgetRow}
                 </div>
             `;
         }
@@ -265,6 +339,11 @@ function switchTab(tab) {
     if(tab === 'statistiques') renderDashboard();
 }
 
+function pushNav(state) {
+    navStack.push(state);
+    history.pushState({ idx: navStack.length }, '');
+}
+
 function goHome() {
     navStack = [];
     currentProximitySearch = null;
@@ -283,6 +362,24 @@ function goBack() {
     else { goHome(); }
 }
 
+window.addEventListener('popstate', () => goBack());
+
+function buildBestPricesWidget(stations) {
+    let cards = '';
+    userFuels.forEach(fuel => {
+        let best = null;
+        stations.forEach(s => {
+            const d = s.station.carburants_disponibles[fuel];
+            if (d && (!best || parseFloat(d.prix) < best.prix)) {
+                best = { prix: parseFloat(d.prix), nom: s.station.nom_osm || s.station.ville, addr: `${s.station.adresse}, ${s.station.ville}`, id: s.id };
+            }
+        });
+        if (best) cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate leading-tight">${best.nom}</div><div class="text-[9px] text-green-500 truncate leading-tight">${best.addr}</div></div>`;
+    });
+    if (!cards) return '';
+    return `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">${cards}</div>`;
+}
+
 function searchGeoZone(type, name, overrideFuel) {
     let stationIds = [];
     if (type === 'region' && db.region_index[name]) {
@@ -295,7 +392,7 @@ function searchGeoZone(type, name, overrideFuel) {
     if (stationIds.length === 0) return;
 
     if (!document.getElementById('home-view').classList.contains('hidden')) {
-        navStack.push({ type: 'home' });
+        pushNav({ type: 'home' });
     }
     document.getElementById('home-view').classList.add('hidden');
     const stationView = document.getElementById('station-view');
@@ -328,6 +425,7 @@ function searchGeoZone(type, name, overrideFuel) {
             </div>
             <div class="p-4 sm:p-6 md:p-8">
                 <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
+                ${buildBestPricesWidget(stations)}
                 <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
                     <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Trier par prix :</label>
                     <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="p-3 border border-slate-300 rounded-xl text-sm font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto">
@@ -634,7 +732,7 @@ function applyFuelSort(fuel) {
 
 function findStationsNear(lat, lon, labelTitle) {
     if (!document.getElementById('home-view').classList.contains('hidden')) {
-        navStack.push({ type: 'home' });
+        pushNav({ type: 'home' });
     }
     document.getElementById('home-view').classList.add('hidden');
     const stationView = document.getElementById('station-view');
@@ -669,8 +767,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
     let html = `
         <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
             <div class="bg-gradient-to-r from-indigo-600 to-blue-500 p-4 sm:p-6 text-white text-center">
-                <h2 class="text-lg sm:text-2xl font-extrabold mb-1"><i class="fas fa-location-arrow mr-2"></i>Stations-services à proximité</h2>
-                <p class="text-blue-100 text-xs sm:text-sm">Autour de : ${labelTitle}</p>
+                <h2 class="text-lg sm:text-2xl font-extrabold"><i class="fas fa-location-arrow mr-2"></i>Stations autour de ${labelTitle}</h2>
             </div>
             <div class="p-4 sm:p-6 md:p-8">
                 <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
@@ -683,6 +780,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
             <span class="text-sm">Modifiez vos paramètres (en haut à droite) pour élargir la recherche ou ajouter des carburants.</span>
         </div>`;
     } else {
+        html += buildBestPricesWidget(topStations);
         let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
         html += `
             <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
@@ -751,22 +849,6 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
         html += `</div>`;
     }
     html += `</div></div>`;
-
-    // Best prices widget
-    if (topStations.length > 0) {
-        let widgetHtml = '<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">';
-        userFuels.forEach(fuel => {
-            let best = null;
-            topStations.forEach(s => {
-                const d = s.station.carburants_disponibles[fuel];
-                if (d && (!best || parseFloat(d.prix) < best.prix)) best = { prix: parseFloat(d.prix), nom: s.station.nom_osm || s.station.ville, id: s.id };
-            });
-            if (best) widgetHtml += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2 text-center cursor-pointer hover:shadow-md transition"><div class="text-xs font-bold text-green-800">${fuel}</div><div class="text-lg font-black text-green-700">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate">${best.nom}</div></div>`;
-        });
-        widgetHtml += '</div>';
-        const mapEl = document.querySelector('#station-content #station-map');
-        if (mapEl) mapEl.insertAdjacentHTML('afterend', widgetHtml);
-    }
     
     document.getElementById('station-content').innerHTML = html;
     window.scrollTo(0, 0);
@@ -945,11 +1027,11 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
 function showStation(stationId) {
     const station = db.stations[stationId];
     if (currentGeoZone) {
-        navStack.push({ type: 'geoZone', geoType: currentGeoZone.type, name: currentGeoZone.name });
+        pushNav({ type: 'geoZone', geoType: currentGeoZone.type, name: currentGeoZone.name });
     } else if (currentProximitySearch) {
         navStack.push({ type: 'proximity', lat: currentProximitySearch.lat, lon: currentProximitySearch.lon, label: currentProximitySearch.labelTitle });
     } else if (!document.getElementById('home-view').classList.contains('hidden')) {
-        navStack.push({ type: 'home' });
+        pushNav({ type: 'home' });
     }
     document.getElementById('home-view').classList.add('hidden');
     const stationView = document.getElementById('station-view');
@@ -1130,7 +1212,7 @@ function initStationMap(markersData, isMultiple = false) {
     }
 
     stationMap = L.map('station-map', { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap' }).addTo(stationMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap France', maxZoom: 20 }).addTo(stationMap);
 
     let bounds = [];
     const iconBlue = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
@@ -1170,7 +1252,7 @@ function initPalmaresMap(markersData) {
     if (palmaresMap) { palmaresMap.remove(); }
     
     palmaresMap = L.map('palmares-map', { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap' }).addTo(palmaresMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap France', maxZoom: 20 }).addTo(palmaresMap);
 
     let bounds = [];
     const iconGold = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
