@@ -525,8 +525,10 @@ function renderFavorites() {
                 for (const [c, d] of Object.entries(st.carburants_disponibles)) {
                     if (!userFuels.includes(c)) continue;
                     const col = prixColorTag(f.id, c, d.prix);
-                    const t = col.title ? ` title="${esc(col.title)}"` : '';
-                    tags.push(`<span class="inline-block ${col.bg} ${col.text} text-[11px] font-semibold px-1.5 py-0.5 rounded"${t}>${c} ${d.prix}€</span>`);
+                    const majT = formatMajLabel(d);
+                    const t = [col.title, majT ? `Maj. ${majT}` : ""].filter(Boolean).join(" · ");
+                    const ta = t ? ` title="${esc(t)}"` : '';
+                    tags.push(`<span class="inline-block ${col.bg} ${col.text} text-[11px] font-semibold px-1.5 py-0.5 rounded"${ta}>${c} ${d.prix}€</span>`);
                 }
                 if (tags.length) pricesHtml = `<div class="flex flex-wrap gap-1 mt-1.5">${tags.join('')}</div>`;
             }
@@ -560,7 +562,12 @@ function renderFavorites() {
                             if (!best || p < best.prix) best = { prix: p, nom: ns.station.nom_osm || ns.station.ville, id: ns.id };
                         }
                     }
-                    if (best) bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div><div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
+                    if (best) {
+                        const stB = db.stations[best.id];
+                        const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
+                        const maj = fd ? formatMajHtml(fd) : "";
+                        bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div>${maj ? `<div class="text-[8px] text-green-600 font-medium leading-tight" translate="no">${maj}</div>` : ''}<div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
+                    }
                 });
             }
             const widgetRow = bestCards ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
@@ -595,6 +602,25 @@ function compareStationEntriesByPriceThenDistance(sortFuel, a, b) {
 
 function formatFrEuros(n) {
     return n.toFixed(3).replace('.', ',');
+}
+
+/** Libellé de mise à jour : heure locale si `maj_iso` (flux / fichier quotidien enrichi), sinon date seule. */
+function formatMajLabel(entry) {
+    if (!entry) return "";
+    if (entry.maj_iso) {
+        try {
+            const d = new Date(entry.maj_iso);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+            }
+        } catch (e) { /* ignore */ }
+    }
+    return entry.date_maj || "";
+}
+
+function formatMajHtml(entry) {
+    const s = formatMajLabel(entry);
+    return s ? esc(s) : "";
 }
 
 /**
@@ -746,7 +772,12 @@ function buildBestPricesWidget(stations) {
                 best = { prix: parseFloat(d.prix), nom: s.station.nom_osm || s.station.ville, addr: `${s.station.adresse}, ${s.station.ville}`, id: s.id };
             }
         });
-        if (best) cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate leading-tight">${esc(best.nom)}</div><div class="text-[9px] text-green-500 truncate leading-tight">${esc(best.addr)}</div></div>`;
+        if (best) {
+            const stBest = db.stations[best.id];
+            const fd = stBest && stBest.carburants_disponibles ? stBest.carburants_disponibles[fuel] : null;
+            const maj = fd ? formatMajHtml(fd) : "";
+            cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div>${maj ? `<div class="text-[9px] text-green-600/90 font-medium" translate="no"><i class="fas fa-clock mr-0.5"></i>${maj}</div>` : ''}<div class="text-[10px] text-green-600 truncate leading-tight">${esc(best.nom)}</div><div class="text-[9px] text-green-500 truncate leading-tight">${esc(best.addr)}</div></div>`;
+        }
     });
     if (!cards) return '';
     return `<div class="mb-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4"><h4 class="text-base font-extrabold text-green-800 mb-3 flex items-center"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Les meilleurs prix</h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div></div>`;
@@ -825,7 +856,10 @@ function searchGeoZone(type, name, overrideFuel) {
 
         let dateMaj = '';
         let fuelForDate = sortFuel || Object.keys(res.station.carburants_disponibles)[0];
-        if (fuelForDate && res.station.carburants_disponibles[fuelForDate]) dateMaj = `<span class="text-[10px] text-slate-400 ml-2"><i class="fas fa-clock mr-0.5"></i>${res.station.carburants_disponibles[fuelForDate].date_maj}</span>`;
+        if (fuelForDate && res.station.carburants_disponibles[fuelForDate]) {
+            const mj = formatMajHtml(res.station.carburants_disponibles[fuelForDate]);
+            if (mj) dateMaj = `<span class="text-[10px] text-slate-400 ml-2 whitespace-nowrap" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</span>`;
+        }
 
         html += `
             <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center gap-3 group">
@@ -1043,11 +1077,14 @@ async function performSearch() {
     if (localResults.length > 0) {
         stationsHtml += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2 min-w-0"><span class="min-w-0 truncate"><i class="fas fa-gas-pump mr-1"></i> Stations-services</span>${searchSourcePill('via data.economie.gouv.fr')}</div>`;
         localResults.forEach(res => {
+            const ff = userFuels.find(f => res.station.carburants_disponibles[f]);
+            const mj = ff ? formatMajHtml(res.station.carburants_disponibles[ff]) : "";
             stationsHtml += `
                 <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
                     <div class="flex-1 min-w-0">
                         <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg">${esc(res.station.nom_osm) || 'Station-service'}</div>
                         <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.code_postal)} ${esc(res.station.ville)}</div>
+                        ${mj ? `<div class="text-[10px] text-slate-400 mt-0.5" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}${ff ? ` · ${esc(ff)}` : ''}</div>` : ''}
                     </div>
                     <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0"></i>
                 </div>
@@ -1200,11 +1237,15 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
                 const badge = buildZonePriceListBadge(String(prix), prixNum, minPrixRayon);
                 res.markerType = badge.markerType;
                 rightContent = badge.html;
-                carbsHtml = distText;
+                const mj = formatMajHtml(res.station.carburants_disponibles[sortFuel]);
+                carbsHtml = distText + (mj ? `<div class="text-[10px] text-slate-400 mt-0.5" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</div>` : '');
             } else {
                 let carbsArray = [];
                 for (const [c, d] of Object.entries(res.station.carburants_disponibles)) {
-                    if(userFuels.includes(c)) carbsArray.push(`<span class="font-semibold">${c}</span> ${d.prix}€`);
+                    if(userFuels.includes(c)) {
+                        const mj = formatMajHtml(d);
+                        carbsArray.push(`<span class="font-semibold">${c}</span> ${d.prix}€${mj ? `<span class="text-slate-400 font-normal text-[10px] ml-0.5" translate="no">(${mj})</span>` : ''}`);
+                    }
                 }
                 carbsHtml = distText + `<div class="text-sm text-slate-600 mt-1.5">${carbsArray.join(' <span class="text-slate-300">·</span> ')}</div>`;
                 rightContent = '';
@@ -1311,6 +1352,8 @@ function findCheapest() {
         }
         
         let colorPrix = sort === 'asc' ? 'text-green-600' : 'text-red-600';
+        const carbEnt = res.station.carburants_disponibles[carb];
+        const majP = carbEnt ? formatMajHtml(carbEnt) : "";
         
         html += `
             <div onclick="showStation('${res.id}')" class="p-4 border rounded-xl flex items-center cursor-pointer hover:shadow-md hover:border-indigo-300 transition gap-2 group ${medailleClass}">
@@ -1318,6 +1361,7 @@ function findCheapest() {
                 <div class="flex-1 min-w-0">
                     <div class="font-bold text-slate-800 text-lg truncate group-hover:text-indigo-600 transition">${esc(res.station.nom_osm) || 'Station-service'}</div>
                     <div class="text-xs text-slate-500 truncate">${esc(res.station.ville)} (${esc(res.station.code_postal)})</div>
+                    ${majP ? `<div class="text-[10px] text-slate-400 mt-0.5" translate="no"><i class="fas fa-clock mr-0.5"></i>${majP}</div>` : ''}
                 </div>
                 <div class="font-black ${colorPrix} text-xl ml-2 bg-white px-3 py-1 rounded-lg shadow-sm border border-slate-100 flex-shrink-0">${res.prixInfo.toFixed(3)} €</div>
             </div>
@@ -1329,7 +1373,7 @@ function findCheapest() {
     let mapMarkers = [];
     top10.forEach((res, index) => {
         if(res.station.lat && res.station.lon) {
-            mapMarkers.push({ type: 'rank', lat: res.station.lat, lon: res.station.lon, label: `${index+1}. ${res.station.nom_osm || 'Station-service'}`, adresse: res.station.ville, prix: res.prixInfo, id: res.id, isAsc: sort === 'asc' });
+            mapMarkers.push({ type: 'rank', lat: res.station.lat, lon: res.station.lon, label: `${index+1}. ${res.station.nom_osm || 'Station-service'}`, adresse: res.station.ville, prix: res.prixInfo, id: res.id, isAsc: sort === 'asc', carburant: carb });
         }
     });
     setTimeout(() => initPalmaresMap(mapMarkers), 100);
@@ -1537,7 +1581,7 @@ function showStation(stationId) {
                         <span class="font-black text-xl sm:text-2xl shrink-0 ${priceColor}">${data.prix} <span class="text-base sm:text-lg ${euroColor}">€</span></span>
                     </div>
                     <div class="flex justify-end items-center mt-2">
-                        <span class="text-slate-400 text-xs font-medium"><i class="fas fa-clock mr-1"></i>${data.date_maj}</span>
+                        <span class="text-slate-400 text-xs font-medium" translate="no"><i class="fas fa-clock mr-1"></i>${formatMajHtml(data)}</span>
                     </div>
                     ${bestBadgeHtml}
                     ${analyse.hintHtml || ''}
@@ -1690,7 +1734,17 @@ function initStationMap(markersData, isMultiple = false) {
         else if (m.type === 'station_red') icon = iconRed;
 
         let popupBtn = m.id ? `<button onclick="showStation('${m.id}')" class="mt-2 w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir la station-service</button>` : '';
-        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 leading-tight block">${esc(m.adresse) || ''}</span>${popupBtn}</div>`;
+        let majPopup = '';
+        if (m.id && db.stations[m.id]) {
+            const stPop = db.stations[m.id];
+            for (const f of userFuels) {
+                if (stPop.carburants_disponibles[f]) {
+                    const mj = formatMajHtml(stPop.carburants_disponibles[f]);
+                    if (mj) { majPopup = `<span class="text-[10px] text-slate-500 leading-tight block mt-1" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</span>`; break; }
+                }
+            }
+        }
+        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 leading-tight block">${esc(m.adresse) || ''}</span>${majPopup}${popupBtn}</div>`;
 
         L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(stationMap);
         bounds.push([m.lat, m.lon]);
@@ -1716,7 +1770,13 @@ function initPalmaresMap(markersData) {
     markersData.forEach(m => {
         let icon = m.isAsc ? iconGold : iconRed;
         let colorText = m.isAsc ? 'text-green-600' : 'text-red-600';
-        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label)}</b><span class="text-xs text-slate-500 leading-tight block mb-2">${esc(m.adresse)}</span><div class="font-black ${colorText} text-lg mb-2">${m.prix.toFixed(3)} €</div><button onclick="showStation('${m.id}')" class="w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir</button></div>`;
+        let majLine = '';
+        if (m.id && m.carburant && db.stations[m.id]) {
+            const fd = db.stations[m.id].carburants_disponibles[m.carburant];
+            const mj = fd ? formatMajHtml(fd) : '';
+            if (mj) majLine = `<span class="text-[10px] text-slate-500 block mb-2" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</span>`;
+        }
+        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label)}</b><span class="text-xs text-slate-500 leading-tight block mb-2">${esc(m.adresse)}</span><div class="font-black ${colorText} text-lg mb-2">${m.prix.toFixed(3)} €</div>${majLine}<button onclick="showStation('${m.id}')" class="w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir</button></div>`;
         
         L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(palmaresMap);
         bounds.push([m.lat, m.lon]);

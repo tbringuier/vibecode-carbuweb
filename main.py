@@ -17,6 +17,7 @@ import shutil
 import time
 import unicodedata
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -49,6 +50,7 @@ def _resolve_build_date():
 TODAY = _resolve_build_date()
 
 EXCEL_FILE = os.path.join(DATASETS_DIR, f"prix-carburant-{TODAY}.xlsx")
+EXCEL_RT_FILE = os.path.join(DATASETS_DIR, f"prix-carburant-flux-{TODAY}.xlsx")
 OSM_FILE = os.path.join(DATASETS_DIR, f"osm_mapping-{TODAY}.json")
 DB_FILE = os.path.join(DATASETS_DIR, f"database-{TODAY}.json")
 
@@ -58,7 +60,23 @@ EXCEL_URL = (
     "?lang=fr&timezone=Europe%2FParis&use_labels=true"
 )
 
+EXCEL_RT_URL = (
+    "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/"
+    "prix-des-carburants-en-france-flux-instantane-v2/exports/xlsx"
+    "?lang=fr&timezone=Europe%2FParis&use_labels=true"
+)
+
 ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]
+
+# Colonnes flux instantané (export XLSX data.gouv, libellés FR)
+RT_FUEL_COLUMNS = (
+    ("Gazole", "Prix Gazole", "Prix Gazole mis à jour le"),
+    ("SP95", "Prix SP95", "Prix SP95 mis à jour le"),
+    ("E10", "Prix E10", "Prix E10 mis à jour le"),
+    ("SP98", "Prix SP98", "Prix SP98 mis à jour le"),
+    ("E85", "Prix E85", "Prix E85 mis à jour le"),
+    ("GPLc", "Prix GPLc", "Prix GPLc mis à jour le"),
+)
 
 # Instances Overpass publiques (rotation en cas de 504 / surcharge). Ordre : miroir FR puis instance principale.
 # Voir https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances
@@ -128,6 +146,53 @@ def purge_infinity(d):
             d[k] = None
 
 
+def parse_geom_lat_lon(geom_str):
+    """Extrait (lat, lon) depuis le champ geom « lat, lon »."""
+    if geom_str is None or (isinstance(geom_str, float) and pd.isna(geom_str)):
+        return None, None
+    s = str(geom_str).strip().replace(" ", "")
+    if "," not in s:
+        return None, None
+    a, b = s.split(",", 1)
+    try:
+        return float(a), float(b)
+    except ValueError:
+        return None, None
+
+
+def station_address_correlation_key(adresse, cp, ville):
+    return "|".join(
+        (
+            normalize_text(str(adresse or "")),
+            str(cp or "").strip(),
+            normalize_text(str(ville or "")),
+        )
+    )
+
+
+def normalize_price_update_iso(raw):
+    """Chaîne ISO avec offset si le fichier contient une date-heure."""
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return None
+    s = str(raw).strip()
+    if not s or s.lower() == "nan":
+        return None
+    if "T" not in s:
+        return None
+    return s.replace(" ", "")
+
+
+def daily_maj_date_and_iso(cell):
+    """(maj_iso ou None, date AAAA-MM-JJ) depuis la colonne quotidienne."""
+    if cell is None or (isinstance(cell, float) and pd.isna(cell)):
+        return None, ""
+    s = str(cell).strip()
+    if not s or s.lower() == "nan":
+        return None, ""
+    date_part = s[:10] if len(s) >= 10 and s[4:5] == "-" else ""
+    return normalize_price_update_iso(s), date_part
+
+
 def parse_hours(raw):
     """Parse the government XML-style hours field into a clean dict."""
     if not raw or raw == "":
@@ -160,12 +225,16 @@ def parse_hours(raw):
 # ---------------------------------------------------------------------------
 
 def download_prices():
-    log.info("Downloading fuel prices for %s ...", TODAY)
-    resp = fetch(EXCEL_URL, stream=True, timeout=120, retries=10)
-    with open(EXCEL_FILE, "wb") as f:
-        for chunk in resp.iter_content(chunk_size=8192):
-            f.write(chunk)
-    log.info("Fuel prices downloaded.")
+    for label, url, path in (
+        ("prix quotidiens", EXCEL_URL, EXCEL_FILE),
+        ("flux instantané", EXCEL_RT_URL, EXCEL_RT_FILE),
+    ):
+        log.info("Downloading %s (%s) ...", label, TODAY)
+        resp = fetch(url, stream=True, timeout=180, retries=10)
+        with open(path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        log.info("%s OK → %s", label, path)
 
 
 def download_osm():
@@ -223,6 +292,228 @@ def download_osm():
 
 
 # ---------------------------------------------------------------------------
+# Flux instantané + agrégats
+# ---------------------------------------------------------------------------
+
+def _build_geom_correlation_indexes(db):
+    """Index géographiques pour rattacher une ligne flux à une station quotidienne."""
+    geom5 = {}
+    geom3 = {}
+    for sid, st in db["stations"].items():
+        lat, lon = st.get("lat"), st.get("lon")
+        if lat is None or lon is None:
+            continue
+        k5 = (round(lat, 5), round(lon, 5))
+        geom5.setdefault(k5, []).append(sid)
+        k3 = (round(lat, 3), round(lon, 3))
+        geom3.setdefault(k3, []).append(sid)
+    return geom5, geom3
+
+
+def _correlate_flux_row_to_station_id(row, db, geom5, geom3):
+    """Priorité : id identique, sinon geom (5 puis 3 décimales) + adresse/CP/ville."""
+    rid = str(row.get("id", "")).strip()
+    if rid and rid in db["stations"]:
+        return rid
+
+    lat, lon = parse_geom_lat_lon(row.get("geom"))
+    if lat is None:
+        return None
+
+    rt_key = station_address_correlation_key(
+        row.get("Adresse"),
+        row.get("Code postal"),
+        row.get("Ville"),
+    )
+
+    def disambiguate(candidates):
+        if len(candidates) == 1:
+            return candidates[0]
+        matched = [
+            s
+            for s in candidates
+            if station_address_correlation_key(
+                db["stations"][s]["adresse"],
+                db["stations"][s]["code_postal"],
+                db["stations"][s]["ville"],
+            )
+            == rt_key
+        ]
+        return matched[0] if len(matched) == 1 else None
+
+    k5 = (round(lat, 5), round(lon, 5))
+    sid = disambiguate(geom5.get(k5, []))
+    if sid:
+        return sid
+    k3 = (round(lat, 3), round(lon, 3))
+    return disambiguate(geom3.get(k3, []))
+
+
+def _parse_rt_price_cell(val):
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    s = str(val).strip().replace(",", ".")
+    if not s or s.lower() == "nan":
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def merge_flux_instantane(db):
+    """Enrichit les prix et horodatages depuis le flux instantané (sans doubler les stations)."""
+    if not os.path.isfile(EXCEL_RT_FILE):
+        log.warning("Fichier flux absent (%s), fusion ignorée.", EXCEL_RT_FILE)
+        db.setdefault("meta", {})["flux_instantane"] = {"fusionne": False, "fichier_attendu": EXCEL_RT_FILE}
+        return
+
+    log.info("Fusion du flux instantané ...")
+    df_rt = pd.read_excel(EXCEL_RT_FILE, dtype=str).fillna("")
+    geom5, geom3 = _build_geom_correlation_indexes(db)
+
+    merged_rows = 0
+    correlated = 0
+    skipped = 0
+
+    for _, row in df_rt.iterrows():
+        rid = str(row.get("id", "")).strip()
+        sid = _correlate_flux_row_to_station_id(row, db, geom5, geom3)
+        if not sid:
+            skipped += 1
+            continue
+        if sid != rid:
+            correlated += 1
+        st = db["stations"][sid]
+        merged_rows += 1
+
+        for fuel, price_col, time_col in RT_FUEL_COLUMNS:
+            price = _parse_rt_price_cell(row.get(price_col))
+            if price is None:
+                continue
+            maj_iso = normalize_price_update_iso(row.get(time_col))
+            date_maj = maj_iso[:10] if maj_iso else ""
+            st["carburants_disponibles"][fuel] = {
+                "prix": price,
+                "date_maj": date_maj,
+                "maj_iso": maj_iso,
+            }
+            st["carburants_en_rupture"].pop(fuel, None)
+
+    db.setdefault("meta", {})["flux_instantane"] = {
+        "fusionne": True,
+        "lignes_flux": int(len(df_rt)),
+        "stations_mises_a_jour": merged_rows,
+        "correlations_geom_adresse": correlated,
+        "sans_station_cible": skipped,
+    }
+    log.info(
+        "Flux fusionné : %d stations mises à jour (%d corrélations hors id, %d lignes ignorées).",
+        merged_rows,
+        correlated,
+        skipped,
+    )
+
+
+def recompute_price_aggregates(db):
+    """Recalcule minima nationaux / régionaux / départementaux et tableaux de bord."""
+    nat_sum = {c: 0.0 for c in ALL_FUELS}
+    nat_cnt = {c: 0 for c in ALL_FUELS}
+    nat_presence = {c: 0 for c in ALL_FUELS}
+    mins = {
+        "national": {c: float("inf") for c in ALL_FUELS},
+        "regional": {},
+        "departemental": {},
+    }
+    reg_agg = {}
+
+    for sid, st in db["stations"].items():
+        region = st["region"]
+        dk = st["dept_key"]
+        if region not in reg_agg:
+            reg_agg[region] = {
+                "station_count": 0,
+                "sum": {c: 0.0 for c in ALL_FUELS},
+                "cnt": {c: 0 for c in ALL_FUELS},
+            }
+        reg_agg[region]["station_count"] += 1
+
+        if region not in mins["regional"]:
+            mins["regional"][region] = {c: float("inf") for c in ALL_FUELS}
+        if dk not in mins["departemental"]:
+            mins["departemental"][dk] = {c: float("inf") for c in ALL_FUELS}
+
+        for fuel, info in st.get("carburants_disponibles", {}).items():
+            if fuel not in ALL_FUELS:
+                continue
+            price = float(info["prix"])
+            nat_sum[fuel] += price
+            nat_cnt[fuel] += 1
+            nat_presence[fuel] += 1
+            reg_agg[region]["sum"][fuel] += price
+            reg_agg[region]["cnt"][fuel] += 1
+            if price < mins["national"][fuel]:
+                mins["national"][fuel] = price
+            if price < mins["regional"][region][fuel]:
+                mins["regional"][region][fuel] = price
+            if price < mins["departemental"][dk][fuel]:
+                mins["departemental"][dk][fuel] = price
+
+    db["stats"]["min_prices"] = mins
+    purge_infinity(db["stats"]["min_prices"])
+
+    db["dashboard"] = {
+        "national": {
+            "avg_prices": {
+                c: round(nat_sum[c] / nat_cnt[c], 3) if nat_cnt[c] else 0
+                for c in ALL_FUELS
+            },
+            "fuel_presence": nat_presence,
+        },
+        "regional": {
+            r: {
+                "station_count": d["station_count"],
+                "avg_prices": {
+                    c: round(d["sum"][c] / d["cnt"][c], 3) if d["cnt"][c] else 0
+                    for c in ALL_FUELS
+                },
+            }
+            for r, d in reg_agg.items()
+        },
+    }
+
+    dept_dash = {}
+    for sid, st in db["stations"].items():
+        dk = st["dept_key"]
+        if dk not in dept_dash:
+            dept_dash[dk] = {
+                "nom": st["departement"],
+                "region": st["region"],
+                "station_count": 0,
+                "sum": {c: 0.0 for c in ALL_FUELS},
+                "cnt": {c: 0 for c in ALL_FUELS},
+            }
+        dept_dash[dk]["station_count"] += 1
+        for c in ALL_FUELS:
+            if c in st.get("carburants_disponibles", {}):
+                p = st["carburants_disponibles"][c]["prix"]
+                dept_dash[dk]["sum"][c] += p
+                dept_dash[dk]["cnt"][c] += 1
+    db["dashboard"]["departemental"] = {
+        dk: {
+            "nom": d["nom"],
+            "region": d["region"],
+            "station_count": d["station_count"],
+            "avg_prices": {
+                c: round(d["sum"][c] / d["cnt"][c], 3) if d["cnt"][c] else 0
+                for c in ALL_FUELS
+            },
+        }
+        for dk, d in dept_dash.items()
+    }
+
+
+# ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
 
@@ -249,11 +540,6 @@ def build_database():
         },
     }
 
-    nat_sum = {c: 0.0 for c in ALL_FUELS}
-    nat_cnt = {c: 0 for c in ALL_FUELS}
-    nat_presence = {c: 0 for c in ALL_FUELS}
-    reg_agg = {}
-
     for _, row in df.iterrows():
         sid = str(row["id"])
         region = str(row["Région"]).strip() or "Inconnue"
@@ -262,18 +548,6 @@ def build_database():
         cp = str(row["Code postal"]).strip()
         addr = str(row["adresse"]).strip()
         dk = f"{region}_{dept}"
-
-        if region not in reg_agg:
-            reg_agg[region] = {
-                "station_count": 0,
-                "sum": {c: 0.0 for c in ALL_FUELS},
-                "cnt": {c: 0 for c in ALL_FUELS},
-            }
-        mins = db["stats"]["min_prices"]
-        if region not in mins["regional"]:
-            mins["regional"][region] = {c: float("inf") for c in ALL_FUELS}
-        if dk not in mins["departemental"]:
-            mins["departemental"][dk] = {c: float("inf") for c in ALL_FUELS}
 
         geom = str(row["geom"]).strip()
         lat, lon = None, None
@@ -285,7 +559,6 @@ def build_database():
                 pass
 
         if sid not in db["stations"]:
-            reg_agg[region]["station_count"] += 1
             osm_info = osm.get(sid, {"nom": None, "url": None})
             db["stations"][sid] = {
                 "nom_osm": osm_info["nom"],
@@ -318,7 +591,7 @@ def build_database():
             }
 
         fuel = row["Carburant"]
-        date_raw = str(row["Mise à jour des prix"])[:10] if row["Mise à jour des prix"] else ""
+        maj_iso, date_raw = daily_maj_date_and_iso(row["Mise à jour des prix"])
 
         obsolete = False
         if date_raw:
@@ -336,22 +609,13 @@ def build_database():
                 }
             else:
                 price = float(row["Prix"])
-                db["stations"][sid]["carburants_disponibles"][fuel] = {
+                entry = {
                     "prix": price,
                     "date_maj": date_raw,
                 }
-                if fuel in ALL_FUELS:
-                    nat_sum[fuel] += price
-                    nat_cnt[fuel] += 1
-                    nat_presence[fuel] += 1
-                    reg_agg[region]["sum"][fuel] += price
-                    reg_agg[region]["cnt"][fuel] += 1
-                    if price < mins["national"][fuel]:
-                        mins["national"][fuel] = price
-                    if price < mins["regional"][region][fuel]:
-                        mins["regional"][region][fuel] = price
-                    if price < mins["departemental"][dk][fuel]:
-                        mins["departemental"][dk][fuel] = price
+                if maj_iso:
+                    entry["maj_iso"] = maj_iso
+                db["stations"][sid]["carburants_disponibles"][fuel] = entry
 
         rupt = row["Carburant en rupture"]
         if rupt and rupt not in db["stations"][sid]["carburants_en_rupture"]:
@@ -360,58 +624,8 @@ def build_database():
                 "motif": "Rupture signalée",
             }
 
-    db["dashboard"] = {
-        "national": {
-            "avg_prices": {
-                c: round(nat_sum[c] / nat_cnt[c], 3) if nat_cnt[c] else 0
-                for c in ALL_FUELS
-            },
-            "fuel_presence": nat_presence,
-        },
-        "regional": {
-            r: {
-                "station_count": d["station_count"],
-                "avg_prices": {
-                    c: round(d["sum"][c] / d["cnt"][c], 3) if d["cnt"][c] else 0
-                    for c in ALL_FUELS
-                },
-            }
-            for r, d in reg_agg.items()
-        },
-    }
-
-    purge_infinity(db["stats"]["min_prices"])
-
-    # Build department-level dashboard
-    dept_dash = {}
-    for sid, st in db["stations"].items():
-        dk = st["dept_key"]
-        if dk not in dept_dash:
-            dept_dash[dk] = {
-                "nom": st["departement"],
-                "region": st["region"],
-                "station_count": 0,
-                "sum": {c: 0.0 for c in ALL_FUELS},
-                "cnt": {c: 0 for c in ALL_FUELS},
-            }
-        dept_dash[dk]["station_count"] += 1
-        for c in ALL_FUELS:
-            if c in st.get("carburants_disponibles", {}):
-                p = st["carburants_disponibles"][c]["prix"]
-                dept_dash[dk]["sum"][c] += p
-                dept_dash[dk]["cnt"][c] += 1
-    db["dashboard"]["departemental"] = {
-        dk: {
-            "nom": d["nom"],
-            "region": d["region"],
-            "station_count": d["station_count"],
-            "avg_prices": {
-                c: round(d["sum"][c] / d["cnt"][c], 3) if d["cnt"][c] else 0
-                for c in ALL_FUELS
-            },
-        }
-        for dk, d in dept_dash.items()
-    }
+    merge_flux_instantane(db)
+    recompute_price_aggregates(db)
 
     # Build department and region search indexes
     dept_index = {}  # code -> { name, region, station_ids }
@@ -489,7 +703,9 @@ def generate_site():
     # index.html — inject build date + minify
     with open(os.path.join(TEMPLATES_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
+    build_paris = datetime.now(ZoneInfo("Europe/Paris")).strftime("%d/%m/%Y à %H:%M")
     html = html.replace("{{BUILD_DATE}}", TODAY)
+    html = html.replace("{{BUILD_DATETIME_PARIS}}", build_paris)
     with open(os.path.join(BUILD_DIR, "index.html"), "w", encoding="utf-8") as f:
         f.write(minify_html(html))
 
@@ -521,6 +737,12 @@ def main():
     if not os.path.exists(DB_FILE):
         if not os.path.exists(EXCEL_FILE):
             download_prices()
+        elif not os.path.exists(EXCEL_RT_FILE):
+            log.info("Téléchargement du flux instantané (fichier quotidien déjà présent) ...")
+            resp = fetch(EXCEL_RT_URL, stream=True, timeout=180, retries=10)
+            with open(EXCEL_RT_FILE, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
         if not os.path.exists(OSM_FILE):
             download_osm()
         build_database()
