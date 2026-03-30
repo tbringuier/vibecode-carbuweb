@@ -10,6 +10,124 @@ const DEFAULT_SEARCH_RADIUS_KM = 10;
 let userRadius = parseInt(localStorage.getItem('carbuRadius'), 10) || DEFAULT_SEARCH_RADIUS_KM;
 let userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
 let userFavorites = JSON.parse(localStorage.getItem('carbuFavorites')) || [];
+
+// Profils véhicules
+const VEHICLE_ICONS = [
+    { icon: 'fa-car', label: 'Voiture' },
+    { icon: 'fa-car-side', label: 'Berline' },
+    { icon: 'fa-truck', label: 'Camion' },
+    { icon: 'fa-motorcycle', label: 'Moto' },
+    { icon: 'fa-van-shuttle', label: 'Van' },
+    { icon: 'fa-bicycle', label: 'Vélo' },
+    { icon: 'fa-bus', label: 'Bus' },
+    { icon: 'fa-gas-pump', label: 'Autre' },
+];
+let userVehicles = JSON.parse(localStorage.getItem('carbuVehicles')) || [];
+let activeVehicleId = localStorage.getItem('carbuActiveVehicle') || null;
+
+function saveVehicles() {
+    localStorage.setItem('carbuVehicles', JSON.stringify(userVehicles));
+}
+
+function applyActiveVehicle() {
+    if (activeVehicleId) {
+        const v = userVehicles.find(v => v.id === activeVehicleId);
+        if (v) {
+            userFuels = [...v.fuels];
+        } else {
+            activeVehicleId = null;
+            localStorage.removeItem('carbuActiveVehicle');
+            userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
+        }
+    } else {
+        userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
+    }
+}
+
+function switchVehicle(vehicleId) {
+    if (vehicleId === activeVehicleId) return;
+    activeVehicleId = vehicleId;
+    if (vehicleId) {
+        localStorage.setItem('carbuActiveVehicle', vehicleId);
+    } else {
+        localStorage.removeItem('carbuActiveVehicle');
+    }
+    applyActiveVehicle();
+    nearbyStationCache.clear();
+    renderVehicleBar();
+    renderFuelList();
+    renderFavorites();
+    refreshActiveViews();
+}
+
+function refreshActiveViews() {
+    if (currentProximitySearch) {
+        const sortEl = document.getElementById('sort-fuel-select');
+        const sf = sortEl ? sortEl.value : '';
+        renderStationsList(currentProximitySearch.lat, currentProximitySearch.lon, currentProximitySearch.labelTitle, sf);
+    } else if (currentGeoZone) {
+        searchGeoZone(currentGeoZone.type, currentGeoZone.name);
+    } else if (!document.getElementById('home-view').classList.contains('hidden')) {
+        debouncedSearch();
+    }
+    if (!document.getElementById('pane-statistiques').classList.contains('hidden')) {
+        chartsInitialized = false;
+        renderDashboard();
+    }
+    const sid = document.getElementById('station-view').getAttribute('data-current-id');
+    if (sid && !document.getElementById('station-view').classList.contains('hidden')) showStation(sid);
+}
+
+function generateVehicleId() {
+    return 'v' + Date.now() + Math.random().toString(36).slice(2, 6);
+}
+
+function addVehicle(name, icon, fuels) {
+    if (!name.trim() || fuels.length === 0) return null;
+    const v = { id: generateVehicleId(), name: name.trim(), icon, fuels: [...fuels] };
+    userVehicles.push(v);
+    saveVehicles();
+    return v;
+}
+
+function updateVehicle(id, name, icon, fuels) {
+    const v = userVehicles.find(v => v.id === id);
+    if (!v) return;
+    v.name = name.trim();
+    v.icon = icon;
+    v.fuels = [...fuels];
+    saveVehicles();
+    if (activeVehicleId === id) applyActiveVehicle();
+}
+
+function deleteVehicle(id) {
+    userVehicles = userVehicles.filter(v => v.id !== id);
+    saveVehicles();
+    if (activeVehicleId === id) {
+        activeVehicleId = null;
+        localStorage.removeItem('carbuActiveVehicle');
+        applyActiveVehicle();
+    }
+}
+
+function renderVehicleBar() {
+    const bar = document.getElementById('vehicle-bar');
+    const list = document.getElementById('vehicle-bar-list');
+    if (!bar || !list) return;
+    if (userVehicles.length === 0) {
+        bar.classList.add('hidden');
+        return;
+    }
+    bar.classList.remove('hidden');
+    const isAll = !activeVehicleId;
+    let html = `<button type="button" onclick="switchVehicle(null)" class="touch-manipulation snap-start flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition border ${isAll ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}"><i class="fas fa-list-ul"></i>Tous</button>`;
+    userVehicles.forEach(v => {
+        const active = activeVehicleId === v.id;
+        html += `<button type="button" onclick="switchVehicle('${v.id}')" class="touch-manipulation snap-start flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition border ${active ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}"><i class="fas ${v.icon}"></i>${esc(v.name)}</button>`;
+    });
+    list.innerHTML = html;
+}
+
 let chartsInitialized = false;
 let currentProximitySearch = null;
 let currentGeoZone = null;
@@ -35,6 +153,7 @@ function refreshVisibleViewsAfterDbSwap() {
     chartsInitialized = false;
 
     renderFuelList();
+    renderVehicleBar();
     populateRegions();
     populateFuelsSelect();
     renderFavorites();
@@ -111,8 +230,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
         db = await fetchDataJsonFresh();
-        
+
+        applyActiveVehicle();
         renderFuelList();
+        renderVehicleBar();
+        renderVehiclesList();
 
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('home-view').classList.remove('hidden');
@@ -295,6 +417,118 @@ function hasTrackedFuel(station) {
         if (userFuels.includes(c)) return true;
     }
     return false;
+}
+
+// Gestion véhicules (paramètres)
+let editingVehicleId = null;
+
+function renderVehiclesList() {
+    const container = document.getElementById('vehicles-list');
+    if (!container) return;
+    if (userVehicles.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 italic">Aucun véhicule enregistré. L\'app utilise vos carburants ci-dessous.</p>';
+        return;
+    }
+    let html = '';
+    userVehicles.forEach(v => {
+        const fuelBadges = v.fuels.map(f => `<span class="text-[10px] bg-indigo-100 text-indigo-700 font-semibold px-1.5 py-0.5 rounded">${f}</span>`).join(' ');
+        const isActive = activeVehicleId === v.id;
+        html += `<div class="flex items-center gap-2 p-2.5 rounded-xl border ${isActive ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200'} group">
+            <div class="h-9 w-9 rounded-full ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'} flex items-center justify-center shrink-0"><i class="fas ${v.icon} text-sm"></i></div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm text-slate-800 truncate">${esc(v.name)}</div>
+                <div class="flex flex-wrap gap-1 mt-0.5">${fuelBadges}</div>
+            </div>
+            <button type="button" onclick="openVehicleForm('${v.id}')" class="touch-manipulation h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition text-xs" title="Modifier"><i class="fas fa-pen"></i></button>
+            <button type="button" onclick="confirmDeleteVehicle('${v.id}')" class="touch-manipulation h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition text-xs" title="Supprimer"><i class="fas fa-trash"></i></button>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function openVehicleForm(vehicleId) {
+    editingVehicleId = vehicleId || null;
+    const form = document.getElementById('vehicle-form');
+    const addBtn = document.getElementById('vehicle-add-btn');
+    form.classList.remove('hidden');
+    if (addBtn) addBtn.classList.add('hidden');
+
+    const existing = vehicleId ? userVehicles.find(v => v.id === vehicleId) : null;
+    document.getElementById('vehicle-name-input').value = existing ? existing.name : '';
+
+    const selectedIcon = existing ? existing.icon : VEHICLE_ICONS[0].icon;
+    const picker = document.getElementById('vehicle-icon-picker');
+    picker.innerHTML = VEHICLE_ICONS.map(vi =>
+        `<button type="button" onclick="selectVehicleIcon('${vi.icon}')" data-icon="${vi.icon}" class="vehicle-icon-btn touch-manipulation h-10 w-10 flex items-center justify-center rounded-xl border-2 transition text-base ${vi.icon === selectedIcon ? 'border-indigo-500 bg-indigo-50 text-indigo-600' : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300'}" title="${vi.label}"><i class="fas ${vi.icon}"></i></button>`
+    ).join('');
+
+    const selectedFuels = existing ? existing.fuels : [];
+    const fuelCbs = document.getElementById('vehicle-fuel-checkboxes');
+    fuelCbs.innerHTML = ALL_FUELS.map(f => {
+        const checked = selectedFuels.includes(f);
+        return `<label class="vehicle-fuel-label touch-manipulation inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 text-sm font-semibold cursor-pointer transition select-none ${checked ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300'}">
+            <input type="checkbox" value="${f}" class="vehicle-fuel-cb sr-only" ${checked ? 'checked' : ''} onchange="toggleVehicleFuelStyle(this)">${f}</label>`;
+    }).join('');
+
+    document.getElementById('vehicle-name-input').focus();
+}
+
+function closeVehicleForm() {
+    editingVehicleId = null;
+    document.getElementById('vehicle-form').classList.add('hidden');
+    const addBtn = document.getElementById('vehicle-add-btn');
+    if (addBtn) addBtn.classList.remove('hidden');
+}
+
+function selectVehicleIcon(icon) {
+    document.querySelectorAll('#vehicle-icon-picker .vehicle-icon-btn').forEach(btn => {
+        const isSelected = btn.dataset.icon === icon;
+        btn.className = `vehicle-icon-btn touch-manipulation h-10 w-10 flex items-center justify-center rounded-xl border-2 transition text-base ${isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-600' : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300'}`;
+    });
+}
+
+function toggleVehicleFuelStyle(cb) {
+    const label = cb.closest('.vehicle-fuel-label');
+    if (cb.checked) {
+        label.className = label.className.replace('border-slate-200 bg-white text-slate-600 hover:border-indigo-300', 'border-indigo-500 bg-indigo-50 text-indigo-700');
+    } else {
+        label.className = label.className.replace('border-indigo-500 bg-indigo-50 text-indigo-700', 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300');
+    }
+}
+
+function saveVehicleForm() {
+    const name = document.getElementById('vehicle-name-input').value.trim();
+    if (!name) { document.getElementById('vehicle-name-input').focus(); return; }
+    const selectedIcon = document.querySelector('#vehicle-icon-picker .vehicle-icon-btn.border-indigo-500');
+    const icon = selectedIcon ? selectedIcon.dataset.icon : 'fa-car';
+    const fuels = [...document.querySelectorAll('.vehicle-fuel-cb:checked')].map(cb => cb.value);
+    if (fuels.length === 0) { showToast('Cochez au moins un carburant', 'fa-exclamation-triangle'); return; }
+
+    if (editingVehicleId) {
+        updateVehicle(editingVehicleId, name, icon, fuels);
+    } else {
+        const v = addVehicle(name, icon, fuels);
+        if (!v) return;
+    }
+    closeVehicleForm();
+    renderVehiclesList();
+    renderVehicleBar();
+    if (activeVehicleId) {
+        applyActiveVehicle();
+        renderFuelList();
+    }
+}
+
+function confirmDeleteVehicle(id) {
+    const v = userVehicles.find(v => v.id === id);
+    if (!v) return;
+    if (!confirm(`Supprimer le véhicule « ${v.name} » ?`)) return;
+    deleteVehicle(id);
+    renderVehiclesList();
+    renderVehicleBar();
+    renderFuelList();
+    renderFavorites();
+    refreshActiveViews();
 }
 
 // Paramètres & Sauvegarde
@@ -524,6 +758,12 @@ function saveSettings() {
         return;
     }
     localStorage.setItem('carbuFuels', JSON.stringify(userFuels));
+
+    if (activeVehicleId) {
+        activeVehicleId = null;
+        localStorage.removeItem('carbuActiveVehicle');
+        renderVehicleBar();
+    }
     
     renderFavorites();
     if (currentProximitySearch) {
@@ -551,6 +791,8 @@ function resetSettings() {
     localStorage.removeItem('carbuFuels');
     localStorage.removeItem('carbuFavorites');
     localStorage.removeItem('carbuWelcomeDismissed');
+    localStorage.removeItem('carbuVehicles');
+    localStorage.removeItem('carbuActiveVehicle');
     location.reload();
 }
 
