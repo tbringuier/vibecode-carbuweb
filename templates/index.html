@@ -22,19 +22,95 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <style>
-        html { scroll-behavior: smooth; }
-        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        :root {
+            --map-h: clamp(13.75rem, 42dvh, 20rem);
+        }
+        @media (min-width: 640px) {
+            :root { --map-h: clamp(17.5rem, 45dvh, 25rem); }
+        }
+        @media (min-width: 1024px) {
+            :root { --map-h: clamp(22rem, 50dvh, 32rem); }
+        }
+        html {
+            scroll-behavior: smooth;
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            min-height: 100vh;
+            min-height: 100dvh;
+            -webkit-tap-highlight-color: rgba(79, 70, 229, 0.12);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 2.5rem;
+            height: 2.5rem;
+            animation: spin 1s linear infinite;
+            margin: 1.25rem auto;
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #station-map, #palmares-map { height: 300px; width: 100%; z-index: 10; border-radius: 0.75rem; }
-        @media (min-width: 640px) { #station-map, #palmares-map { height: 400px; } }
-        @media (min-width: 1024px) { #station-map, #palmares-map { height: 500px; } }
+        #station-map, #palmares-map {
+            height: var(--map-h);
+            min-height: 220px;
+            width: 100%;
+            z-index: 10;
+            border-radius: 0.75rem;
+            touch-action: pan-x pan-y pinch-zoom;
+        }
+        .leaflet-container { font: inherit; }
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+            -webkit-overflow-scrolling: touch;
+        }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        input[type="range"]::-webkit-slider-thumb { transition: transform 0.15s ease; }
-        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
-        select, input[type="text"] { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+        .touch-pan-x { touch-action: pan-x; overscroll-behavior-x: contain; }
+        .scroll-touch { -webkit-overflow-scrolling: touch; }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 0.5rem;
+            border-radius: 0.5rem;
+            background: #e2e8f0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            background: #4f46e5;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            background: #4f46e5;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-track {
+            height: 0.5rem;
+            border-radius: 0.5rem;
+            background: #e2e8f0;
+        }
+        @media (pointer: fine) {
+            input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        }
+        select, input[type="text"], input[type="search"], textarea {
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
         .fuel-row.fuel-row-drag-source { opacity: 0.45; transform: scale(0.98); box-shadow: inset 0 0 0 2px #818cf8; }
         .fuel-row.fuel-row-drag-active { cursor: grabbing; }
@@ -46,23 +122,23 @@
         #pwa-install-bar.pwa-bar-hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
-    <nav class="bg-gradient-to-r from-indigo-600 to-blue-500 text-white px-4 py-3 sm:p-4 shadow-lg sticky top-0 z-50 backdrop-blur-sm">
-        <div class="container mx-auto flex justify-between items-center max-w-4xl">
-            <h1 class="text-xl sm:text-2xl font-extrabold cursor-pointer tracking-tight" onclick="goHome()">
-                <i class="fas fa-gas-pump mr-2 text-yellow-300"></i>Carbu'Web
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen min-h-[100dvh] flex flex-col">
+    <nav class="bg-gradient-to-r from-indigo-600 to-blue-500 text-white pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] pt-[max(0.625rem,env(safe-area-inset-top,0px))] pb-2.5 sm:pb-3 md:pb-4 shadow-lg sticky top-0 z-50 backdrop-blur-sm supports-[backdrop-filter]:bg-indigo-600/95">
+        <div class="container mx-auto flex justify-between items-center gap-2 max-w-4xl">
+            <h1 class="text-lg sm:text-2xl font-extrabold cursor-pointer tracking-tight min-w-0 truncate touch-manipulation py-1" onclick="goHome()">
+                <i class="fas fa-gas-pump mr-1.5 sm:mr-2 text-yellow-300 shrink-0"></i>Carbu'Web
             </h1>
-            <button onclick="toggleSettings()" class="hover:text-yellow-300 transition text-xl p-2 rounded-full hover:bg-white/10" aria-label="Paramètres">
+            <button type="button" onclick="toggleSettings()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] sm:min-h-0 sm:min-w-0 hover:text-yellow-300 transition text-xl rounded-full hover:bg-white/10 active:bg-white/15" aria-label="Paramètres">
                 <i class="fas fa-cog"></i>
             </button>
         </div>
     </nav>
 
-    <div id="settings-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto animate-[fadeIn_0.15s_ease-out]">
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[min(90dvh,90vh)] sm:max-h-[85dvh] overflow-y-auto custom-scrollbar animate-[fadeIn_0.15s_ease-out] pb-[max(1rem,env(safe-area-inset-bottom,0px))] sm:pb-6">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-sliders-h mr-2 text-indigo-500"></i>Paramètres</h2>
-                <button onclick="toggleSettings()" class="text-slate-400 hover:text-red-500 transition"><i class="fas fa-times text-xl"></i></button>
+                <button type="button" onclick="toggleSettings()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] -mr-1 text-slate-400 hover:text-red-500 transition rounded-lg" aria-label="Fermer les paramètres"><i class="fas fa-times text-xl"></i></button>
             </div>
             
             <div class="mb-6">
@@ -77,13 +153,13 @@
                 <div class="flex flex-col gap-1.5" id="fuels-checkboxes"></div>
             </div>
 
-            <button onclick="resetSettings()" class="w-full text-sm text-red-500 hover:text-red-700 font-bold underline py-2 mt-4 transition text-center flex justify-center items-center">
+            <button type="button" onclick="resetSettings()" class="touch-manipulation w-full text-sm text-red-500 hover:text-red-700 font-bold underline py-3 min-h-[2.75rem] mt-4 transition text-center flex justify-center items-center rounded-lg">
                 <i class="fas fa-trash-alt mr-2"></i> Tout réinitialiser (Paramètres & Lieux favoris)
             </button>
         </div>
     </div>
 
-    <main class="container mx-auto px-3 sm:px-4 py-3 sm:py-4 max-w-4xl mt-2 sm:mt-4 flex-grow" id="app">
+    <main class="container mx-auto pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] py-3 sm:py-4 max-w-4xl mt-2 sm:mt-4 flex-grow w-full min-w-0" id="app">
         <div id="loading" class="text-center mt-20">
             <div class="loader"></div>
             <p class="text-slate-500 font-medium mt-4 animate-pulse">Chargement des stations-services...</p>
@@ -91,8 +167,8 @@
 
         <div id="home-view" class="hidden">
             
-            <div id="welcome-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6 relative">
-                <button onclick="dismissWelcome()" class="absolute top-4 right-4 text-slate-300 hover:text-slate-500 transition" aria-label="Fermer"><i class="fas fa-times"></i></button>
+            <div id="welcome-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-4 sm:mb-6 relative">
+                <button type="button" onclick="dismissWelcome()" class="touch-manipulation absolute top-3 right-3 sm:top-4 sm:right-4 inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-slate-300 hover:text-slate-500 transition rounded-lg" aria-label="Fermer"><i class="fas fa-times text-lg"></i></button>
                 <h2 class="text-lg font-bold text-slate-800 mb-2 pr-6">👋 Bienvenue sur Carbu'Web !</h2>
                 <p class="text-sm text-slate-600 mb-4">Trouvez le carburant le moins cher près de chez vous :</p>
                 <ul class="text-sm text-slate-600 space-y-3">
@@ -108,34 +184,34 @@
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-                <div class="flex border-b bg-slate-50 overflow-x-auto custom-scrollbar">
-                    <button onclick="switchTab('recherche')" id="tab-recherche" class="flex-1 min-w-0 py-3 sm:py-4 text-sm sm:text-base font-bold text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50 hover:bg-indigo-50 transition"><i class="fas fa-search mr-1 sm:mr-2"></i>Recherche</button>
-                    <button onclick="switchTab('palmares')" id="tab-palmares" class="flex-1 min-w-0 py-3 sm:py-4 text-sm sm:text-base font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition"><i class="fas fa-trophy text-yellow-500 mr-1 sm:mr-2"></i>Palmarès</button>
-                    <button onclick="switchTab('statistiques')" id="tab-statistiques" class="flex-1 min-w-0 py-3 sm:py-4 text-sm sm:text-base font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition"><i class="fas fa-chart-pie text-purple-500 mr-1 sm:mr-2"></i>Statistiques</button>
+                <div class="flex border-b bg-slate-50 overflow-x-auto custom-scrollbar snap-x snap-mandatory">
+                    <button type="button" onclick="switchTab('recherche')" id="tab-recherche" class="touch-manipulation flex-1 min-w-[31%] sm:min-w-0 snap-start py-3.5 sm:py-4 px-1 text-xs sm:text-base font-bold text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50 hover:bg-indigo-50 transition leading-tight"><i class="fas fa-search mr-0.5 sm:mr-2 shrink-0"></i><span class="truncate">Recherche</span></button>
+                    <button type="button" onclick="switchTab('palmares')" id="tab-palmares" class="touch-manipulation flex-1 min-w-[31%] sm:min-w-0 snap-start py-3.5 sm:py-4 px-1 text-xs sm:text-base font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition leading-tight"><i class="fas fa-trophy text-yellow-500 mr-0.5 sm:mr-2 shrink-0"></i><span class="truncate">Palmarès</span></button>
+                    <button type="button" onclick="switchTab('statistiques')" id="tab-statistiques" class="touch-manipulation flex-1 min-w-[31%] sm:min-w-0 snap-start py-3.5 sm:py-4 px-1 text-xs sm:text-base font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition leading-tight"><i class="fas fa-chart-pie text-purple-500 mr-0.5 sm:mr-2 shrink-0"></i><span class="truncate sm:max-w-none"><span class="sm:hidden">Stats</span><span class="hidden sm:inline">Statistiques</span></span></button>
                 </div>
 
                 <div class="p-4 sm:p-5 md:p-8">
                     <div id="pane-recherche" class="space-y-4">
-                        <button onclick="geolocateMe()" class="w-full bg-indigo-100 text-indigo-700 font-bold py-3 rounded-xl hover:bg-indigo-200 transition flex justify-center items-center gap-2 mb-4">
-                            <i class="fas fa-location-arrow"></i> Trouver les stations-services autour de moi
+                        <button type="button" onclick="geolocateMe()" class="touch-manipulation w-full bg-indigo-100 text-indigo-700 font-bold py-3.5 sm:py-3 min-h-[3rem] rounded-xl hover:bg-indigo-200 active:bg-indigo-200/90 transition flex justify-center items-center gap-2 mb-4 px-3 text-sm sm:text-base text-center leading-snug">
+                            <i class="fas fa-location-arrow shrink-0"></i> <span>Trouver les stations autour de moi</span>
                         </button>
                         
                         <div class="relative">
-                            <i class="fas fa-search absolute left-4 top-4 text-slate-400"></i>
-                            <input type="text" id="search-input" placeholder="Saisissez une adresse, une ville, une station..." class="w-full p-4 pl-12 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium" oninput="debouncedSearch()">
+                            <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-base" aria-hidden="true"></i>
+                            <input type="search" id="search-input" enterkeyhint="search" autocomplete="street-address" placeholder="Adresse, ville, station…" class="w-full min-h-[3rem] py-3 pl-11 pr-4 text-base bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium" oninput="debouncedSearch()">
                         </div>
-                        <div id="search-results" class="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar"></div>
+                        <div id="search-results" class="space-y-3 max-h-[min(60dvh,60vh)] overflow-y-auto pr-1 sm:pr-2 custom-scrollbar scroll-touch"></div>
                     </div>
 
                     <div id="pane-palmares" class="hidden space-y-5">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-semibold text-slate-700 mb-1">Carburant</label>
-                                <select id="palmares-carb" class="w-full p-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm sm:text-base"></select>
+                                <select id="palmares-carb" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base"></select>
                             </div>
                             <div>
                                 <label class="block text-sm font-semibold text-slate-700 mb-1">Classement</label>
-                                <select id="palmares-sort" class="w-full p-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm sm:text-base">
+                                <select id="palmares-sort" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base">
                                     <option value="asc">Les moins chers d'abord</option>
                                     <option value="desc">Les plus chers d'abord</option>
                                 </select>
@@ -145,20 +221,20 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-semibold text-slate-700 mb-1">Région</label>
-                                <select id="select-region" onchange="updateDepartments()" class="w-full p-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm sm:text-base">
+                                <select id="select-region" onchange="updateDepartments()" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base">
                                     <option value="national">🇫🇷 Toute la France</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="block text-sm font-semibold text-slate-700 mb-1">Département</label>
-                                <select id="select-dept" class="w-full p-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm sm:text-base disabled:opacity-50" disabled>
+                                <select id="select-dept" class="w-full min-h-[3rem] py-3 px-3 sm:p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base disabled:opacity-50" disabled>
                                     <option value="">-- Optionnel --</option>
                                 </select>
                             </div>
                         </div>
 
-                        <button onclick="findCheapest()" class="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-extrabold py-4 rounded-xl hover:from-yellow-500 hover:to-orange-600 transition shadow-lg flex justify-center items-center gap-2 text-lg">
-                            <i class="fas fa-search-dollar"></i> Afficher le Palmarès
+                        <button type="button" onclick="findCheapest()" class="touch-manipulation w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-extrabold py-3.5 sm:py-4 min-h-[3rem] rounded-xl hover:from-yellow-500 hover:to-orange-600 active:opacity-95 transition shadow-lg flex justify-center items-center gap-2 text-base sm:text-lg px-3">
+                            <i class="fas fa-search-dollar shrink-0"></i> Afficher le Palmarès
                         </button>
                         
                         <div id="palmares-map" class="hidden border border-slate-200 rounded-xl overflow-hidden mt-4 mb-2"></div>
@@ -166,19 +242,23 @@
                     </div>
 
                     <div id="pane-statistiques" class="hidden space-y-6">
-                        <h2 class="text-2xl font-bold text-slate-800"><i class="fas fa-chart-bar mr-2 text-purple-500"></i>Tableau de bord national</h2>
+                        <h2 class="text-xl sm:text-2xl font-bold text-slate-800"><i class="fas fa-chart-bar mr-2 text-purple-500"></i>Tableau de bord national</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-white p-4 border rounded-xl shadow-sm">
-                                <h3 class="font-bold mb-4 text-center text-slate-700">Prix Moyens Nationaux</h3>
-                                <canvas id="chart-nat-prices"></canvas>
+                            <div class="bg-white p-3 sm:p-4 border rounded-xl shadow-sm">
+                                <h3 class="font-bold mb-3 sm:mb-4 text-center text-slate-700 text-sm sm:text-base">Prix moyens nationaux</h3>
+                                <div class="relative mx-auto w-full h-[200px] sm:h-[260px] max-w-full">
+                                    <canvas id="chart-nat-prices"></canvas>
+                                </div>
                             </div>
-                            <div class="bg-white p-4 border rounded-xl shadow-sm">
-                                <h3 class="font-bold mb-4 text-center text-slate-700">Proportion des Carburants</h3>
-                                <canvas id="chart-nat-fuels"></canvas>
+                            <div class="bg-white p-3 sm:p-4 border rounded-xl shadow-sm">
+                                <h3 class="font-bold mb-3 sm:mb-4 text-center text-slate-700 text-sm sm:text-base">Proportion des carburants</h3>
+                                <div class="relative mx-auto w-full h-[200px] sm:h-[260px] max-w-full flex items-center justify-center">
+                                    <canvas id="chart-nat-fuels"></canvas>
+                                </div>
                             </div>
                         </div>
-                        <h2 class="text-2xl font-bold text-slate-800 mt-8"><i class="fas fa-map-marked-alt mr-2 text-indigo-500"></i>Moyennes par Région</h2>
-                        <div class="overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar">
+                        <h2 class="text-xl sm:text-2xl font-bold text-slate-800 mt-6 sm:mt-8"><i class="fas fa-map-marked-alt mr-2 text-indigo-500"></i>Moyennes par Région</h2>
+                        <div class="overflow-x-auto touch-pan-x bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar">
                             <table class="w-full text-sm text-left text-slate-600" id="table-regions"></table>
                         </div>
                     </div>
@@ -187,17 +267,17 @@
         </div>
 
         <div id="station-view" class="hidden">
-            <div class="flex justify-between items-center mb-6">
-                <button onclick="goBack()" class="text-indigo-600 font-bold hover:text-indigo-800 transition flex items-center bg-indigo-50 px-4 py-2 rounded-full hover:bg-indigo-100">
+            <div class="flex justify-between items-center gap-2 mb-4 sm:mb-6">
+                <button type="button" onclick="goBack()" class="touch-manipulation text-indigo-600 font-bold hover:text-indigo-800 transition flex items-center bg-indigo-50 px-4 py-2.5 min-h-[2.75rem] rounded-full hover:bg-indigo-100 active:bg-indigo-100/80 text-sm sm:text-base shrink-0">
                     <i class="fas fa-arrow-left mr-2"></i> Retour
                 </button>
-                <button id="btn-favorite-station" onclick="toggleFavoriteCurrentStation()" class="text-2xl transition hover:scale-110" title="Ajouter aux favoris"><i class="far fa-star text-slate-300 hover:text-yellow-400"></i></button>
+                <button type="button" id="btn-favorite-station" onclick="toggleFavoriteCurrentStation()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-2xl transition hover:scale-110 active:scale-95 rounded-full" title="Ajouter aux favoris"><i class="far fa-star text-slate-300 hover:text-yellow-400"></i></button>
             </div>
             <div id="station-content"></div>
         </div>
     </main>
 
-    <div id="app-toast" role="status" aria-live="polite" class="toast-hidden fixed bottom-20 left-1/2 z-[90] max-w-[min(92vw,20rem)] px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-xl flex items-center gap-2 justify-center text-center"></div>
+    <div id="app-toast" role="status" aria-live="polite" class="toast-hidden fixed left-1/2 z-[90] max-w-[min(92vw,20rem)] px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-xl flex items-center gap-2 justify-center text-center" style="bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem));"></div>
 
     <div id="pwa-install-bar" class="pwa-bar-hidden fixed bottom-0 left-0 right-0 z-[85] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]">
         <div class="mx-auto max-w-4xl rounded-2xl bg-indigo-600 text-white shadow-lg border border-indigo-500/30 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -212,7 +292,7 @@
         </div>
     </div>
 
-    <footer class="text-center py-8 text-slate-400 text-sm mt-auto border-t border-slate-200 space-y-1.5 bg-white">
+    <footer class="text-center py-6 sm:py-8 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] px-3 text-slate-400 text-xs sm:text-sm mt-auto border-t border-slate-200 space-y-1.5 bg-white">
         <a href="https://github.com/tbringuier/vibecode-carburant" target="_blank" class="hover:text-indigo-500 transition font-semibold inline-flex items-center gap-1.5"><i class="fab fa-github"></i>Projet vibecodé</a><br>
         <span class="text-slate-300">Données : <a href="https://data.economie.gouv.fr/explore/dataset/prix-carburants-quotidien/information/" target="_blank" class="hover:text-indigo-500 transition hover:underline">data.economie.gouv.fr</a> du {{BUILD_DATE}}</span>
     </footer>

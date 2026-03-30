@@ -441,14 +441,14 @@ function toggleFavoriteCurrentStation() {
 function updateStarUI(sid) {
     const btn = document.getElementById('btn-favorite-station');
     const isFav = userFavorites.some(f => f.id === sid);
-    if (isFav) {
+        if (isFav) {
         btn.innerHTML = `<i class="fas fa-star text-yellow-400"></i>`;
         btn.title = 'Retirer des favoris';
-        btn.className = 'text-2xl transition hover:scale-110 hover:text-red-400';
+        btn.className = 'touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-2xl transition hover:scale-110 active:scale-95 hover:text-red-400 rounded-full';
     } else {
         btn.innerHTML = `<i class="far fa-star text-slate-300 hover:text-yellow-400"></i>`;
         btn.title = 'Ajouter aux favoris';
-        btn.className = 'text-2xl transition hover:scale-110';
+        btn.className = 'touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-2xl transition hover:scale-110 active:scale-95 rounded-full';
     }
 }
 
@@ -520,7 +520,7 @@ function renderFavorites() {
                     if (best) bestCards += `<div onclick="event.stopPropagation(); showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div><div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
                 });
             }
-            const widgetRow = bestCards ? `<div class="grid grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
+            const widgetRow = bestCards ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
             allHtml += `
                 <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl hover:shadow-md hover:border-indigo-300 transition group">
                     <div class="flex justify-between items-center">
@@ -686,11 +686,11 @@ function searchGeoZone(type, name, overrideFuel) {
                 ${buildBestPricesWidget(stations)}
                 <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
                     <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Trier par prix :</label>
-                    <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="p-3 border border-slate-300 rounded-xl text-sm font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto">
+                    <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="min-h-[3rem] py-3 px-3 border border-slate-300 rounded-xl text-base font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto touch-manipulation">
                         ${sortOptions}
                     </select>
                 </div>
-                <div class="space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">`;
+                <div class="space-y-3 max-h-[min(70dvh,70vh)] overflow-y-auto custom-scrollbar scroll-touch">`;
 
     stations.forEach((res, index) => {
         let rightContent = '';
@@ -756,13 +756,18 @@ function renderDashboard() {
         chartNatPrices = new Chart(document.getElementById('chart-nat-prices'), {
             type: 'bar',
             data: { labels: fuels, datasets: [{ label: 'Prix moyen (€)', data: avgPrices, backgroundColor: colors }] },
-            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: false } }
+            }
         });
 
         chartNatFuels = new Chart(document.getElementById('chart-nat-fuels'), {
             type: 'pie',
             data: { labels: fuels, datasets: [{ data: fuelCounts, backgroundColor: colors }] },
-            options: { responsive: true }
+            options: { responsive: true, maintainAspectRatio: false }
         });
     }
     renderRegionsTable();
@@ -795,30 +800,30 @@ function renderRegionsTable() {
         regions.sort((a, b) => a[0].localeCompare(b[0]));
     }
 
-    let tableHtml = `<thead class="bg-slate-100 text-slate-700 uppercase text-xs"><tr><th class="px-4 py-3 sticky left-0 bg-slate-100 shadow-sm z-10">Région</th><th class="px-4 py-3">Stations</th>`;
+    let tableHtml = `<thead class="bg-slate-100 text-slate-700 uppercase text-[10px] sm:text-xs"><tr><th class="px-2 py-2 sm:px-4 sm:py-3 sticky left-0 bg-slate-100 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] z-10 whitespace-nowrap">Région</th><th class="px-2 py-2 sm:px-4 sm:py-3 whitespace-nowrap">Stations</th>`;
     fuels.forEach(f => {
         const arrow = dashSortFuel === f ? (dashSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
         const cls = dashSortFuel === f ? 'text-indigo-600' : 'text-slate-400';
-        tableHtml += `<th class="px-4 py-3 cursor-pointer select-none hover:text-indigo-600 transition" onclick="sortDashboardBy('${f}')">${f} <i class="fas ${arrow} ${cls} text-[10px] ml-1"></i></th>`;
+        tableHtml += `<th class="px-2 py-2 sm:px-4 sm:py-3 cursor-pointer select-none hover:text-indigo-600 transition whitespace-nowrap" onclick="sortDashboardBy('${f}')">${f} <i class="fas ${arrow} ${cls} text-[10px] ml-0.5 sm:ml-1"></i></th>`;
     });
     tableHtml += `</tr></thead><tbody class="text-sm">`;
 
     for (const [region, data] of regions) {
         const slug = region.replace(/[^a-zA-Z0-9]/g, '_');
-        tableHtml += `<tr class="border-b hover:bg-slate-50 cursor-pointer" onclick="toggleRegionAccordion('${slug}')"><td class="px-4 py-3 font-bold sticky left-0 bg-white/90 backdrop-blur z-10"><i id="chevron-${slug}" class="fas fa-chevron-right text-xs text-slate-400 mr-2 transition-transform"></i>${esc(region)}</td><td class="px-4 py-3 text-center">${data.station_count}</td>`;
+        tableHtml += `<tr class="border-b hover:bg-slate-50 cursor-pointer" onclick="toggleRegionAccordion('${slug}')"><td class="px-2 py-2.5 sm:px-4 sm:py-3 font-bold sticky left-0 bg-white/95 backdrop-blur-sm z-10 max-w-[42vw] sm:max-w-none shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]"><i id="chevron-${slug}" class="fas fa-chevron-right text-xs text-slate-400 mr-1.5 sm:mr-2 transition-transform shrink-0"></i><span class="align-middle">${esc(region)}</span></td><td class="px-2 py-2.5 sm:px-4 sm:py-3 text-center tabular-nums">${data.station_count}</td>`;
         fuels.forEach(f => {
             let p = data.avg_prices[f];
-            tableHtml += `<td class="px-4 py-3 text-center font-medium">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
+            tableHtml += `<td class="px-2 py-2.5 sm:px-4 sm:py-3 text-center font-medium tabular-nums text-xs sm:text-sm">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
         });
         tableHtml += `</tr>`;
 
         if (dash.departemental) {
             const deptRows = Object.entries(dash.departemental).filter(([, d]) => d.region === region).sort((a, b) => a[1].nom.localeCompare(b[1].nom));
             for (const [, dept] of deptRows) {
-                tableHtml += `<tr class="dept-row-${slug} hidden border-b bg-slate-50/50"><td class="px-4 py-2 pl-10 text-slate-600 sticky left-0 bg-slate-50/90 backdrop-blur z-10">${esc(dept.nom)}</td><td class="px-4 py-2 text-center text-slate-500">${dept.station_count}</td>`;
+                tableHtml += `<tr class="dept-row-${slug} hidden border-b bg-slate-50/50"><td class="px-2 py-2 sm:px-4 pl-6 sm:pl-10 text-slate-600 sticky left-0 bg-slate-50/95 backdrop-blur-sm z-10 max-w-[40vw] sm:max-w-none shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)]">${esc(dept.nom)}</td><td class="px-2 py-2 sm:px-4 text-center text-slate-500 tabular-nums">${dept.station_count}</td>`;
                 fuels.forEach(f => {
                     let p = dept.avg_prices[f];
-                    tableHtml += `<td class="px-4 py-2 text-center text-slate-500">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
+                    tableHtml += `<td class="px-2 py-2 sm:px-4 text-center text-slate-500 tabular-nums text-xs sm:text-sm">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
                 });
                 tableHtml += `</tr>`;
             }
@@ -1052,7 +1057,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
         html += `
             <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
                 <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Méthodologie de tri (par ordre croissant) :</label>
-                <select id="sort-fuel-select" onchange="applyFuelSort(this.value)" class="p-3 border border-slate-300 rounded-xl text-sm font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto">
+                <select id="sort-fuel-select" onchange="applyFuelSort(this.value)" class="min-h-[3rem] py-3 px-3 border border-slate-300 rounded-xl text-base font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto touch-manipulation">
                     <option value="">Trier par distance</option>
                     ${sortOptions}
                 </select>
