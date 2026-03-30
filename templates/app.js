@@ -786,10 +786,11 @@ async function performSearch() {
         }
     }
 
+    let stationsHtml = '';
     if (localResults.length > 0) {
-        html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between"><span><i class="fas fa-gas-pump mr-1"></i> Stations-services</span><span class="text-indigo-400 normal-case bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Filtres appliqués</span></div>`;
+        stationsHtml += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between"><span><i class="fas fa-gas-pump mr-1"></i> Stations-services</span><span class="text-indigo-400 normal-case bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Filtres appliqués</span></div>`;
         localResults.forEach(res => {
-            html += `
+            stationsHtml += `
                 <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
                     <div class="flex-1 min-w-0">
                         <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg">${esc(res.station.nom_osm) || 'Station-service'}</div>
@@ -804,7 +805,7 @@ async function performSearch() {
     try {
         const osmResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=fr&limit=4`, { signal: currentSignal });
         const osmData = await osmResponse.json();
-        
+
         if (osmData.length > 0) {
             html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between"><span><i class="fas fa-map-marked-alt mr-1"></i> Villes & Adresses</span><span class="text-indigo-400 normal-case bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">via OpenStreetMap</span></div>`;
             osmData.forEach(place => {
@@ -812,7 +813,7 @@ async function performSearch() {
                 const name = parts[0];
                 const desc = parts.slice(1, -2).join(',').trim();
                 const isFav = userFavorites.some(f => f.id === `${place.lat}-${place.lon}`);
-                
+
                 html += `
                     <div class="bg-indigo-50 border border-indigo-100 rounded-xl hover:shadow-md hover:border-indigo-300 transition flex items-center group mb-2 overflow-hidden">
                         <div onclick="findStationsNear(${place.lat}, ${place.lon}, '${name.replace(/'/g, "\\'")}')" class="p-4 flex-1 min-w-0 cursor-pointer flex justify-between items-center">
@@ -830,6 +831,8 @@ async function performSearch() {
             });
         }
     } catch (e) { console.error("OSM API Error", e); }
+
+    html += stationsHtml;
 
     if (html === '') {
         html = `
