@@ -13,19 +13,27 @@ concurrency:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     env:
       TZ: Europe/Paris
+      PYTHONDONTWRITEBYTECODE: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       PIP_NO_PYTHON_VERSION_WARNING: "1"
+      GIT_TERMINAL_PROMPT: "0"
 
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 1
+          show-progress: false
 
       - name: Date du build (Europe/Paris)
         id: builddate
@@ -61,25 +69,12 @@ jobs:
             python -m venv .venv
           fi
           .venv/bin/pip install -q -U pip wheel
-          .venv/bin/pip install -q -r requirements.txt
-
-      - name: Statut caches
-        run: |
-          if [ "${{ steps.osm-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "::notice::Cache OSM — pas d'appel Overpass pour ${{ steps.builddate.outputs.date }}."
-          else
-            echo "::notice::Pas de cache OSM — téléchargement Overpass si nécessaire."
-          fi
-          if [ "${{ steps.venv-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "::notice::Cache .venv — dépendances restaurées (hash requirements.txt)."
-          else
-            echo "::notice::Pas de cache .venv complet — pip a installé ou mis à jour les paquets."
-          fi
+          .venv/bin/pip install -q --no-compile -r requirements.txt
 
       - name: Build
         run: .venv/bin/python main.py
 
-      - name: Push build to pages branch
+      - name: Mettre à jour la branche pages (miroir)
         run: |
           cd build
           git init
@@ -89,3 +84,12 @@ jobs:
           git add -A
           git commit -m "Build $(date -u +%Y-%m-%d)"
           git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" pages
+
+      - name: Artefact pour GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
+
+      - name: Déployer sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
