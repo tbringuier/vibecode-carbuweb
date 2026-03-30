@@ -5,7 +5,9 @@ let palmaresMap = null;
 let searchTimeout = null;
 
 const ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"];
-let userRadius = parseInt(localStorage.getItem('carbuRadius')) || 15;
+/** Rayon par défaut : ordre de grandeur réaliste pour un détour en voiture autour d’un point. */
+const DEFAULT_SEARCH_RADIUS_KM = 10;
+let userRadius = parseInt(localStorage.getItem('carbuRadius'), 10) || DEFAULT_SEARCH_RADIUS_KM;
 let userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
 let userFavorites = JSON.parse(localStorage.getItem('carbuFavorites')) || [];
 let chartsInitialized = false;
@@ -146,6 +148,46 @@ function distanceHaversine(lat1, lon1, lat2, lon2) {
     const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
+}
+
+/**
+ * Le rayon réglé par l’utilisateur est interprété comme une distance « en voiture » approximative.
+ * On en déduit une distance géodésique max pour filtrer les stations (plus courte que le trajet réel).
+ */
+const ROUTE_DISTANCE_FACTOR = 1.25;
+
+function maxStraightLineKmForRadius() {
+    return parseFloat(userRadius) / ROUTE_DISTANCE_FACTOR;
+}
+
+/** Estimation d’itinéraire (km) à partir du haversine, pour l’affichage uniquement. */
+function displayRouteKm(straightKm) {
+    return Math.round(straightKm * ROUTE_DISTANCE_FACTOR * 10) / 10;
+}
+
+/** Libellé français : virgule décimale, espace insécable étroit avant l’unité (typo + HiDPI). */
+function formatApproxRouteKm(straightKm) {
+    const d = displayRouteKm(straightKm);
+    const num = String(d.toFixed(1)).replace('.', ',');
+    return `~${num}\u202fkm`;
+}
+
+function searchSourcePill(text) {
+    return `<span class="search-source-pill">${esc(text)}</span>`;
+}
+
+function distanceKmSpan(straightKm) {
+    return `<span class="distance-km" translate="no">${formatApproxRouteKm(straightKm)}</span>`;
+}
+
+function radiusSettingKmHtml() {
+    return `<span class="distance-km" translate="no">~${userRadius}\u202fkm</span>`;
+}
+
+/** Rayon haversine (km) pour comparer les prix « autour » d’une station (borné). */
+function nearbyCompareStraightKm() {
+    const m = maxStraightLineKmForRadius();
+    return Math.min(11, Math.max(4, m));
 }
 
 function getGoogleMapsLink(lat, lon, query = "") {
@@ -376,6 +418,7 @@ function renderFuelWarning() {
 function saveSettings() {
     userRadius = parseFloat(document.getElementById('radius-slider').value);
     localStorage.setItem('carbuRadius', userRadius);
+    nearbyStationCache.clear();
 
     if (userFuels.length === 0) {
         renderFuelWarning();
@@ -503,11 +546,10 @@ function renderFavorites() {
             if (db && f.lat && f.lon) {
                 const favLat = parseFloat(f.lat);
                 const favLon = parseFloat(f.lon);
-                const radius = parseFloat(userRadius);
                 let nearbyStations = [];
                 for (const [id, s] of Object.entries(db.stations)) {
                     if (!s.lat || !s.lon || !hasTrackedFuel(s)) continue;
-                    if (distanceHaversine(favLat, favLon, s.lat, s.lon) <= radius) nearbyStations.push({ id, station: s });
+                    if (distanceHaversine(favLat, favLon, s.lat, s.lon) <= maxStraightLineKmForRadius()) nearbyStations.push({ id, station: s });
                 }
                 userFuels.forEach(fuel => {
                     let best = null;
@@ -527,7 +569,7 @@ function renderFavorites() {
                     <div class="flex justify-between items-center">
                         <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="flex-1 min-w-0 cursor-pointer">
                             <div class="font-bold text-indigo-800 truncate"><i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>${esc(f.name)}</div>
-                            <div class="text-xs text-indigo-700 mt-1">Adresse favorite · ${userRadius} km</div>
+                            <div class="text-xs text-indigo-700 mt-1">Adresse favorite · ${radiusSettingKmHtml()}</div>
                         </div>
                         <button onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="ml-2 flex-shrink-0 text-yellow-400 hover:text-red-500 transition" title="Retirer des favoris"><i class="fas fa-star text-lg"></i></button>
                     </div>
@@ -550,21 +592,29 @@ function formatFrEuros(n) {
 /**
  * Badge prix dans une liste triée (même carburant) : vert = meilleur de la liste,
  * ambre = proche du minimum, indigo = rappel explicite du prix le plus bas affiché.
+ * Colonne largeur fixe + sous-titre sur hauteur fixe pour aligner les cartes entre lignes.
  */
 function buildZonePriceListBadge(prixDisplayStr, prixNum, minPrixInList) {
+    const col = 'price-list-badge flex flex-col items-stretch justify-center shrink-0 w-[7.5rem] sm:w-[8.5rem] gap-1 self-center';
+    const subSlot = (inner) => `<div class="min-h-[2.75rem] flex items-center justify-center px-0.5">${inner}</div>`;
+    const placeholder = '<span class="invisible text-[10px] select-none" aria-hidden="true">·</span>';
+
     if (minPrixInList === null || !Number.isFinite(prixNum)) {
         return {
             markerType: 'station_blue',
-            html: `<div class="font-black text-lg px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 ml-3 flex-shrink-0 text-slate-800">${prixDisplayStr} €</div>`,
+            html: `<div class="${col}">
+                <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+                ${subSlot(placeholder)}
+            </div>`,
         };
     }
     const delta = prixNum - minPrixInList;
     if (delta <= PRICE_EPS) {
         return {
             markerType: 'station_green',
-            html: `<div class="text-right ml-3 flex-shrink-0 min-w-0 max-w-[11rem]">
-                <div class="font-black text-lg px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-900">${prixDisplayStr} €</div>
-                <p class="text-[10px] font-semibold text-green-700 mt-1 flex items-center justify-end gap-1 leading-tight"><i class="fas fa-trophy text-amber-500 shrink-0" aria-hidden="true"></i><span>Meilleur prix affiché</span></p>
+            html: `<div class="${col}">
+                <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-900 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+                ${subSlot(`<p class="text-[10px] font-semibold text-green-700 text-center leading-tight"><i class="fas fa-trophy text-amber-500 mr-0.5" aria-hidden="true"></i>Meilleur prix affiché</p>`)}
             </div>`,
         };
     }
@@ -572,32 +622,34 @@ function buildZonePriceListBadge(prixDisplayStr, prixNum, minPrixInList) {
     if (delta <= PRICE_NEAR_MAX) {
         return {
             markerType: 'station_orange',
-            html: `<div class="text-right ml-3 flex-shrink-0 min-w-0 max-w-[11rem]">
-                <div class="font-black text-lg px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-950">${prixDisplayStr} €</div>
-                <p class="text-[10px] text-amber-900 mt-1 font-medium leading-tight">+${formatFrEuros(delta)} € vs le moins cher</p>
+            html: `<div class="${col}">
+                <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-950 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+                ${subSlot(`<p class="text-[10px] text-amber-900 font-medium text-center leading-tight">+${formatFrEuros(delta)} € vs le moins cher</p>`)}
             </div>`,
         };
     }
     return {
         markerType: 'station_blue',
-        html: `<div class="text-right ml-3 flex-shrink-0 min-w-0 max-w-[11rem]">
-            <div class="font-black text-lg px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-950">${prixDisplayStr} €</div>
-            <p class="text-[10px] text-indigo-800 mt-1 leading-tight"><span class="font-semibold">Mieux à ${minFmt} €</span> dans cette liste</p>
+        html: `<div class="${col}">
+            <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-950 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+            ${subSlot(`<p class="text-[10px] text-indigo-800 text-center leading-tight"><span class="font-semibold">Mieux à ${minFmt} €</span> dans cette liste</p>`)}
         </div>`,
     };
 }
 
 const nearbyStationCache = new Map();
 function getNearbyStations(stationId) {
-    if (nearbyStationCache.has(stationId)) return nearbyStationCache.get(stationId);
+    const cap = nearbyCompareStraightKm();
+    const cacheKey = `${stationId}|${cap}`;
+    if (nearbyStationCache.has(cacheKey)) return nearbyStationCache.get(cacheKey);
     const st = db.stations[stationId];
-    if (!st || !st.lat || !st.lon) { nearbyStationCache.set(stationId, []); return []; }
+    if (!st || !st.lat || !st.lon) { nearbyStationCache.set(cacheKey, []); return []; }
     const ids = [];
     for (const [id, s] of Object.entries(db.stations)) {
         if (id === stationId || !s.lat || !s.lon) continue;
-        if (distanceHaversine(st.lat, st.lon, s.lat, s.lon) <= 15) ids.push(id);
+        if (distanceHaversine(st.lat, st.lon, s.lat, s.lon) <= cap) ids.push(id);
     }
-    nearbyStationCache.set(stationId, ids);
+    nearbyStationCache.set(cacheKey, ids);
     return ids;
 }
 
@@ -614,12 +666,12 @@ function prixColorTag(stationId, carburant, prix) {
     if (prices.length < 2) return { bg: 'bg-slate-100', text: 'text-slate-700', title: '' };
     const minP = Math.min(...prices);
     const delta = prixNum - minP;
-    if (delta <= PRICE_EPS) return { bg: 'bg-green-100', text: 'text-green-800', title: 'Meilleur prix dans un rayon de 15 km' };
+    if (delta <= PRICE_EPS) return { bg: 'bg-green-100', text: 'text-green-800', title: 'Meilleur prix parmi les stations très proches' };
     if (delta <= PRICE_NEAR_MAX) return { bg: 'bg-amber-100', text: 'text-amber-900', title: `Très proche du minimum local (${minP.toFixed(3)} €)` };
     return {
         bg: 'bg-indigo-100',
         text: 'text-indigo-900',
-        title: `Moins cher à ${minP.toFixed(3)} € à proximité (15 km)`,
+        title: `Moins cher à ${minP.toFixed(3)} € dans les environs`,
     };
 }
 
@@ -689,7 +741,7 @@ function buildBestPricesWidget(stations) {
         if (best) cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate leading-tight">${esc(best.nom)}</div><div class="text-[9px] text-green-500 truncate leading-tight">${esc(best.addr)}</div></div>`;
     });
     if (!cards) return '';
-    return `<div class="mb-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4"><h4 class="text-base font-extrabold text-green-800 mb-3 flex items-center"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Les meilleurs prix</h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div><p class="text-[10px] text-green-600 mt-2 text-center"><i class="fas fa-info-circle mr-1"></i>Distances calculées à vol d'oiseau</p></div>`;
+    return `<div class="mb-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4"><h4 class="text-base font-extrabold text-green-800 mb-3 flex items-center"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Les meilleurs prix</h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div></div>`;
 }
 
 function searchGeoZone(type, name, overrideFuel) {
@@ -768,7 +820,7 @@ function searchGeoZone(type, name, overrideFuel) {
         if (fuelForDate && res.station.carburants_disponibles[fuelForDate]) dateMaj = `<span class="text-[10px] text-slate-400 ml-2"><i class="fas fa-clock mr-0.5"></i>${res.station.carburants_disponibles[fuelForDate].date_maj}</span>`;
 
         html += `
-            <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-start gap-2 group">
+            <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center gap-3 group">
                 <div class="flex-1 min-w-0">
                     <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
                     <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.code_postal)} ${esc(res.station.ville)}${dateMaj}</div>
@@ -981,7 +1033,7 @@ async function performSearch() {
 
     let stationsHtml = '';
     if (localResults.length > 0) {
-        stationsHtml += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2"><span class="min-w-0"><i class="fas fa-gas-pump mr-1"></i> Stations-services</span><span class="text-indigo-500 normal-case bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-[10px] sm:text-xs font-semibold shrink-0 max-w-[55%] text-right leading-tight">via data.economie.gouv.fr</span></div>`;
+        stationsHtml += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2 min-w-0"><span class="min-w-0 truncate"><i class="fas fa-gas-pump mr-1"></i> Stations-services</span>${searchSourcePill('via data.economie.gouv.fr')}</div>`;
         localResults.forEach(res => {
             stationsHtml += `
                 <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
@@ -1000,7 +1052,7 @@ async function performSearch() {
         const osmData = await osmResponse.json();
 
         if (osmData.length > 0) {
-            html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between"><span><i class="fas fa-map-marked-alt mr-1"></i> Villes & Adresses</span><span class="text-indigo-400 normal-case bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">via OpenStreetMap</span></div>`;
+            html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2 min-w-0"><span class="min-w-0 truncate"><i class="fas fa-map-marked-alt mr-1"></i> Villes & Adresses</span>${searchSourcePill('via OpenStreetMap')}</div>`;
             osmData.forEach(place => {
                 const parts = place.display_name.split(',');
                 const name = parts[0];
@@ -1081,7 +1133,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
         if (!hasTrackedFuel(stat)) continue;
 
         const dist = distanceHaversine(lat, lon, stat.lat, stat.lon);
-        if (dist <= parseFloat(userRadius)) stationsProches.push({ id, dist, station: stat });
+        if (dist <= maxStraightLineKmForRadius()) stationsProches.push({ id, dist, station: stat });
     }
 
     if (sortFuel) {
@@ -1105,7 +1157,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
     if (topStations.length === 0) {
         html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200">
             <i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i>
-            Aucune station-service correspondante dans un rayon de ${userRadius}km.<br>
+            Aucune station-service dans un rayon d’environ ${radiusSettingKmHtml()} autour du point.<br>
             <span class="text-sm">Modifiez vos paramètres (en haut à droite) pour élargir la recherche ou ajouter des carburants.</span>
         </div>`;
     } else {
@@ -1113,7 +1165,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
         let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
         html += `
             <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
-                <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Méthodologie de tri (par ordre croissant) :</label>
+                <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Tri :</label>
                 <select id="sort-fuel-select" onchange="applyFuelSort(this.value)" class="min-h-[3rem] py-3 px-3 border border-slate-300 rounded-xl text-base font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto touch-manipulation">
                     <option value="">Trier par distance</option>
                     ${sortOptions}
@@ -1132,7 +1184,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
             let carbsHtml = "";
             let rightContent = "";
 
-            let distText = `<div class="text-sm text-slate-500 mt-1"><i class="fas fa-route mr-1 text-slate-300"></i>à ${res.dist.toFixed(1)} km</div>`;
+            let distText = `<div class="text-sm text-slate-500 mt-1"><i class="fas fa-route mr-1 text-slate-300"></i>à ${distanceKmSpan(res.dist)}</div>`;
 
             if (sortFuel) {
                 const prix = res.station.carburants_disponibles[sortFuel].prix;
@@ -1152,7 +1204,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
             }
             
             html += `
-                <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-start gap-2 group">
+                <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center gap-3 group">
                     <div class="flex-1 min-w-0">
                         <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
                         <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.ville)}</div>
@@ -1299,7 +1351,7 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
     } else {
         let centerLat = stationAct.lat;
         let centerLon = stationAct.lon;
-        let refRadius = parseFloat(userRadius);
+        const maxStraight = maxStraightLineKmForRadius();
 
         if (currentProximitySearch && currentProximitySearch.lat && currentProximitySearch.lon) {
             centerLat = currentProximitySearch.lat;
@@ -1309,7 +1361,7 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
         for (const [autreId, autreStat] of Object.entries(db.stations)) {
             if (autreId === stationId || !autreStat.lat || !autreStat.lon) continue;
             const distFromCenter = distanceHaversine(centerLat, centerLon, autreStat.lat, autreStat.lon);
-            if (distFromCenter <= refRadius && autreStat.carburants_disponibles[carburant]) {
+            if (distFromCenter <= maxStraight && autreStat.carburants_disponibles[carburant]) {
                 const distFromCurrent = distanceHaversine(stationAct.lat, stationAct.lon, autreStat.lat, autreStat.lon);
                 stationsProches.push({ id: autreId, prix: parseFloat(autreStat.carburants_disponibles[carburant].prix), dist: distFromCurrent, nom: autreStat.nom_osm || autreStat.ville, lat: autreStat.lat, lon: autreStat.lon, adresse: `${autreStat.adresse}, ${autreStat.ville}` });
             }
@@ -1370,7 +1422,7 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
         tier = 'far';
         priceMain = 'text-indigo-950';
         priceEuro = 'text-indigo-600';
-        hintHtml = `<p class="mt-2 text-xs text-indigo-900 leading-snug"><i class="fas fa-lightbulb text-amber-500 mr-1" aria-hidden="true"></i>Il existe <strong>moins cher</strong> à proximité : <strong>${meilleurAutre.prix.toFixed(3)} €</strong> à ${meilleurAutre.dist.toFixed(1)} km (${esc(meilleurAutre.nom)}). Voir les suggestions ci-dessous.</p>`;
+        hintHtml = `<p class="mt-2 text-xs text-indigo-900 leading-snug"><i class="fas fa-lightbulb text-amber-500 mr-1" aria-hidden="true"></i>Il existe <strong>moins cher</strong> à proximité : <strong>${meilleurAutre.prix.toFixed(3)} €</strong> à ${distanceKmSpan(meilleurAutre.dist)} (${esc(meilleurAutre.nom)}). Voir les suggestions ci-dessous.</p>`;
     }
 
     let alternative = null;
@@ -1496,7 +1548,7 @@ function showStation(stationId) {
             ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans ${esc(currentGeoZone.name)}`
             : currentProximitySearch
             ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans votre zone de recherche`
-            : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (${userRadius} km)`;
+            : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (${radiusSettingKmHtml()})`;
             
         html += `<h3 class="font-bold text-lg text-slate-800 mb-2">${alternativesTitle}</h3><p class="text-sm text-slate-500 mb-4">Stations où vous pouvez payer moins cher pour un ou plusieurs de vos carburants suivis — à titre indicatif dans la zone affichée.</p><div class="space-y-3 mb-8">`;
         let altGroup = {};
@@ -1518,7 +1570,7 @@ function showStation(stationId) {
                 <button onclick="showStation('${altId}')" class="w-full text-left p-4 ${t.bg} border-2 ${t.border} rounded-xl ${t.hoverBg} ${t.hoverBorder} transition shadow-sm flex justify-between items-center group gap-4">
                     <div class="flex-1 min-w-0">
                         <div class="font-extrabold ${t.textMain} text-lg group-hover:opacity-80 transition truncate">${esc(info.nom)}</div>
-                        <div class="text-sm font-semibold ${t.textSub} mt-1"><i class="fas fa-route mr-1"></i> à ${info.dist.toFixed(1)} km d'ici</div>
+                        <div class="text-sm font-semibold ${t.textSub} mt-1"><i class="fas fa-route mr-1"></i> à ${distanceKmSpan(info.dist)} d’ici</div>
                         <div class="text-sm text-slate-600 mt-2 bg-white inline-block px-3 py-1.5 rounded-lg border ${t.badgeBorder} truncate max-w-full shadow-sm leading-tight">📉 <b>${t.title} :</b><br> ${info.carbs.join('<br> ')}</div>
                     </div>
                     <div class="h-10 w-10 flex-shrink-0 ${t.iconBg} rounded-full flex items-center justify-center ${t.hoverIcon} group-hover:text-white transition ${t.iconText}"><i class="fas fa-arrow-right"></i></div>
@@ -1590,8 +1642,8 @@ function initStationMap(markersData, isMultiple = false) {
 
     markersData.forEach(m => {
         if (m.type === 'search_point') {
-            L.circle([m.lat, m.lon], { radius: parseFloat(userRadius) * 1000, color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.05, weight: 2, dashArray: '6 4' }).addTo(stationMap);
-            L.circleMarker([m.lat, m.lon], { radius: 10, color: '#1e1b4b', fillColor: '#4f46e5', fillOpacity: 0.9, weight: 3 }).bindPopup(`<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 block">${esc(m.adresse) || ''}</span><span class="text-xs text-indigo-500 font-bold block mt-1">Rayon : ${userRadius} km</span></div>`).addTo(stationMap).openPopup();
+            L.circle([m.lat, m.lon], { radius: maxStraightLineKmForRadius() * 1000, color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.05, weight: 2, dashArray: '6 4' }).addTo(stationMap);
+            L.circleMarker([m.lat, m.lon], { radius: 10, color: '#1e1b4b', fillColor: '#4f46e5', fillOpacity: 0.9, weight: 3 }).bindPopup(`<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 block">${esc(m.adresse) || ''}</span><span class="text-xs text-indigo-500 font-bold block mt-1"><span class="distance-km" translate="no">~${userRadius}\u202fkm</span> (estimation trajet)</span></div>`).addTo(stationMap).openPopup();
             bounds.push([m.lat, m.lon]);
             return;
         }
