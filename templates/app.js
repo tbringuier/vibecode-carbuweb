@@ -8,7 +8,7 @@ const ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"];
 /** Rayon par défaut : ordre de grandeur réaliste pour un détour en voiture autour d’un point. */
 const DEFAULT_SEARCH_RADIUS_KM = 10;
 let userRadius = parseInt(localStorage.getItem('carbuRadius'), 10) || DEFAULT_SEARCH_RADIUS_KM;
-let userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
+let userFuels = [...ALL_FUELS];
 let userFavorites = JSON.parse(localStorage.getItem('carbuFavorites')) || [];
 
 // Profils véhicules
@@ -37,7 +37,7 @@ function applyActiveVehicle() {
         } else {
             activeVehicleId = null;
             localStorage.removeItem('carbuActiveVehicle');
-            userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
+            userFuels = [...ALL_FUELS];
         }
     } else {
         userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || ALL_FUELS;
@@ -55,7 +55,6 @@ function switchVehicle(vehicleId) {
     applyActiveVehicle();
     nearbyStationCache.clear();
     renderVehicleBar();
-    renderFuelList();
     renderFavorites();
     refreshActiveViews();
 }
@@ -152,7 +151,6 @@ function refreshVisibleViewsAfterDbSwap() {
     nearbyStationCache.clear();
     chartsInitialized = false;
 
-    renderFuelList();
     renderVehicleBar();
     populateRegions();
     populateFuelsSelect();
@@ -232,7 +230,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         db = await fetchDataJsonFresh();
 
         applyActiveVehicle();
-        renderFuelList();
         renderVehicleBar();
         renderVehiclesList();
 
@@ -515,7 +512,6 @@ function saveVehicleForm() {
     renderVehicleBar();
     if (activeVehicleId) {
         applyActiveVehicle();
-        renderFuelList();
     }
 }
 
@@ -526,7 +522,6 @@ function confirmDeleteVehicle(id) {
     deleteVehicle(id);
     renderVehiclesList();
     renderVehicleBar();
-    renderFuelList();
     renderFavorites();
     refreshActiveViews();
 }
@@ -546,224 +541,11 @@ function toggleSettings() {
     const open = !modal.classList.contains('hidden');
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
-let fuelDisplayOrder = [...ALL_FUELS];
-
-function renderFuelList() {
-    const container = document.getElementById('fuels-checkboxes');
-    fuelDisplayOrder = [...userFuels, ...ALL_FUELS.filter(f => !userFuels.includes(f))];
-    container.innerHTML = '';
-    fuelDisplayOrder.forEach((f, i) => {
-        const checked = userFuels.includes(f) ? 'checked' : '';
-        const rank = userFuels.indexOf(f);
-        const rankLabel = rank >= 0
-            ? `<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-600 text-white text-xs font-bold">${rank + 1}</span>`
-            : `<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-200 text-slate-400 text-xs font-bold">-</span>`;
-        const moy = db.dashboard.national.avg_prices[f];
-        const moyText = moy ? `<span class="text-[10px] text-slate-400 ml-1">(moy. ${moy.toFixed(3)}€)</span>` : '';
-        const row = document.createElement('div');
-        row.className = 'fuel-row flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 hover:bg-indigo-50 transition select-none touch-manipulation';
-        row.draggable = true;
-        row.dataset.fuel = f;
-        row.innerHTML = `
-            <i class="fas fa-grip-vertical text-slate-300 text-sm cursor-grab"></i>
-            <button type="button" onclick="event.preventDefault(); moveFuel('${f}', -1)" class="sm:hidden h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 text-slate-500 hover:bg-indigo-100 active:bg-indigo-200 text-xs flex-shrink-0"><i class="fas fa-chevron-up"></i></button>
-            <button type="button" onclick="event.preventDefault(); moveFuel('${f}', 1)" class="sm:hidden h-7 w-7 flex items-center justify-center rounded-lg bg-slate-200 text-slate-500 hover:bg-indigo-100 active:bg-indigo-200 text-xs flex-shrink-0"><i class="fas fa-chevron-down"></i></button>
-            ${rankLabel}
-            <input type="checkbox" value="${f}" class="fuel-checkbox form-checkbox h-5 w-5 text-indigo-600 rounded flex-shrink-0" ${checked} onchange="onFuelToggle('${f}')">
-            <span class="text-slate-800 font-bold text-sm leading-tight flex-1">${f}</span>${moyText}
-        `;
-        container.appendChild(row);
-    });
-    initFuelDragDrop();
-}
-
-function initFuelDragDrop() {
-    const container = document.getElementById('fuels-checkboxes');
-    let draggedEl = null;
-    let dragGhostEl = null;
-    let touchClone = null;
-    let touchOffsetX = 0;
-    let touchOffsetY = 0;
-    let activeTouchRow = null;
-
-    function cleanupDragClasses() {
-        container.querySelectorAll('.fuel-row').forEach(r => r.classList.remove('border-t-2', 'border-indigo-400'));
-    }
-
-    container.querySelectorAll('.fuel-row').forEach(row => {
-        row.addEventListener('dragstart', e => {
-            if (e.target.closest('input') || e.target.closest('button')) {
-                e.preventDefault();
-                return;
-            }
-            draggedEl = row;
-            row.classList.add('fuel-row-drag-source', 'fuel-row-drag-active');
-            const ghost = row.cloneNode(true);
-            ghost.style.cssText = 'position:absolute;top:-9999px;left:0;width:' + row.offsetWidth + 'px;pointer-events:none;';
-            document.body.appendChild(ghost);
-            dragGhostEl = ghost;
-            try {
-                e.dataTransfer.setDragImage(ghost, e.offsetX, e.offsetY);
-            } catch (err) {}
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', row.dataset.fuel);
-        });
-        row.addEventListener('dragend', () => {
-            row.classList.remove('fuel-row-drag-source', 'fuel-row-drag-active');
-            if (dragGhostEl) {
-                dragGhostEl.remove();
-                dragGhostEl = null;
-            }
-            cleanupDragClasses();
-            draggedEl = null;
-        });
-        row.addEventListener('dragover', e => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            cleanupDragClasses();
-            row.classList.add('border-t-2', 'border-indigo-400');
-        });
-        row.addEventListener('drop', e => {
-            e.preventDefault();
-            if (!draggedEl || draggedEl === row) return;
-            container.insertBefore(draggedEl, row);
-            syncFuelOrderFromDOM();
-        });
-
-        row.addEventListener('touchstart', e => {
-            if (e.target.closest('button') || e.target.closest('input')) return;
-            activeTouchRow = row;
-            draggedEl = row;
-            const touch = e.touches[0];
-            const rect = row.getBoundingClientRect();
-            touchOffsetX = touch.clientX - rect.left;
-            touchOffsetY = touch.clientY - rect.top;
-            row.classList.add('fuel-row-drag-source');
-            touchClone = row.cloneNode(true);
-            touchClone.classList.add('fuel-touch-float');
-            touchClone.style.width = rect.width + 'px';
-            touchClone.style.left = rect.left + 'px';
-            touchClone.style.top = rect.top + 'px';
-            touchClone.querySelectorAll('input,button').forEach(n => n.remove());
-            document.body.appendChild(touchClone);
-        }, { passive: true });
-
-        row.addEventListener('touchmove', e => {
-            if (!draggedEl || draggedEl !== row || !touchClone) return;
-            e.preventDefault();
-            const touch = e.touches[0];
-            touchClone.style.left = (touch.clientX - touchOffsetX) + 'px';
-            touchClone.style.top = (touch.clientY - touchOffsetY) + 'px';
-            const target = document.elementFromPoint(touch.clientX, touch.clientY);
-            const targetRow = target ? target.closest('.fuel-row') : null;
-            cleanupDragClasses();
-            if (targetRow && targetRow !== draggedEl) targetRow.classList.add('border-t-2', 'border-indigo-400');
-        }, { passive: false });
-
-        function finishTouchDrag(e, cancelled) {
-            if (activeTouchRow !== row) return;
-            activeTouchRow = null;
-            if (touchClone) {
-                touchClone.remove();
-                touchClone = null;
-            }
-            row.classList.remove('fuel-row-drag-source');
-            if (!draggedEl || draggedEl !== row) {
-                draggedEl = null;
-                return;
-            }
-            const touch = e.changedTouches[0];
-            const target = document.elementFromPoint(touch.clientX, touch.clientY);
-            const targetRow = target ? target.closest('.fuel-row') : null;
-            cleanupDragClasses();
-            if (!cancelled && targetRow && targetRow !== draggedEl) {
-                container.insertBefore(draggedEl, targetRow);
-                syncFuelOrderFromDOM();
-            }
-            draggedEl = null;
-        }
-
-        row.addEventListener('touchend', e => finishTouchDrag(e, false));
-        row.addEventListener('touchcancel', e => finishTouchDrag(e, true));
-    });
-
-    container.addEventListener('dragover', e => e.preventDefault());
-    container.addEventListener('drop', e => {
-        if (draggedEl && e.target === container) {
-            container.appendChild(draggedEl);
-            syncFuelOrderFromDOM();
-        }
-    });
-}
-
-function syncFuelOrderFromDOM() {
-    const rows = document.querySelectorAll('#fuels-checkboxes .fuel-row');
-    const newOrder = [];
-    rows.forEach(r => {
-        const fuel = r.dataset.fuel;
-        const cb = r.querySelector('.fuel-checkbox');
-        if (cb && cb.checked) newOrder.push(fuel);
-    });
-    userFuels = newOrder;
-    renderFuelList();
-    debouncedSaveSettings();
-}
-
-function moveFuel(fuel, direction) {
-    const idx = fuelDisplayOrder.indexOf(fuel);
-    const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= fuelDisplayOrder.length) return;
-    [fuelDisplayOrder[idx], fuelDisplayOrder[newIdx]] = [fuelDisplayOrder[newIdx], fuelDisplayOrder[idx]];
-    userFuels = fuelDisplayOrder.filter(f => userFuels.includes(f));
-    renderFuelList();
-    debouncedSaveSettings();
-}
-
-function onFuelToggle(fuel) {
-    const cb = document.querySelector(`.fuel-checkbox[value="${fuel}"]`);
-    if (cb.checked) {
-        if (!userFuels.includes(fuel)) userFuels.push(fuel);
-    } else {
-        userFuels = userFuels.filter(f => f !== fuel);
-    }
-    renderFuelList();
-    renderFuelWarning();
-    debouncedSaveSettings();
-}
-
-function renderFuelWarning() {
-    let warning = document.getElementById('fuel-warning');
-    if (!warning) {
-        warning = document.createElement('div');
-        warning.id = 'fuel-warning';
-        const container = document.getElementById('fuels-checkboxes');
-        container.parentNode.insertBefore(warning, container.nextSibling);
-    }
-    if (userFuels.length === 0) {
-        warning.className = 'mt-2 p-3 bg-red-50 border border-red-300 rounded-xl text-sm text-red-700 font-semibold flex items-center gap-2';
-        warning.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500"></i> Veuillez cocher au moins un carburant pour utiliser l\'application.';
-    } else {
-        warning.className = 'hidden';
-        warning.innerHTML = '';
-    }
-}
 
 function saveSettings() {
     userRadius = parseFloat(document.getElementById('radius-slider').value);
     localStorage.setItem('carbuRadius', userRadius);
     nearbyStationCache.clear();
-
-    if (userFuels.length === 0) {
-        renderFuelWarning();
-        return;
-    }
-    localStorage.setItem('carbuFuels', JSON.stringify(userFuels));
-
-    if (activeVehicleId) {
-        activeVehicleId = null;
-        localStorage.removeItem('carbuActiveVehicle');
-        renderVehicleBar();
-    }
     
     renderFavorites();
     if (currentProximitySearch) {
@@ -788,7 +570,6 @@ function saveSettings() {
 
 function resetSettings() {
     localStorage.removeItem('carbuRadius');
-    localStorage.removeItem('carbuFuels');
     localStorage.removeItem('carbuFavorites');
     localStorage.removeItem('carbuWelcomeDismissed');
     localStorage.removeItem('carbuVehicles');
