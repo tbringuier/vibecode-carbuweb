@@ -328,6 +328,37 @@ def build_database():
 
     purge_infinity(db["stats"]["min_prices"])
 
+    # Build department-level dashboard
+    dept_dash = {}
+    for sid, st in db["stations"].items():
+        dk = st["dept_key"]
+        if dk not in dept_dash:
+            dept_dash[dk] = {
+                "nom": st["departement"],
+                "region": st["region"],
+                "station_count": 0,
+                "sum": {c: 0.0 for c in ALL_FUELS},
+                "cnt": {c: 0 for c in ALL_FUELS},
+            }
+        dept_dash[dk]["station_count"] += 1
+        for c in ALL_FUELS:
+            if c in st.get("carburants_disponibles", {}):
+                p = st["carburants_disponibles"][c]["prix"]
+                dept_dash[dk]["sum"][c] += p
+                dept_dash[dk]["cnt"][c] += 1
+    db["dashboard"]["departemental"] = {
+        dk: {
+            "nom": d["nom"],
+            "region": d["region"],
+            "station_count": d["station_count"],
+            "avg_prices": {
+                c: round(d["sum"][c] / d["cnt"][c], 3) if d["cnt"][c] else 0
+                for c in ALL_FUELS
+            },
+        }
+        for dk, d in dept_dash.items()
+    }
+
     # Build department and region search indexes
     dept_index = {}  # code -> { name, region, station_ids }
     region_index = {}  # normalized_name -> { name, station_ids }

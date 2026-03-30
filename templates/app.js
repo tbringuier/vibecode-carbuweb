@@ -11,6 +11,7 @@ let userFavorites = JSON.parse(localStorage.getItem('carbuFavorites')) || [];
 let chartsInitialized = false;
 let currentProximitySearch = null;
 let currentGeoZone = null;
+let navStack = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('radius-slider').value = userRadius;
@@ -28,12 +29,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         const cbContainer = document.getElementById('fuels-checkboxes');
         ALL_FUELS.forEach(f => {
             const checked = userFuels.includes(f) ? 'checked' : '';
+            const rank = userFuels.indexOf(f);
+            const rankBadge = rank >= 0 ? `<span class="fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold ml-auto">${rank + 1}</span>` : `<span class="fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-200 text-slate-400 text-[10px] font-bold ml-auto">-</span>`;
             const moy = db.dashboard.national.avg_prices[f];
-            const moyText = moy ? `<div class="text-[10px] text-slate-500 leading-none mt-1">Moyenne nationale : ${moy.toFixed(3)}€</div>` : '';
+            const moyText = moy ? `<div class="text-[10px] text-slate-500 leading-none mt-1">Moy. ${moy.toFixed(3)}€</div>` : '';
             cbContainer.innerHTML += `
                 <label class="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-indigo-50 transition">
-                    <input type="checkbox" value="${f}" class="fuel-checkbox form-checkbox h-5 w-5 text-indigo-600 rounded" ${checked} onchange="debouncedSaveSettings()">
-                    <div class="flex flex-col"><span class="text-slate-800 font-bold leading-tight">${f}</span>${moyText}</div>
+                    <input type="checkbox" value="${f}" class="fuel-checkbox form-checkbox h-5 w-5 text-indigo-600 rounded" ${checked} onchange="onFuelToggle('${f}')">
+                    <div class="flex flex-col flex-1"><span class="text-slate-800 font-bold leading-tight">${f}</span>${moyText}</div>
+                    ${rankBadge}
                 </label>
             `;
         });
@@ -96,15 +100,36 @@ function debouncedSaveSettings() {
 function toggleSettings() { document.getElementById('settings-modal').classList.toggle('hidden'); }
 function updateRadiusDisplay() { document.getElementById('radius-display').innerText = document.getElementById('radius-slider').value; }
 
+function onFuelToggle(fuel) {
+    const cb = document.querySelector(`.fuel-checkbox[value="${fuel}"]`);
+    if (cb.checked) {
+        if (!userFuels.includes(fuel)) userFuels.push(fuel);
+    } else {
+        userFuels = userFuels.filter(f => f !== fuel);
+    }
+    updateFuelRanks();
+    debouncedSaveSettings();
+}
+
+function updateFuelRanks() {
+    document.querySelectorAll('.fuel-checkbox').forEach(cb => {
+        const rank = userFuels.indexOf(cb.value);
+        const badge = cb.closest('label').querySelector('.fuel-rank');
+        if (badge) {
+            if (rank >= 0) { badge.className = 'fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold ml-auto'; badge.textContent = rank + 1; }
+            else { badge.className = 'fuel-rank inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-200 text-slate-400 text-[10px] font-bold ml-auto'; badge.textContent = '-'; }
+        }
+    });
+}
+
 function saveSettings() {
     userRadius = parseFloat(document.getElementById('radius-slider').value);
     localStorage.setItem('carbuRadius', userRadius);
-    
-    const checkboxes = document.querySelectorAll('.fuel-checkbox:checked');
-    userFuels = Array.from(checkboxes).map(cb => cb.value);
+
     if (userFuels.length === 0) {
-        userFuels = ALL_FUELS; 
+        userFuels = [...ALL_FUELS];
         document.querySelectorAll('.fuel-checkbox').forEach(cb => cb.checked = true);
+        updateFuelRanks();
     }
     localStorage.setItem('carbuFuels', JSON.stringify(userFuels));
     
@@ -241,6 +266,7 @@ function switchTab(tab) {
 }
 
 function goHome() {
+    navStack = [];
     currentProximitySearch = null;
     currentGeoZone = null;
     document.getElementById('station-view').classList.add('hidden');
@@ -248,7 +274,16 @@ function goHome() {
     renderFavorites();
 }
 
-function searchGeoZone(type, name) {
+function goBack() {
+    if (navStack.length === 0) { goHome(); return; }
+    const prev = navStack.pop();
+    if (prev.type === 'home') { goHome(); }
+    else if (prev.type === 'proximity') { navStack = []; findStationsNear(prev.lat, prev.lon, prev.label); }
+    else if (prev.type === 'geoZone') { navStack = []; searchGeoZone(prev.geoType, prev.name); }
+    else { goHome(); }
+}
+
+function searchGeoZone(type, name, overrideFuel) {
     let stationIds = [];
     if (type === 'region' && db.region_index[name]) {
         stationIds = db.region_index[name].stations;
@@ -259,6 +294,9 @@ function searchGeoZone(type, name) {
     }
     if (stationIds.length === 0) return;
 
+    if (!document.getElementById('home-view').classList.contains('hidden')) {
+        navStack.push({ type: 'home' });
+    }
     document.getElementById('home-view').classList.add('hidden');
     const stationView = document.getElementById('station-view');
     stationView.classList.remove('hidden');
@@ -271,14 +309,13 @@ function searchGeoZone(type, name) {
         .map(id => ({ id, station: db.stations[id] }))
         .filter(s => s.station && hasTrackedFuel(s.station));
 
-    let sortFuel = userFuels[0] || '';
+    let sortFuel = overrideFuel || userFuels[0] || '';
     if (sortFuel) {
         stations = stations.filter(s => s.station.carburants_disponibles[sortFuel]);
         stations.sort((a, b) => parseFloat(a.station.carburants_disponibles[sortFuel].prix) - parseFloat(b.station.carburants_disponibles[sortFuel].prix));
     }
 
     const total = stations.length;
-    const shown = stations.slice(0, 50);
     const zoneLabel = type === 'region' ? name : `${name} (département)`;
 
     let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
@@ -290,122 +327,144 @@ function searchGeoZone(type, name) {
                 <p class="text-blue-100 text-xs sm:text-sm">${total} stations trouvées</p>
             </div>
             <div class="p-4 sm:p-6 md:p-8">
+                <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
                 <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
                     <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Trier par prix :</label>
                     <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="p-3 border border-slate-300 rounded-xl text-sm font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto">
                         ${sortOptions}
                     </select>
                 </div>
-                <div class="space-y-3">`;
+                <div class="space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">`;
 
-    shown.forEach((res, index) => {
+    stations.forEach((res, index) => {
         let rightContent = '';
-        let carbsHtml = '';
+        let markerType = 'station_blue';
         if (sortFuel && res.station.carburants_disponibles[sortFuel]) {
             let prix = res.station.carburants_disponibles[sortFuel].prix;
             let percentile = total > 1 ? index / (total - 1) : 0;
             let colorBorder = "border-red-200", colorBg = "bg-red-50", colorText = "text-red-700";
-            if (percentile <= 0.33) { colorBorder = "border-green-200"; colorBg = "bg-green-50"; colorText = "text-green-700"; }
-            else if (percentile <= 0.66) { colorBorder = "border-orange-200"; colorBg = "bg-orange-50"; colorText = "text-orange-700"; }
+            markerType = 'station_red';
+            if (percentile <= 0.33) { colorBorder = "border-green-200"; colorBg = "bg-green-50"; colorText = "text-green-700"; markerType = 'station_green'; }
+            else if (percentile <= 0.66) { colorBorder = "border-orange-200"; colorBg = "bg-orange-50"; colorText = "text-orange-700"; markerType = 'station_orange'; }
             rightContent = `<div class="font-black text-lg px-3 py-1.5 rounded-lg border ${colorBorder} ${colorBg} ml-3 flex-shrink-0 whitespace-nowrap ${colorText}">${prix} €</div>`;
         }
+        res.markerType = markerType;
+
+        let dateMaj = '';
+        let fuelForDate = sortFuel || Object.keys(res.station.carburants_disponibles)[0];
+        if (fuelForDate && res.station.carburants_disponibles[fuelForDate]) dateMaj = `<span class="text-[10px] text-slate-400 ml-2"><i class="fas fa-clock mr-0.5"></i>${res.station.carburants_disponibles[fuelForDate].date_maj}</span>`;
 
         html += `
             <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group">
                 <div class="flex-1 min-w-0">
                     <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${res.station.nom_osm || 'Station-service'}</div>
-                    <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${res.station.adresse}, ${res.station.code_postal} ${res.station.ville}</div>
+                    <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${res.station.adresse}, ${res.station.code_postal} ${res.station.ville}${dateMaj}</div>
                 </div>
                 ${rightContent}
             </div>`;
     });
 
-    if (total > 50) html += `<div class="text-center text-sm text-slate-400 py-3">Affichage limité aux 50 premiers résultats sur ${total}.</div>`;
     html += `</div></div></div>`;
 
     document.getElementById('station-content').innerHTML = html;
     window.scrollTo(0, 0);
+
+    let mapMarkers = [];
+    stations.forEach(s => {
+        if (s.station.lat && s.station.lon) mapMarkers.push({ type: s.markerType || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station-service', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id });
+    });
+    setTimeout(() => initStationMap(mapMarkers, true), 100);
 }
 
 function applyGeoSort(type, name, fuel) {
-    let stationIds = [];
-    if (type === 'region' && db.region_index[name]) {
-        stationIds = db.region_index[name].stations;
-    } else if (type === 'dept') {
-        for (const [, d] of Object.entries(db.dept_index)) {
-            if (d.nom === name) { stationIds = d.stations; break; }
-        }
-    }
-    if (stationIds.length === 0) return;
-
-    let stations = stationIds
-        .map(id => ({ id, station: db.stations[id] }))
-        .filter(s => s.station && hasTrackedFuel(s.station) && s.station.carburants_disponibles[fuel]);
-    stations.sort((a, b) => parseFloat(a.station.carburants_disponibles[fuel].prix) - parseFloat(b.station.carburants_disponibles[fuel].prix));
-
-    const total = stations.length;
-    const shown = stations.slice(0, 50);
-    const container = document.querySelector('#station-content .space-y-3');
-    if (!container) return;
-
-    let html = '';
-    shown.forEach((res, index) => {
-        let prix = res.station.carburants_disponibles[fuel].prix;
-        let percentile = total > 1 ? index / (total - 1) : 0;
-        let colorBorder = "border-red-200", colorBg = "bg-red-50", colorText = "text-red-700";
-        if (percentile <= 0.33) { colorBorder = "border-green-200"; colorBg = "bg-green-50"; colorText = "text-green-700"; }
-        else if (percentile <= 0.66) { colorBorder = "border-orange-200"; colorBg = "bg-orange-50"; colorText = "text-orange-700"; }
-
-        html += `
-            <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group">
-                <div class="flex-1 min-w-0">
-                    <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${res.station.nom_osm || 'Station-service'}</div>
-                    <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${res.station.adresse}, ${res.station.code_postal} ${res.station.ville}</div>
-                </div>
-                <div class="font-black text-lg px-3 py-1.5 rounded-lg border ${colorBorder} ${colorBg} ml-3 flex-shrink-0 whitespace-nowrap ${colorText}">${prix} €</div>
-            </div>`;
-    });
-    if (total > 50) html += `<div class="text-center text-sm text-slate-400 py-3">Affichage limité aux 50 premiers résultats sur ${total}.</div>`;
-    container.innerHTML = html;
+    searchGeoZone(type, name, fuel);
 }
 
 // ==========================================
 // RUBRIQUE STATISTIQUES (DASHBOARD)
 // ==========================================
+let dashSortFuel = null;
+let dashSortDir = 'asc';
+
 function renderDashboard() {
-    if (chartsInitialized) return;
-    chartsInitialized = true;
-    
+    if (!chartsInitialized) {
+        chartsInitialized = true;
+        const dash = db.dashboard;
+        const fuels = Object.keys(dash.national.avg_prices).filter(f => dash.national.avg_prices[f] > 0);
+        const avgPrices = fuels.map(f => dash.national.avg_prices[f]);
+        const fuelCounts = fuels.map(f => dash.national.fuel_presence[f]);
+        const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
+        new Chart(document.getElementById('chart-nat-prices'), {
+            type: 'bar',
+            data: { labels: fuels, datasets: [{ label: 'Prix moyen (€)', data: avgPrices, backgroundColor: colors }] },
+            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+        });
+
+        new Chart(document.getElementById('chart-nat-fuels'), {
+            type: 'pie',
+            data: { labels: fuels, datasets: [{ data: fuelCounts, backgroundColor: colors }] },
+            options: { responsive: true }
+        });
+    }
+    renderRegionsTable();
+}
+
+function sortDashboardBy(fuel) {
+    if (dashSortFuel === fuel) dashSortDir = dashSortDir === 'asc' ? 'desc' : 'asc';
+    else { dashSortFuel = fuel; dashSortDir = 'asc'; }
+    renderRegionsTable();
+}
+
+function toggleRegionAccordion(region) {
+    document.querySelectorAll(`.dept-row-${CSS.escape(region)}`).forEach(r => r.classList.toggle('hidden'));
+    const icon = document.querySelector(`#chevron-${CSS.escape(region)}`);
+    if (icon) icon.classList.toggle('fa-chevron-down'), icon.classList.toggle('fa-chevron-right');
+}
+
+function renderRegionsTable() {
     const dash = db.dashboard;
     const fuels = Object.keys(dash.national.avg_prices).filter(f => dash.national.avg_prices[f] > 0);
-    const avgPrices = fuels.map(f => dash.national.avg_prices[f]);
-    const fuelCounts = fuels.map(f => dash.national.fuel_presence[f]);
-    const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-    new Chart(document.getElementById('chart-nat-prices'), {
-        type: 'bar',
-        data: { labels: fuels, datasets: [{ label: 'Prix moyen (€)', data: avgPrices, backgroundColor: colors }] },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
-    });
-
-    new Chart(document.getElementById('chart-nat-fuels'), {
-        type: 'pie',
-        data: { labels: fuels, datasets: [{ data: fuelCounts, backgroundColor: colors }] },
-        options: { responsive: true }
-    });
+    let regions = Object.entries(dash.regional).filter(([r]) => r !== 'Inconnue');
+    if (dashSortFuel) {
+        regions.sort((a, b) => {
+            const va = a[1].avg_prices[dashSortFuel] || 999;
+            const vb = b[1].avg_prices[dashSortFuel] || 999;
+            return dashSortDir === 'asc' ? va - vb : vb - va;
+        });
+    } else {
+        regions.sort((a, b) => a[0].localeCompare(b[0]));
+    }
 
     let tableHtml = `<thead class="bg-slate-100 text-slate-700 uppercase text-xs"><tr><th class="px-4 py-3 sticky left-0 bg-slate-100 shadow-sm z-10">Région</th><th class="px-4 py-3">Stations</th>`;
-    fuels.forEach(f => tableHtml += `<th class="px-4 py-3">${f}</th>`);
+    fuels.forEach(f => {
+        const arrow = dashSortFuel === f ? (dashSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+        const cls = dashSortFuel === f ? 'text-indigo-600' : 'text-slate-400';
+        tableHtml += `<th class="px-4 py-3 cursor-pointer select-none hover:text-indigo-600 transition" onclick="sortDashboardBy('${f}')">${f} <i class="fas ${arrow} ${cls} text-[10px] ml-1"></i></th>`;
+    });
     tableHtml += `</tr></thead><tbody class="text-sm">`;
-    
-    for (const [region, data] of Object.entries(dash.regional).sort()) {
-        if (region === 'Inconnue') continue;
-        tableHtml += `<tr class="border-b hover:bg-slate-50"><td class="px-4 py-3 font-bold sticky left-0 bg-white/90 backdrop-blur z-10">${region}</td><td class="px-4 py-3 text-center">${data.station_count}</td>`;
+
+    for (const [region, data] of regions) {
+        const slug = region.replace(/[^a-zA-Z0-9]/g, '_');
+        tableHtml += `<tr class="border-b hover:bg-slate-50 cursor-pointer" onclick="toggleRegionAccordion('${slug}')"><td class="px-4 py-3 font-bold sticky left-0 bg-white/90 backdrop-blur z-10"><i id="chevron-${slug}" class="fas fa-chevron-right text-xs text-slate-400 mr-2 transition-transform"></i>${region}</td><td class="px-4 py-3 text-center">${data.station_count}</td>`;
         fuels.forEach(f => {
             let p = data.avg_prices[f];
             tableHtml += `<td class="px-4 py-3 text-center font-medium">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
         });
         tableHtml += `</tr>`;
+
+        if (dash.departemental) {
+            const deptRows = Object.entries(dash.departemental).filter(([, d]) => d.region === region).sort((a, b) => a[1].nom.localeCompare(b[1].nom));
+            for (const [, dept] of deptRows) {
+                tableHtml += `<tr class="dept-row-${slug} hidden border-b bg-slate-50/50"><td class="px-4 py-2 pl-10 text-slate-600 sticky left-0 bg-slate-50/90 backdrop-blur z-10">${dept.nom}</td><td class="px-4 py-2 text-center text-slate-500">${dept.station_count}</td>`;
+                fuels.forEach(f => {
+                    let p = dept.avg_prices[f];
+                    tableHtml += `<td class="px-4 py-2 text-center text-slate-500">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
+                });
+                tableHtml += `</tr>`;
+            }
+        }
     }
     tableHtml += `</tbody>`;
     document.getElementById('table-regions').innerHTML = tableHtml;
@@ -493,7 +552,7 @@ async function performSearch() {
             if (data.texte_norm.includes(normQuery) && hasTrackedFuel(db.stations[id])) {
                 localResults.push({ id, label: data.label_affichage, station: db.stations[id] });
             }
-            if (localResults.length > 20) break;
+            if (localResults.length > 100) break;
         }
     }
 
@@ -574,6 +633,9 @@ function applyFuelSort(fuel) {
 }
 
 function findStationsNear(lat, lon, labelTitle) {
+    if (!document.getElementById('home-view').classList.contains('hidden')) {
+        navStack.push({ type: 'home' });
+    }
     document.getElementById('home-view').classList.add('hidden');
     const stationView = document.getElementById('station-view');
     stationView.classList.remove('hidden');
@@ -582,7 +644,7 @@ function findStationsNear(lat, lon, labelTitle) {
 
     currentGeoZone = null;
     currentProximitySearch = { lat, lon, labelTitle };
-    renderStationsList(lat, lon, labelTitle, "");
+    renderStationsList(lat, lon, labelTitle, userFuels[0] || "");
 }
 
 function renderStationsList(lat, lon, labelTitle, sortFuel) {
@@ -689,6 +751,22 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
         html += `</div>`;
     }
     html += `</div></div>`;
+
+    // Best prices widget
+    if (topStations.length > 0) {
+        let widgetHtml = '<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">';
+        userFuels.forEach(fuel => {
+            let best = null;
+            topStations.forEach(s => {
+                const d = s.station.carburants_disponibles[fuel];
+                if (d && (!best || parseFloat(d.prix) < best.prix)) best = { prix: parseFloat(d.prix), nom: s.station.nom_osm || s.station.ville, id: s.id };
+            });
+            if (best) widgetHtml += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2 text-center cursor-pointer hover:shadow-md transition"><div class="text-xs font-bold text-green-800">${fuel}</div><div class="text-lg font-black text-green-700">${best.prix.toFixed(3)} €</div><div class="text-[10px] text-green-600 truncate">${best.nom}</div></div>`;
+        });
+        widgetHtml += '</div>';
+        const mapEl = document.querySelector('#station-content #station-map');
+        if (mapEl) mapEl.insertAdjacentHTML('afterend', widgetHtml);
+    }
     
     document.getElementById('station-content').innerHTML = html;
     window.scrollTo(0, 0);
@@ -866,11 +944,18 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
 
 function showStation(stationId) {
     const station = db.stations[stationId];
+    if (currentGeoZone) {
+        navStack.push({ type: 'geoZone', geoType: currentGeoZone.type, name: currentGeoZone.name });
+    } else if (currentProximitySearch) {
+        navStack.push({ type: 'proximity', lat: currentProximitySearch.lat, lon: currentProximitySearch.lon, label: currentProximitySearch.labelTitle });
+    } else if (!document.getElementById('home-view').classList.contains('hidden')) {
+        navStack.push({ type: 'home' });
+    }
     document.getElementById('home-view').classList.add('hidden');
     const stationView = document.getElementById('station-view');
     stationView.classList.remove('hidden');
     stationView.setAttribute('data-current-id', stationId);
-    
+
     document.getElementById('btn-favorite-station').classList.remove('hidden');
     updateStarUI(stationId);
     
@@ -1055,17 +1140,21 @@ function initStationMap(markersData, isMultiple = false) {
     const iconBlack = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] });
 
     markersData.forEach(m => {
+        if (m.type === 'search_point') {
+            L.circle([m.lat, m.lon], { radius: parseFloat(userRadius) * 1000, color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.05, weight: 2, dashArray: '6 4' }).addTo(stationMap);
+            L.circleMarker([m.lat, m.lon], { radius: 10, color: '#1e1b4b', fillColor: '#4f46e5', fillOpacity: 0.9, weight: 3 }).bindPopup(`<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${m.label || 'Point'}</b><span class="text-xs text-slate-500 block">${m.adresse || ''}</span><span class="text-xs text-indigo-500 font-bold block mt-1">Rayon : ${userRadius} km</span></div>`).addTo(stationMap).openPopup();
+            bounds.push([m.lat, m.lon]);
+            return;
+        }
         let icon = iconBlue;
-        if (m.type === 'search_point') icon = iconBlack;
-        else if (m.type === 'station_green') icon = iconGreen;
+        if (m.type === 'station_green') icon = iconGreen;
         else if (m.type === 'station_orange') icon = iconOrange;
         else if (m.type === 'station_red') icon = iconRed;
-        
+
         let popupBtn = m.id ? `<button onclick="showStation('${m.id}')" class="mt-2 w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir la station-service</button>` : '';
         let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${m.label || 'Point'}</b><span class="text-xs text-slate-500 leading-tight block">${m.adresse || ''}</span>${popupBtn}</div>`;
-        
-        const marker = L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(stationMap);
-        if (m.type === 'station_green' || m.type === 'search_point') marker.openPopup();
+
+        L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(stationMap);
         bounds.push([m.lat, m.lon]);
     });
 
