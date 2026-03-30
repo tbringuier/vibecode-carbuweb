@@ -482,7 +482,8 @@ function renderFavorites() {
                 for (const [c, d] of Object.entries(st.carburants_disponibles)) {
                     if (!userFuels.includes(c)) continue;
                     const col = prixColorTag(f.id, c, d.prix);
-                    tags.push(`<span class="inline-block ${col.bg} ${col.text} text-[11px] font-semibold px-1.5 py-0.5 rounded">${c} ${d.prix}€</span>`);
+                    const t = col.title ? ` title="${esc(col.title)}"` : '';
+                    tags.push(`<span class="inline-block ${col.bg} ${col.text} text-[11px] font-semibold px-1.5 py-0.5 rounded"${t}>${c} ${d.prix}€</span>`);
                 }
                 if (tags.length) pricesHtml = `<div class="flex flex-wrap gap-1 mt-1.5">${tags.join('')}</div>`;
             }
@@ -537,6 +538,55 @@ function renderFavorites() {
     list.innerHTML = allHtml;
 }
 
+/** Tolérance float (€) pour considérer deux prix comme égaux. */
+const PRICE_EPS = 0.0005;
+/** Au-delà de cet écart vs le minimum, on affiche un message « vous pouvez faire mieux ». */
+const PRICE_NEAR_MAX = 0.03;
+
+function formatFrEuros(n) {
+    return n.toFixed(3).replace('.', ',');
+}
+
+/**
+ * Badge prix dans une liste triée (même carburant) : vert = meilleur de la liste,
+ * ambre = proche du minimum, indigo = rappel explicite du prix le plus bas affiché.
+ */
+function buildZonePriceListBadge(prixDisplayStr, prixNum, minPrixInList) {
+    if (minPrixInList === null || !Number.isFinite(prixNum)) {
+        return {
+            markerType: 'station_blue',
+            html: `<div class="font-black text-lg px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 ml-3 flex-shrink-0 text-slate-800">${prixDisplayStr} €</div>`,
+        };
+    }
+    const delta = prixNum - minPrixInList;
+    if (delta <= PRICE_EPS) {
+        return {
+            markerType: 'station_green',
+            html: `<div class="text-right ml-3 flex-shrink-0 min-w-0 max-w-[11rem]">
+                <div class="font-black text-lg px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-900">${prixDisplayStr} €</div>
+                <p class="text-[10px] font-semibold text-green-700 mt-1 flex items-center justify-end gap-1 leading-tight"><i class="fas fa-trophy text-amber-500 shrink-0" aria-hidden="true"></i><span>Meilleur prix affiché</span></p>
+            </div>`,
+        };
+    }
+    const minFmt = formatFrEuros(minPrixInList);
+    if (delta <= PRICE_NEAR_MAX) {
+        return {
+            markerType: 'station_orange',
+            html: `<div class="text-right ml-3 flex-shrink-0 min-w-0 max-w-[11rem]">
+                <div class="font-black text-lg px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-950">${prixDisplayStr} €</div>
+                <p class="text-[10px] text-amber-900 mt-1 font-medium leading-tight">+${formatFrEuros(delta)} € vs le moins cher</p>
+            </div>`,
+        };
+    }
+    return {
+        markerType: 'station_blue',
+        html: `<div class="text-right ml-3 flex-shrink-0 min-w-0 max-w-[11rem]">
+            <div class="font-black text-lg px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-950">${prixDisplayStr} €</div>
+            <p class="text-[10px] text-indigo-800 mt-1 leading-tight"><span class="font-semibold">Mieux à ${minFmt} €</span> dans cette liste</p>
+        </div>`,
+    };
+}
+
 const nearbyStationCache = new Map();
 function getNearbyStations(stationId) {
     if (nearbyStationCache.has(stationId)) return nearbyStationCache.get(stationId);
@@ -553,20 +603,24 @@ function getNearbyStations(stationId) {
 
 function prixColorTag(stationId, carburant, prix) {
     const st = db.stations[stationId];
-    if (!st || !st.lat || !st.lon) return { bg: 'bg-slate-100', text: 'text-slate-700' };
+    if (!st || !st.lat || !st.lon) return { bg: 'bg-slate-100', text: 'text-slate-700', title: '' };
     const prixNum = parseFloat(prix);
     const nearbyIds = getNearbyStations(stationId);
-    let nearby = [prixNum];
+    const prices = [prixNum];
     for (const id of nearbyIds) {
         const s = db.stations[id];
-        if (s.carburants_disponibles[carburant]) nearby.push(parseFloat(s.carburants_disponibles[carburant].prix));
+        if (s.carburants_disponibles[carburant]) prices.push(parseFloat(s.carburants_disponibles[carburant].prix));
     }
-    if (nearby.length < 2) return { bg: 'bg-slate-100', text: 'text-slate-700' };
-    nearby.sort((a, b) => a - b);
-    const pct = nearby.indexOf(prixNum) / (nearby.length - 1);
-    if (pct <= 0.33) return { bg: 'bg-green-100', text: 'text-green-800' };
-    if (pct <= 0.66) return { bg: 'bg-orange-100', text: 'text-orange-800' };
-    return { bg: 'bg-red-100', text: 'text-red-800' };
+    if (prices.length < 2) return { bg: 'bg-slate-100', text: 'text-slate-700', title: '' };
+    const minP = Math.min(...prices);
+    const delta = prixNum - minP;
+    if (delta <= PRICE_EPS) return { bg: 'bg-green-100', text: 'text-green-800', title: 'Meilleur prix dans un rayon de 15 km' };
+    if (delta <= PRICE_NEAR_MAX) return { bg: 'bg-amber-100', text: 'text-amber-900', title: `Très proche du minimum local (${minP.toFixed(3)} €)` };
+    return {
+        bg: 'bg-indigo-100',
+        text: 'text-indigo-900',
+        title: `Moins cher à ${minP.toFixed(3)} € à proximité (15 km)`,
+    };
 }
 
 // UI Navigation Tabs
@@ -692,17 +746,20 @@ function searchGeoZone(type, name, overrideFuel) {
                 </div>
                 <div class="space-y-3 max-h-[min(70dvh,70vh)] overflow-y-auto custom-scrollbar scroll-touch">`;
 
-    stations.forEach((res, index) => {
+    let minPrixListe = null;
+    if (sortFuel && total > 0) {
+        minPrixListe = Math.min(...stations.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
+    }
+
+    stations.forEach((res) => {
         let rightContent = '';
         let markerType = 'station_blue';
         if (sortFuel && res.station.carburants_disponibles[sortFuel]) {
-            let prix = res.station.carburants_disponibles[sortFuel].prix;
-            let percentile = total > 1 ? index / (total - 1) : 0;
-            let colorBorder = "border-red-200", colorBg = "bg-red-50", colorText = "text-red-700";
-            markerType = 'station_red';
-            if (percentile <= 0.33) { colorBorder = "border-green-200"; colorBg = "bg-green-50"; colorText = "text-green-700"; markerType = 'station_green'; }
-            else if (percentile <= 0.66) { colorBorder = "border-orange-200"; colorBg = "bg-orange-50"; colorText = "text-orange-700"; markerType = 'station_orange'; }
-            rightContent = `<div class="font-black text-lg px-3 py-1.5 rounded-lg border ${colorBorder} ${colorBg} ml-3 flex-shrink-0 whitespace-nowrap ${colorText}">${prix} €</div>`;
+            const prix = res.station.carburants_disponibles[sortFuel].prix;
+            const prixNum = parseFloat(prix);
+            const badge = buildZonePriceListBadge(String(prix), prixNum, minPrixListe);
+            rightContent = badge.html;
+            markerType = badge.markerType;
         }
         res.markerType = markerType;
 
@@ -711,7 +768,7 @@ function searchGeoZone(type, name, overrideFuel) {
         if (fuelForDate && res.station.carburants_disponibles[fuelForDate]) dateMaj = `<span class="text-[10px] text-slate-400 ml-2"><i class="fas fa-clock mr-0.5"></i>${res.station.carburants_disponibles[fuelForDate].date_maj}</span>`;
 
         html += `
-            <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group">
+            <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-start gap-2 group">
                 <div class="flex-1 min-w-0">
                     <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
                     <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.code_postal)} ${esc(res.station.ville)}${dateMaj}</div>
@@ -924,7 +981,7 @@ async function performSearch() {
 
     let stationsHtml = '';
     if (localResults.length > 0) {
-        stationsHtml += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between"><span><i class="fas fa-gas-pump mr-1"></i> Stations-services</span><span class="text-indigo-400 normal-case bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Filtres appliqués</span></div>`;
+        stationsHtml += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2"><span class="min-w-0"><i class="fas fa-gas-pump mr-1"></i> Stations-services</span><span class="text-indigo-500 normal-case bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-[10px] sm:text-xs font-semibold shrink-0 max-w-[55%] text-right leading-tight">via data.economie.gouv.fr</span></div>`;
         localResults.forEach(res => {
             stationsHtml += `
                 <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
@@ -1066,36 +1123,23 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
         `;
         
         const total = topStations.length;
-        topStations.forEach((res, index) => {
+        let minPrixRayon = null;
+        if (sortFuel && total > 0) {
+            minPrixRayon = Math.min(...topStations.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
+        }
+
+        topStations.forEach((res) => {
             let carbsHtml = "";
             let rightContent = "";
 
             let distText = `<div class="text-sm text-slate-500 mt-1"><i class="fas fa-route mr-1 text-slate-300"></i>à ${res.dist.toFixed(1)} km</div>`;
 
             if (sortFuel) {
-                let prix = res.station.carburants_disponibles[sortFuel].prix;
-                let percentile = total > 1 ? index / (total - 1) : 0;
-
-                let colorBorder = "border-red-200";
-                let colorBg = "bg-red-50";
-                let colorText = "text-red-700";
-                let markerType = 'station_red';
-
-                if (percentile <= 0.33) {
-                    colorBorder = "border-green-200";
-                    colorBg = "bg-green-50";
-                    colorText = "text-green-700";
-                    markerType = 'station_green';
-                } else if (percentile <= 0.66) {
-                    colorBorder = "border-orange-200";
-                    colorBg = "bg-orange-50";
-                    colorText = "text-orange-700";
-                    markerType = 'station_orange';
-                }
-
-                res.markerType = markerType;
-
-                rightContent = `<div class="font-black text-lg px-3 py-1.5 rounded-lg border ${colorBorder} ${colorBg} ml-3 flex-shrink-0 whitespace-nowrap ${colorText}">${prix} €</div>`;
+                const prix = res.station.carburants_disponibles[sortFuel].prix;
+                const prixNum = parseFloat(prix);
+                const badge = buildZonePriceListBadge(String(prix), prixNum, minPrixRayon);
+                res.markerType = badge.markerType;
+                rightContent = badge.html;
                 carbsHtml = distText;
             } else {
                 let carbsArray = [];
@@ -1108,7 +1152,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
             }
             
             html += `
-                <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group">
+                <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-start gap-2 group">
                     <div class="flex-1 min-w-0">
                         <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
                         <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.ville)}</div>
@@ -1272,28 +1316,80 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
         }
     }
 
-    if (stationsProches.length === 0) return { alternative: null, isCheapest: false, color: "slate", bg: "bg-white", border: "border-slate-200" };
+    const baseNeutral = { isCheapest: false, bg: 'bg-white', border: 'border-slate-200', hintHtml: '', tier: 'neutral', priceMain: 'text-slate-900', priceEuro: 'text-slate-500' };
+
+    if (stationsProches.length === 0) {
+        return {
+            ...baseNeutral,
+            alternative: null,
+            numProches: 0,
+            hintHtml: prixActNum !== null
+                ? '<p class="mt-2 text-xs text-slate-600 leading-snug"><i class="fas fa-info-circle mr-1 text-slate-400" aria-hidden="true"></i>Pas d’autre station avec ce carburant dans la zone utilisée pour la comparaison.</p>'
+                : '',
+        };
+    }
 
     stationsProches.sort((a, b) => a.prix - b.prix);
-    const prixMin = stationsProches[0];
-    
-    if (prixActNum === null) {
-        return { alternative: { ...prixMin, carburant, isEqual: false, isNew: true }, isCheapest: false, color: "slate", bg: "bg-white", border: "border-slate-200" };
-    }
-    
-    let tousPrix = [prixActNum, ...stationsProches.map(s => s.prix)].sort((a, b) => a - b);
-    let percentile = tousPrix.indexOf(prixActNum) / (tousPrix.length - 1);
+    const meilleurAutre = stationsProches[0];
 
-    let isCheapest = percentile === 0;
-    let color = "default", bg = "bg-white", border = "border-slate-200";
-    if (isCheapest) { color = "green"; bg = "bg-green-50"; border = "border-green-200"; }
+    if (prixActNum === null) {
+        return {
+            ...baseNeutral,
+            alternative: { ...meilleurAutre, carburant, isEqual: false, isNew: true },
+            numProches: stationsProches.length,
+        };
+    }
+
+    const isCheapest = prixActNum <= meilleurAutre.prix + PRICE_EPS;
+    const delta = prixActNum - meilleurAutre.prix;
+
+    let bg = 'bg-white';
+    let border = 'border-slate-200';
+    let hintHtml = '';
+    let tier = 'neutral';
+    let priceMain = 'text-slate-900';
+    let priceEuro = 'text-slate-500';
+
+    if (isCheapest) {
+        bg = 'bg-green-50';
+        border = 'border-green-200';
+        tier = 'best';
+        priceMain = 'text-green-800';
+        priceEuro = 'text-green-600';
+        hintHtml = `<p class="mt-2 text-xs text-green-800 leading-snug"><i class="fas fa-check-circle text-green-600 mr-1" aria-hidden="true"></i>Parmi les stations comparées dans cette zone, c’est l’un des meilleurs prix pour ce carburant.</p>`;
+    } else if (delta <= PRICE_NEAR_MAX) {
+        bg = 'bg-amber-50';
+        border = 'border-amber-200';
+        tier = 'near';
+        priceMain = 'text-amber-950';
+        priceEuro = 'text-amber-700';
+        hintHtml = `<p class="mt-2 text-xs text-amber-900 leading-snug"><i class="fas fa-info-circle text-amber-600 mr-1" aria-hidden="true"></i>Très proche du minimum à proximité : <strong>${meilleurAutre.prix.toFixed(3)} €</strong> (${delta.toFixed(3)} € d'écart).</p>`;
+    } else {
+        bg = 'bg-indigo-50';
+        border = 'border-indigo-200';
+        tier = 'far';
+        priceMain = 'text-indigo-950';
+        priceEuro = 'text-indigo-600';
+        hintHtml = `<p class="mt-2 text-xs text-indigo-900 leading-snug"><i class="fas fa-lightbulb text-amber-500 mr-1" aria-hidden="true"></i>Il existe <strong>moins cher</strong> à proximité : <strong>${meilleurAutre.prix.toFixed(3)} €</strong> à ${meilleurAutre.dist.toFixed(1)} km (${esc(meilleurAutre.nom)}). Voir les suggestions ci-dessous.</p>`;
+    }
 
     let alternative = null;
-    if (prixMin.prix <= prixActNum) {
-        alternative = { ...prixMin, carburant, isEqual: (prixMin.prix === prixActNum), isNew: false };
+    if (meilleurAutre.prix <= prixActNum + PRICE_EPS) {
+        alternative = { ...meilleurAutre, carburant, isEqual: Math.abs(meilleurAutre.prix - prixActNum) < PRICE_EPS, isNew: false };
     }
 
-    return { color, isCheapest, bg, border, numProches: stationsProches.length, alternative };
+    return {
+        isCheapest,
+        bg,
+        border,
+        hintHtml,
+        tier,
+        priceMain,
+        priceEuro,
+        numProches: stationsProches.length,
+        alternative,
+        seulEnZone: false,
+    };
 }
 
 function showStation(stationId) {
@@ -1367,19 +1463,20 @@ function showStation(stationId) {
                 bestBadgeHtml = `<div class="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded mt-2 border border-yellow-300 inline-block"><i class="fas fa-star mr-1"></i>Meilleur prix départemental</div>`;
             }
 
-            let priceColor = analyse.isCheapest ? 'text-green-700' : 'text-slate-900';
-            let euroColor = analyse.isCheapest ? 'text-green-500' : 'text-slate-500';
+            let priceColor = analyse.priceMain || (analyse.isCheapest ? 'text-green-800' : 'text-slate-900');
+            let euroColor = analyse.priceEuro || (analyse.isCheapest ? 'text-green-600' : 'text-slate-500');
 
             html += `
                 <div class="p-4 rounded-xl border ${analyse.bg || 'bg-white'} ${analyse.border || 'border-slate-200'} relative overflow-hidden transition-shadow hover:shadow-md">
-                    <div class="flex justify-between items-start mb-1">
+                    <div class="flex justify-between items-start mb-1 gap-2">
                         <span class="font-bold text-slate-700 text-lg">${carb}</span>
-                        <span class="font-black text-xl sm:text-2xl ${priceColor}">${data.prix} <span class="text-base sm:text-lg ${euroColor}">€</span></span>
+                        <span class="font-black text-xl sm:text-2xl shrink-0 ${priceColor}">${data.prix} <span class="text-base sm:text-lg ${euroColor}">€</span></span>
                     </div>
                     <div class="flex justify-end items-center mt-2">
                         <span class="text-slate-400 text-xs font-medium"><i class="fas fa-clock mr-1"></i>${data.date_maj}</span>
                     </div>
                     ${bestBadgeHtml}
+                    ${analyse.hintHtml || ''}
                 </div>
             `;
         }
@@ -1401,7 +1498,7 @@ function showStation(stationId) {
             ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans votre zone de recherche`
             : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (${userRadius} km)`;
             
-        html += `<h3 class="font-bold text-lg text-slate-800 mb-4">${alternativesTitle}</h3><div class="space-y-3 mb-8">`;
+        html += `<h3 class="font-bold text-lg text-slate-800 mb-2">${alternativesTitle}</h3><p class="text-sm text-slate-500 mb-4">Stations où vous pouvez payer moins cher pour un ou plusieurs de vos carburants suivis — à titre indicatif dans la zone affichée.</p><div class="space-y-3 mb-8">`;
         let altGroup = {};
         
         alternatives.forEach(alt => {
