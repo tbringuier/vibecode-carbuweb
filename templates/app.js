@@ -5,11 +5,20 @@ let palmaresMap = null;
 let searchTimeout = null;
 
 const ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"];
+
+// localStorage keys
+const LS_RADIUS = ‘carbuRadius’;
+const LS_FAVORITES = ‘carbuFavorites’;
+const LS_VEHICLES = ‘carbuVehicles’;
+const LS_ACTIVE_VEHICLE = ‘carbuActiveVehicle’;
+const LS_FUELS = ‘carbuFuels’;
+const LS_WELCOME = ‘carbuWelcomeDismissed’;
+
 /** Rayon par défaut : ordre de grandeur réaliste pour un détour en voiture autour d’un point. */
 const DEFAULT_SEARCH_RADIUS_KM = 10;
-let userRadius = parseInt(localStorage.getItem('carbuRadius'), 10) || DEFAULT_SEARCH_RADIUS_KM;
+let userRadius = parseInt(localStorage.getItem(LS_RADIUS), 10) || DEFAULT_SEARCH_RADIUS_KM;
 let userFuels = [...ALL_FUELS];
-let userFavorites = JSON.parse(localStorage.getItem('carbuFavorites')) || [];
+let userFavorites = JSON.parse(localStorage.getItem(LS_FAVORITES)) || [];
 
 // Profils véhicules
 const VEHICLE_ICONS = [
@@ -22,18 +31,22 @@ const VEHICLE_ICONS = [
     { icon: 'fa-bus', label: 'Bus' },
     { icon: 'fa-gas-pump', label: 'Autre' },
 ];
-let userVehicles = JSON.parse(localStorage.getItem('carbuVehicles')) || [];
-let activeVehicleId = localStorage.getItem('carbuActiveVehicle') || null;
+let userVehicles = JSON.parse(localStorage.getItem(LS_VEHICLES)) || [];
+let activeVehicleId = localStorage.getItem(LS_ACTIVE_VEHICLE) || null;
 
 function saveVehicles() {
-    localStorage.setItem('carbuVehicles', JSON.stringify(userVehicles));
+    localStorage.setItem(LS_VEHICLES, JSON.stringify(userVehicles));
+}
+
+function saveFavorites() {
+    localStorage.setItem(LS_FAVORITES, JSON.stringify(userFavorites));
 }
 
 function applyActiveVehicle() {
     if (userVehicles.length === 0) {
         activeVehicleId = null;
-        localStorage.removeItem('carbuActiveVehicle');
-        localStorage.removeItem('carbuFuels');
+        localStorage.removeItem(LS_ACTIVE_VEHICLE);
+        localStorage.removeItem(LS_FUELS);
         userFuels = [...ALL_FUELS];
         return;
     }
@@ -43,11 +56,11 @@ function applyActiveVehicle() {
             userFuels = [...v.fuels];
         } else {
             activeVehicleId = null;
-            localStorage.removeItem('carbuActiveVehicle');
-            userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || [...ALL_FUELS];
+            localStorage.removeItem(LS_ACTIVE_VEHICLE);
+            userFuels = JSON.parse(localStorage.getItem(LS_FUELS)) || [...ALL_FUELS];
         }
     } else {
-        userFuels = JSON.parse(localStorage.getItem('carbuFuels')) || [...ALL_FUELS];
+        userFuels = JSON.parse(localStorage.getItem(LS_FUELS)) || [...ALL_FUELS];
     }
 }
 
@@ -55,9 +68,9 @@ function switchVehicle(vehicleId) {
     if (vehicleId === activeVehicleId) return;
     activeVehicleId = vehicleId;
     if (vehicleId) {
-        localStorage.setItem('carbuActiveVehicle', vehicleId);
+        localStorage.setItem(LS_ACTIVE_VEHICLE, vehicleId);
     } else {
-        localStorage.removeItem('carbuActiveVehicle');
+        localStorage.removeItem(LS_ACTIVE_VEHICLE);
     }
     applyActiveVehicle();
     nearbyStationCache.clear();
@@ -99,6 +112,17 @@ function refreshActiveViews(opts) {
     if (sid && !document.getElementById('station-view').classList.contains('hidden')) showStation(sid);
 }
 
+/** Point d'entrée unique après toute modification de préférences utilisateur. */
+function refreshAllViews() {
+    nearbyStationCache.clear();
+    renderVehicleBar();
+    renderVehiclesList();
+    renderFavorites();
+    syncFooterStationCount();
+    syncFooterFuelDataUpdate();
+    refreshActiveViews({});
+}
+
 function generateVehicleId() {
     return 'v' + Date.now() + Math.random().toString(36).slice(2, 6);
 }
@@ -127,7 +151,7 @@ function deleteVehicle(id) {
     if (activeVehicleId === id || userVehicles.length === 0) {
         if (userVehicles.length === 0) {
             activeVehicleId = null;
-            localStorage.removeItem('carbuActiveVehicle');
+            localStorage.removeItem(LS_ACTIVE_VEHICLE);
         }
         applyActiveVehicle();
     }
@@ -231,9 +255,7 @@ async function refreshCarbuDataFromNetwork() {
         const next = await fetchDataJsonFresh();
         if (!next || !next.stations) return;
         db = next;
-        syncFooterStationCount();
-        syncFooterFuelDataUpdate();
-        refreshVisibleViewsAfterDbSwap();
+        refreshAllViews();
     } catch (e) {
         console.warn('Actualisation data.json', e);
     }
@@ -263,7 +285,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('home-view').classList.remove('hidden');
 
-        if (localStorage.getItem('carbuWelcomeDismissed')) {
+        if (localStorage.getItem(LS_WELCOME)) {
             document.getElementById('welcome-card').classList.add('hidden');
         }
 
@@ -275,13 +297,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         cleanupLegacyServiceWorkers();
         startPeriodicDataRefresh();
     } catch (e) {
-        document.getElementById('loading').innerHTML = '<p class="text-red-500 font-bold"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur serveur HTTP local.</p>';
+        document.getElementById('loading').innerHTML = `<p class="text-red-500 font-bold mb-3"><i class="fas fa-exclamation-triangle mr-2"></i>Impossible de charger les données.</p><p class="text-sm text-slate-500 mb-4">${esc(e.message || String(e))}</p><button onclick="location.reload()" class="bg-indigo-600 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-700 transition"><i class="fas fa-redo mr-2"></i>Réessayer</button>`;
     }
 });
 
 function dismissWelcome() {
     document.getElementById('welcome-card').classList.add('hidden');
-    localStorage.setItem('carbuWelcomeDismissed', '1');
+    localStorage.setItem(LS_WELCOME, '1');
 }
 
 // Utilitaires
@@ -497,11 +519,7 @@ function saveVehicleForm() {
         if (!v) return;
     }
     closeVehicleForm();
-    renderVehiclesList();
-    renderVehicleBar();
-    nearbyStationCache.clear();
-    renderFavorites();
-    refreshActiveViews({ resetSortToFirst: true });
+    refreshAllViews();
 }
 
 function confirmDeleteVehicle(id) {
@@ -509,10 +527,7 @@ function confirmDeleteVehicle(id) {
     if (!v) return;
     if (!confirm(`Supprimer le véhicule « ${v.name} » ?`)) return;
     deleteVehicle(id);
-    renderVehiclesList();
-    renderVehicleBar();
-    renderFavorites();
-    refreshActiveViews({ resetSortToFirst: true });
+    refreshAllViews();
 }
 
 // Paramètres & Sauvegarde
@@ -533,38 +548,18 @@ function toggleSettings() {
 
 function saveSettings() {
     userRadius = parseFloat(document.getElementById('radius-slider').value);
-    localStorage.setItem('carbuRadius', userRadius);
-    nearbyStationCache.clear();
-    
-    renderFavorites();
-    if (currentProximitySearch) {
-        const sortSelect = document.getElementById('sort-fuel-select');
-        const sf = sortSelect ? sortSelect.value : "";
-        applyFuelSort(sf);
-    } else if (currentGeoZone) {
-        searchGeoZone(currentGeoZone.type, currentGeoZone.name);
-    } else if (!document.getElementById('home-view').classList.contains('hidden')) {
-        debouncedSearch();
-    }
-
-    // Re-render dashboard if visible
-    if (!document.getElementById('pane-statistiques').classList.contains('hidden')) {
-        chartsInitialized = false;
-        renderDashboard();
-    }
-
-    const currentViewId = document.getElementById('station-view').getAttribute('data-current-id');
-    if (currentViewId && !document.getElementById('station-view').classList.contains('hidden')) showStation(currentViewId);
+    localStorage.setItem(LS_RADIUS, userRadius);
+    refreshAllViews();
 }
 
 function resetSettings() {
     try {
-        localStorage.removeItem('carbuRadius');
-        localStorage.removeItem('carbuFavorites');
-        localStorage.removeItem('carbuWelcomeDismissed');
-        localStorage.removeItem('carbuVehicles');
-        localStorage.removeItem('carbuActiveVehicle');
-        localStorage.removeItem('carbuFuels');
+        localStorage.removeItem(LS_RADIUS);
+        localStorage.removeItem(LS_FAVORITES);
+        localStorage.removeItem(LS_WELCOME);
+        localStorage.removeItem(LS_VEHICLES);
+        localStorage.removeItem(LS_ACTIVE_VEHICLE);
+        localStorage.removeItem(LS_FUELS);
     } catch (e) {
         console.warn('resetSettings', e);
     }
@@ -619,7 +614,7 @@ function migrateAddressFavoritesCoords() {
     }
     if (changed) {
         userFavorites = next;
-        localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
+        saveFavorites();
     }
 }
 
@@ -632,7 +627,7 @@ function toggleFavoriteAddress(lat, lon, name) {
     const wasFav = idx > -1;
     if (wasFav) userFavorites.splice(idx, 1);
     else userFavorites.push({ id: idStr, type: 'address', name, lat: la, lon: lo });
-    localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
+    saveFavorites();
     renderFavorites();
     if (!document.getElementById('home-view').classList.contains('hidden')) {
         debouncedSearch();
@@ -648,7 +643,7 @@ function toggleFavoriteCurrentStation() {
     const wasFav = idx > -1;
     if (wasFav) userFavorites.splice(idx, 1);
     else userFavorites.push({ id: sid, type: 'station', name: s.nom_osm || 'Station-service', adresse: `${s.adresse}, ${s.ville}` });
-    localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
+    saveFavorites();
     updateStarUI(sid);
     renderFavorites();
     showToast(wasFav ? 'Station retirée des favoris' : 'Station ajoutée aux favoris', wasFav ? 'fa-circle-minus' : 'fa-star');
@@ -746,7 +741,7 @@ function syncFavoriteHeaderButton() {
 
 function removeFavorite(id) {
     userFavorites = userFavorites.filter(f => f.id !== id);
-    localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
+    saveFavorites();
     renderFavorites();
     syncFavoriteHeaderButton();
     showToast('Favori retiré', 'fa-bookmark');
@@ -758,7 +753,7 @@ function renderFavorites() {
     migrateAddressFavoritesCoords();
     const prevLen = userFavorites.length;
     userFavorites = userFavorites.filter(f => f.type !== 'station' || (db && db.stations[f.id]));
-    if (userFavorites.length !== prevLen) localStorage.setItem('carbuFavorites', JSON.stringify(userFavorites));
+    if (userFavorites.length !== prevLen) saveFavorites();
     if (userFavorites.length === 0) {
         container.classList.add('hidden');
         return;
