@@ -1,4 +1,102 @@
 
+// ==========================================
+// DRAG & DROP — TouchDragReorder
+// Reordonnancement tactile (touch + pointer) pour listes avec handles .drag-handle
+// et attributs data-drag-index.
+// ==========================================
+class TouchDragReorder {
+    constructor(containerEl, opts = {}) {
+        this.el = typeof containerEl === 'string' ? document.querySelector(containerEl) : containerEl;
+        this.onReorder = opts.onReorder || (() => {});
+        this.handleSel = opts.handleSelector || '.drag-handle';
+        this._active = null;
+        this._ghost  = null;
+        this._ph     = null;
+        this._ox = 0; this._oy = 0;
+        this._from = -1; this._to = -1;
+        this._b = { down: this._onDown.bind(this), move: this._onMove.bind(this), up: this._onUp.bind(this) };
+        if (this.el) this.el.addEventListener('pointerdown', this._b.down, { passive: false });
+    }
+    destroy() {
+        if (this.el) this.el.removeEventListener('pointerdown', this._b.down);
+        this._cleanup();
+    }
+    _itemFromHandle(target) {
+        let node = target;
+        while (node && node !== this.el) {
+            if (node.matches && node.matches(this.handleSel)) {
+                let p = node.parentElement;
+                while (p && p !== this.el) {
+                    if (p.dataset.dragIndex !== undefined) return p;
+                    p = p.parentElement;
+                }
+            }
+            node = node.parentElement;
+        }
+        return null;
+    }
+    _onDown(e) {
+        const item = this._itemFromHandle(e.target);
+        if (!item) return;
+        e.preventDefault();
+        const rect = item.getBoundingClientRect();
+        this._from = parseInt(item.dataset.dragIndex, 10);
+        this._to   = this._from;
+        this._ox   = e.clientX - rect.left;
+        this._oy   = e.clientY - rect.top;
+        this._active = item;
+        this._ghost = item.cloneNode(true);
+        Object.assign(this._ghost.style, { position:'fixed', zIndex:9999, pointerEvents:'none',
+            opacity:'.93', transform:'scale(1.025) rotate(.35deg)', width: rect.width + 'px',
+            boxShadow:'0 16px 40px rgba(0,0,0,.18)', borderRadius:'.875rem',
+            left: rect.left + 'px', top: rect.top + 'px', transition:'none' });
+        document.body.appendChild(this._ghost);
+        this._ph = document.createElement('div');
+        this._ph.className = 'dnd-placeholder';
+        this._ph.style.height = rect.height + 'px';
+        item.after(this._ph);
+        item.classList.add('dragging-item');
+        document.addEventListener('pointermove', this._b.move, { passive: false });
+        document.addEventListener('pointerup',   this._b.up);
+        document.addEventListener('pointercancel', this._b.up);
+    }
+    _onMove(e) {
+        if (!this._ghost) return;
+        e.preventDefault();
+        this._ghost.style.left = (e.clientX - this._ox) + 'px';
+        this._ghost.style.top  = (e.clientY - this._oy) + 'px';
+        const siblings = [...this.el.querySelectorAll('[data-drag-index]')]
+            .filter(el => !el.classList.contains('dragging-item'));
+        let placed = false;
+        for (let i = 0; i < siblings.length; i++) {
+            const r = siblings[i].getBoundingClientRect();
+            if (e.clientY < r.top + r.height / 2) {
+                siblings[i].before(this._ph);
+                this._to = i;
+                placed = true;
+                break;
+            }
+            this._to = i + 1;
+        }
+        if (!placed && siblings.length > 0) this.el.appendChild(this._ph);
+        if (siblings.length === 0) this._to = 0;
+    }
+    _onUp() {
+        document.removeEventListener('pointermove', this._b.move);
+        document.removeEventListener('pointerup',   this._b.up);
+        document.removeEventListener('pointercancel', this._b.up);
+        const from = this._from, to = this._to;
+        this._cleanup();
+        if (from !== -1 && to !== -1 && from !== to) this.onReorder(from, to);
+    }
+    _cleanup() {
+        if (this._ghost)  { this._ghost.remove();  this._ghost = null; }
+        if (this._ph)     { this._ph.remove();     this._ph    = null; }
+        if (this._active) { this._active.classList.remove('dragging-item'); this._active = null; }
+        this._from = -1; this._to = -1;
+    }
+}
+
 let db = null;
 let stationMap = null;
 let palmaresMap = null;
@@ -19,6 +117,8 @@ const DEFAULT_SEARCH_RADIUS_KM = 10;
 let userRadius = parseInt(localStorage.getItem(LS_RADIUS), 10) || DEFAULT_SEARCH_RADIUS_KM;
 let userFuels = [...ALL_FUELS];
 let userFavorites = JSON.parse(localStorage.getItem(LS_FAVORITES)) || [];
+let favDnD     = null;
+let vehicleDnD = null;
 
 // Profils véhicules
 const VEHICLE_ICONS = [
@@ -97,7 +197,7 @@ function refreshActiveViews(opts) {
             sf = sortEl ? sortEl.value : '';
             if (sf && !userFuels.includes(sf)) sf = userFuels[0] || '';
         }
-        renderStationsList(currentProximitySearch.lat, currentProximitySearch.lon, currentProximitySearch.labelTitle, sf);
+        withSearchRadius(() => renderStationsList(currentProximitySearch.lat, currentProximitySearch.lon, currentProximitySearch.labelTitle, sf));
     } else if (currentGeoZone) {
         let gf;
         if (resetSort) {
@@ -175,12 +275,12 @@ function renderVehicleBar() {
     }
     bar.classList.remove('hidden');
     const isAll = !activeVehicleId;
-    const chipOn = 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-900/10 ring-2 ring-indigo-500/30';
-    const chipOff = 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/90 active:bg-indigo-50';
-    let html = `<button type="button" onclick="switchVehicle(null)" aria-pressed="${isAll}" class="touch-manipulation snap-start min-h-[2.5rem] flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-extrabold whitespace-nowrap transition border-2 ${isAll ? chipOn : chipOff}"><i class="fas fa-list-ul text-[0.85em] opacity-90" aria-hidden="true"></i><span>Tous</span></button>`;
+    const chipOn  = 'bg-[#2563EB] text-white border-[#2563EB] shadow-sm';
+    const chipOff = 'bg-white text-[#78716C] border-[#D0C9BF] hover:border-[#2563EB] hover:text-[#2563EB]';
+    let html = `<button type="button" onclick="switchVehicle(null)" aria-pressed="${isAll}" class="touch-manipulation snap-start min-h-[2.5rem] flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition border ${isAll ? chipOn : chipOff}"><i class="fas fa-list-ul text-[0.85em] opacity-90" aria-hidden="true"></i><span>Tous</span></button>`;
     userVehicles.forEach(v => {
         const active = activeVehicleId === v.id;
-        html += `<button type="button" onclick="switchVehicle('${v.id}')" aria-pressed="${active}" class="touch-manipulation snap-start min-h-[2.5rem] flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-extrabold whitespace-nowrap transition border-2 ${active ? chipOn : chipOff}"><i class="fas ${v.icon} text-[0.85em] opacity-90" aria-hidden="true"></i><span class="truncate max-w-[10rem] sm:max-w-[14rem]">${esc(v.name)}</span></button>`;
+        html += `<button type="button" onclick="switchVehicle('${v.id}')" aria-pressed="${active}" class="touch-manipulation snap-start min-h-[2.5rem] flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition border ${active ? chipOn : chipOff}"><i class="fas ${v.icon} text-[0.85em] opacity-90" aria-hidden="true"></i><span class="truncate max-w-[10rem] sm:max-w-[14rem]">${esc(v.name)}</span></button>`;
     });
     list.innerHTML = html;
 }
@@ -232,12 +332,12 @@ function refreshVisibleViewsAfterDbSwap() {
         } else if (currentProximitySearch) {
             const sortEl = document.getElementById('sort-fuel-select');
             const sf = sortEl ? sortEl.value : '';
-            renderStationsList(
+            withSearchRadius(() => renderStationsList(
                 currentProximitySearch.lat,
                 currentProximitySearch.lon,
                 currentProximitySearch.labelTitle,
                 sf
-            );
+            ));
         } else if (currentGeoZone) {
             const sortEl = document.getElementById('geo-sort-select');
             const gf = sortEl ? sortEl.value : (userFuels[0] || '');
@@ -342,7 +442,7 @@ function esc(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** Bloc d’information / vide : contraste élevé, lisible, `role="status"` pour les lecteurs d’écran. */
+/** Bloc d'information / vide : contraste élevé, lisible, `role="status"` pour les lecteurs d'écran. */
 function uiNoticeBlock(iconClass, iconWrapClass, title, bodyHtml) {
     return `<div class="p-5 sm:p-6 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/20 text-center shadow-sm" role="status">
         <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl ${iconWrapClass} text-white shadow-md mb-3 mx-auto" aria-hidden="true"><i class="fas ${iconClass} text-xl"></i></span>
@@ -416,6 +516,66 @@ const ROUTE_DISTANCE_FACTOR = 1.25;
 
 function maxStraightLineKmForRadius() {
     return parseFloat(userRadius) / ROUTE_DISTANCE_FACTOR;
+}
+
+/** Rayon haversine pour un favori adresse (rayon personnalisé ou rayon global). */
+function maxStraightLineKmForFavorite(fav) {
+    if (fav && fav.radius && Number.isFinite(parseFloat(fav.radius))) {
+        return parseFloat(fav.radius) / ROUTE_DISTANCE_FACTOR;
+    }
+    return maxStraightLineKmForRadius();
+}
+
+/** Ajuste le rayon de recherche d'un favori adresse. */
+function adjustFavRadius(id, delta) {
+    const idx = userFavorites.findIndex(f => f.id === id);
+    if (idx === -1) return;
+    const f = userFavorites[idx];
+    const current = f.radius ? parseFloat(f.radius) : userRadius;
+    const next = Math.max(1, Math.min(100, current + delta));
+    userFavorites[idx] = { ...f, radius: next };
+    saveFavorites();
+    renderFavorites();
+}
+
+/** Reorder d'un favori dans la liste (callback DnD). */
+function reorderFavorite(from, slotIdx) {
+    const next = [...userFavorites];
+    const [item] = next.splice(from, 1);
+    next.splice(slotIdx, 0, item);
+    userFavorites = next;
+    saveFavorites();
+    renderFavorites();
+}
+
+/** Reorder d'un véhicule dans la liste (callback DnD). */
+function reorderVehicle(from, slotIdx) {
+    const next = [...userVehicles];
+    const [item] = next.splice(from, 1);
+    next.splice(slotIdx, 0, item);
+    userVehicles = next;
+    saveVehicles();
+    renderVehiclesList();
+    renderVehicleBar();
+}
+
+/**
+ * Exécute fn() en appliquant temporairement le rayon personnalisé d'une recherche de proximité
+ * (currentProximitySearch.customRadius) afin que maxStraightLineKmForRadius() retourne la bonne valeur.
+ */
+function withSearchRadius(fn) {
+    const cr = currentProximitySearch && currentProximitySearch.customRadius;
+    if (!cr) return fn();
+    const saved = userRadius;
+    userRadius = cr;
+    try { fn(); } finally { userRadius = saved; }
+}
+
+/** Lance une recherche de proximité à partir d'un favori (utilise son rayon personnalisé). */
+function findStationsNearFav(lat, lon, name, favId) {
+    const fav = userFavorites.find(f => f.id === favId);
+    const cr = fav && fav.radius ? parseFloat(fav.radius) : null;
+    findStationsNear(lat, lon, name, cr);
 }
 
 /** Estimation d'itinéraire (km) à partir du haversine, pour l'affichage uniquement. */
@@ -535,24 +695,33 @@ function renderVehiclesList() {
     const container = document.getElementById('vehicles-list');
     if (!container) return;
     if (userVehicles.length === 0) {
-        container.innerHTML = '<div class="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-indigo-50/20 px-4 py-3.5 text-center shadow-sm" role="status"><p class="text-sm font-extrabold text-slate-800">Aucun véhicule enregistré</p><p class="text-xs text-slate-600 mt-1.5 leading-relaxed">L’app s’appuie sur les carburants que vous cochez plus bas jusqu’à ce que vous définissiez un véhicule.</p></div>';
+        container.innerHTML = '<div class="rounded-lg border border-dashed border-[var(--cb-border2)] px-4 py-3.5 text-center" role="status"><p class="text-sm font-semibold text-[var(--cb-text)]">Aucun véhicule enregistré</p><p class="text-xs text-[var(--cb-muted)] mt-1.5 leading-relaxed">L\'app s\'appuie sur les carburants que vous cochez plus bas jusqu\'à ce que vous définissiez un véhicule.</p></div>';
+        if (vehicleDnD) { vehicleDnD.destroy(); vehicleDnD = null; }
         return;
     }
     let html = '';
-    userVehicles.forEach(v => {
-        const fuelBadges = v.fuels.map(f => `<span class="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-lg border border-indigo-200/60">${esc(f)}</span>`).join(' ');
+    userVehicles.forEach((v, idx) => {
+        const fuelBadges = v.fuels.map(f => `<span class="text-[10px] font-semibold px-2 py-0.5 rounded border border-[var(--cb-border2)] text-[var(--cb-muted)]">${esc(f)}</span>`).join(' ');
         const isActive = activeVehicleId === v.id;
-        html += `<div class="flex items-center gap-2.5 p-3 rounded-2xl border-2 shadow-sm transition ${isActive ? 'bg-gradient-to-br from-indigo-50 to-white border-indigo-200 ring-1 ring-indigo-100' : 'bg-white border-slate-200 hover:border-slate-300'}">
-            <div class="h-10 w-10 rounded-xl ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'} flex items-center justify-center shrink-0" aria-hidden="true"><i class="fas ${v.icon} text-sm"></i></div>
+        html += `<div data-drag-index="${idx}" class="flex items-center gap-2 p-3 cb-card border shadow-sm transition ${isActive ? 'border-[var(--cb-accent)]/40 bg-blue-50/30' : 'hover:border-[var(--cb-border2)]'}">
+            <span class="drag-handle shrink-0 cursor-grab p-1 rounded text-[var(--cb-border2)] hover:text-[var(--cb-muted)]" aria-hidden="true" title="Déplacer"><i class="fas fa-grip-vertical text-sm"></i></span>
+            <div class="h-10 w-10 rounded-lg ${isActive ? 'bg-[var(--cb-accent)] text-white' : 'bg-[var(--cb-bg)] text-[var(--cb-muted)]'} flex items-center justify-center shrink-0 border border-[var(--cb-border)]" aria-hidden="true"><i class="fas ${v.icon} text-sm"></i></div>
             <div class="flex-1 min-w-0">
-                <div class="font-extrabold text-sm text-slate-900 truncate">${esc(v.name)}</div>
-                <div class="flex flex-wrap gap-1 mt-1">${fuelBadges}${v.tankSize ? `<span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-lg border border-slate-200/80"><i class="fas fa-gas-pump mr-0.5 text-slate-500" aria-hidden="true"></i>${v.tankSize}\u202fL</span>` : ''}</div>
+                <div class="font-semibold text-sm text-[var(--cb-text)] truncate">${esc(v.name)}</div>
+                <div class="flex flex-wrap gap-1 mt-1">${fuelBadges}${v.tankSize ? `<span class="text-[10px] font-semibold px-2 py-0.5 rounded border border-[var(--cb-border2)] text-[var(--cb-muted)]"><i class="fas fa-gas-pump mr-0.5" aria-hidden="true"></i>${v.tankSize}\u202fL</span>` : ''}</div>
             </div>
-            <button type="button" onclick="openVehicleForm('${v.id}')" class="touch-manipulation min-h-10 min-w-10 flex items-center justify-center rounded-xl text-slate-500 hover:text-indigo-700 hover:bg-indigo-100 transition text-sm shrink-0" title="Modifier" aria-label="Modifier ${esc(v.name)}"><i class="fas fa-pen" aria-hidden="true"></i></button>
-            <button type="button" onclick="confirmDeleteVehicle('${v.id}')" class="touch-manipulation min-h-10 min-w-10 flex items-center justify-center rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition text-sm shrink-0" title="Supprimer" aria-label="Supprimer ${esc(v.name)}"><i class="fas fa-trash" aria-hidden="true"></i></button>
+            <button type="button" onclick="openVehicleForm('${v.id}')" class="touch-manipulation cb-btn cb-btn-ghost min-h-[2.25rem] min-w-[2.25rem] !p-0 shrink-0" title="Modifier" aria-label="Modifier ${esc(v.name)}"><i class="fas fa-pen text-sm" aria-hidden="true"></i></button>
+            <button type="button" onclick="confirmDeleteVehicle('${v.id}')" class="touch-manipulation cb-btn cb-btn-ghost min-h-[2.25rem] min-w-[2.25rem] !p-0 shrink-0 hover:text-red-600" title="Supprimer" aria-label="Supprimer ${esc(v.name)}"><i class="fas fa-trash text-sm" aria-hidden="true"></i></button>
         </div>`;
     });
     container.innerHTML = html;
+    if (vehicleDnD) vehicleDnD.destroy();
+    vehicleDnD = null;
+    if (userVehicles.length > 1) {
+        vehicleDnD = new TouchDragReorder(container, {
+            onReorder: (from, slotIdx) => reorderVehicle(from, slotIdx)
+        });
+    }
 }
 
 function openVehicleForm(vehicleId) {
@@ -889,6 +1058,7 @@ function renderFavorites() {
     if (userFavorites.length !== prevLen) saveFavorites();
     if (userFavorites.length === 0) {
         container.classList.add('hidden');
+        if (favDnD) { favDnD.destroy(); favDnD = null; }
         return;
     }
     container.classList.remove('hidden');
@@ -913,8 +1083,9 @@ function renderFavorites() {
                 if (tags.length) pricesHtml = `<div class="flex flex-wrap gap-1 mt-1.5">${tags.join('')}</div>`;
             }
             allHtml += `
-                <div class="p-4 bg-gradient-to-br from-amber-50 via-yellow-50/60 to-orange-50/30 border-2 border-amber-300/70 rounded-2xl hover:shadow-lg hover:border-amber-500 transition group shadow-sm">
+                <div data-drag-index="${i}" class="p-4 bg-gradient-to-br from-amber-50 via-yellow-50/60 to-orange-50/30 border-2 border-amber-300/70 rounded-2xl hover:shadow-lg hover:border-amber-500 transition group shadow-sm">
                     <div class="flex justify-between items-start gap-2">
+                        <span class="drag-handle shrink-0 self-start mt-0.5 p-1 rounded text-amber-200 hover:text-amber-400" aria-hidden="true" title="Déplacer"><i class="fas fa-grip-vertical text-sm"></i></span>
                         <div onclick="showStation('${f.id}')" class="flex-1 min-w-0 cursor-pointer">
                             <div class="flex items-start gap-2 min-w-0">
                                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md" aria-hidden="true"><i class="fas fa-gas-pump"></i></span>
@@ -929,49 +1100,66 @@ function renderFavorites() {
                     <div onclick="showStation('${f.id}')" class="cursor-pointer mt-2">${pricesHtml}</div>
                 </div>`;
         } else {
+            const favRadius = f.radius ? parseFloat(f.radius) : userRadius;
             let bestCards = '';
             if (db && f.lat && f.lon) {
                 const favLat = parseCoord(f.lat);
                 const favLon = parseCoord(f.lon);
                 if (Number.isFinite(favLat) && Number.isFinite(favLon)) {
-                let nearbyStations = [];
-                const maxKm = maxStraightLineKmForRadius();
-                for (const [id, s] of Object.entries(db.stations)) {
-                    if (!s.lat || !s.lon || !hasTrackedFuel(s)) continue;
-                    const straight = distanceHaversine(favLat, favLon, s.lat, s.lon);
-                    if (straight <= maxKm) nearbyStations.push({ id, station: s, dist: straight });
-                }
-                userFuels.forEach(fuel => {
-                    const best = pickBestStationForFuelByPriceThenDistance(nearbyStations, fuel);
-                    if (best) {
-                        const stB = db.stations[best.id];
-                        const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
-                        const maj = fd ? formatMajHtml(fd) : "";
-                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-gradient-to-b from-green-50 to-emerald-50/80 border-2 border-green-300/80 rounded-xl p-2 text-center cursor-pointer hover:shadow-lg transition min-w-0 shadow-md"><div class="text-[10px] font-extrabold uppercase tracking-wide text-green-950">${fuel}</div><div class="text-base font-black text-green-900 tabular-nums my-0.5">${best.prix.toFixed(3)}<span class="text-xs font-bold">€</span></div>${fullTankHtml(best.prix, 'proximity', 'green')}${maj ? `<div class="text-[8px] text-green-800 font-bold italic leading-tight mt-0.5" translate="no"><i class="fas fa-clock mr-0.5 not-italic text-amber-600"></i>${maj}</div>` : ''}<div class="text-[9px] font-bold text-green-900 truncate mt-0.5">${esc(best.nom)}</div></div>`;
+                    let nearbyStations = [];
+                    const maxKm = maxStraightLineKmForFavorite(f);
+                    for (const [id, s] of Object.entries(db.stations)) {
+                        if (!s.lat || !s.lon || !hasTrackedFuel(s)) continue;
+                        const straight = distanceHaversine(favLat, favLon, s.lat, s.lon);
+                        if (straight <= maxKm) nearbyStations.push({ id, station: s, dist: straight });
                     }
-                });
+                    userFuels.forEach(fuel => {
+                        const best = pickBestStationForFuelByPriceThenDistance(nearbyStations, fuel);
+                        if (best) {
+                            const stB = db.stations[best.id];
+                            const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
+                            const maj = fd ? formatMajHtml(fd) : "";
+                            bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-gradient-to-b from-green-50 to-emerald-50/80 border-2 border-green-300/80 rounded-xl p-2 text-center cursor-pointer hover:shadow-lg transition min-w-0 shadow-md"><div class="text-[10px] font-extrabold uppercase tracking-wide text-green-950">${fuel}</div><div class="text-base font-black text-green-900 tabular-nums my-0.5">${best.prix.toFixed(3)}<span class="text-xs font-bold">€</span></div>${fullTankHtml(best.prix, 'proximity', 'green')}${maj ? `<div class="text-[8px] text-green-800 font-bold italic leading-tight mt-0.5" translate="no"><i class="fas fa-clock mr-0.5 not-italic text-amber-600"></i>${maj}</div>` : ''}<div class="text-[9px] font-bold text-green-900 truncate mt-0.5">${esc(best.nom)}</div></div>`;
+                        }
+                    });
                 }
             }
+            const safeId  = esc(f.id);
+            const safeName = f.name.replace(/'/g, "\\'");
             const widgetRow = bestCards ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
             allHtml += `
-                <div class="p-4 bg-gradient-to-br from-indigo-50 via-white to-violet-50/40 border-2 border-indigo-200/80 rounded-2xl hover:shadow-lg hover:border-indigo-400 transition group shadow-sm">
+                <div data-drag-index="${i}" class="p-4 bg-gradient-to-br from-indigo-50 via-white to-violet-50/40 border-2 border-indigo-200/80 rounded-2xl hover:shadow-lg hover:border-indigo-400 transition group shadow-sm">
                     <div class="flex justify-between items-start gap-2">
-                        <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="flex-1 min-w-0 cursor-pointer">
+                        <span class="drag-handle shrink-0 self-start mt-0.5 p-1 rounded text-indigo-200 hover:text-indigo-400" aria-hidden="true" title="Déplacer"><i class="fas fa-grip-vertical text-sm"></i></span>
+                        <div onclick="findStationsNearFav(${f.lat}, ${f.lon}, '${safeName}', '${safeId}')" class="flex-1 min-w-0 cursor-pointer">
                             <div class="flex items-start gap-2">
                                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md" aria-hidden="true"><i class="fas fa-map-marker-alt"></i></span>
                                 <div class="min-w-0">
                                     <div class="font-extrabold text-indigo-950 truncate leading-tight">${esc(f.name)}</div>
-                                    <div class="text-xs font-bold text-indigo-800 mt-1">Lieu favori · rayon ${radiusSettingKmHtml()}</div>
+                                    <div class="text-xs font-bold text-indigo-800 mt-1">Lieu favori · rayon <span class="price-num">~${favRadius}\u202fkm</span></div>
                                 </div>
                             </div>
                         </div>
-                        <button type="button" onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="touch-manipulation flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border-2 border-indigo-200 text-amber-500 hover:text-red-600 hover:border-red-300 transition" title="Retirer des favoris" aria-label="Retirer ce lieu des favoris"><i class="fas fa-star text-lg" aria-hidden="true"></i></button>
+                        <button type="button" onclick="event.stopPropagation(); removeFavorite('${safeId}')" class="touch-manipulation flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border-2 border-indigo-200 text-amber-500 hover:text-red-600 hover:border-red-300 transition" title="Retirer des favoris" aria-label="Retirer ce lieu des favoris"><i class="fas fa-star text-lg" aria-hidden="true"></i></button>
                     </div>
-                    <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="cursor-pointer">${widgetRow}</div>
+                    <div class="flex items-center gap-2 mt-2 pl-7" onclick="event.stopPropagation()">
+                        <button type="button" onclick="adjustFavRadius('${safeId}', -5)" class="touch-manipulation flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--cb-border2)] text-[var(--cb-muted)] hover:border-[var(--cb-accent)] hover:text-[var(--cb-accent)] transition text-base font-bold select-none" aria-label="Réduire le rayon de 5 km" title="−5 km">−</button>
+                        <span class="text-xs text-[var(--cb-muted)] price-num select-none">~${favRadius}\u202fkm</span>
+                        <button type="button" onclick="adjustFavRadius('${safeId}', 5)" class="touch-manipulation flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--cb-border2)] text-[var(--cb-muted)] hover:border-[var(--cb-accent)] hover:text-[var(--cb-accent)] transition text-base font-bold select-none" aria-label="Augmenter le rayon de 5 km" title="+5 km">+</button>
+                    </div>
+                    <div onclick="findStationsNearFav(${f.lat}, ${f.lon}, '${safeName}', '${safeId}')" class="cursor-pointer">${widgetRow}</div>
                 </div>`;
         }
     }
     list.innerHTML = allHtml;
+    // Drag & drop pour réorganiser les favoris
+    if (favDnD) favDnD.destroy();
+    favDnD = null;
+    if (userFavorites.length > 1) {
+        favDnD = new TouchDragReorder(list, {
+            onReorder: (from, slotIdx) => reorderFavorite(from, slotIdx)
+        });
+    }
 }
 
 /** Tolérance float (€) pour considérer deux prix comme égaux. */
@@ -1266,25 +1454,36 @@ function prixColorTag(stationId, carburant, prix) {
 
 // UI Navigation Tabs
 function switchTab(tab) {
-    const activeTabCls = ['font-extrabold', 'text-indigo-700', 'border-indigo-600', 'bg-white/90', 'shadow-inner'];
-    const inactiveTabCls = ['font-bold', 'text-slate-600', 'border-transparent', 'hover:text-indigo-700', 'hover:bg-white/60'];
+    // Si la vue station est ouverte, revenir à l'accueil avant de changer d'onglet
+    const stationView = document.getElementById('station-view');
+    if (stationView && !stationView.classList.contains('hidden')) {
+        goHome();
+    }
+
+    // Onglet Favoris (mobile) : affiche l'aside, masque le panel principal
+    const homeView = document.getElementById('home-view');
+    if (homeView) homeView.classList.toggle('fav-tab', tab === 'favoris');
+
+    // Panes + boutons panel-tab (desktop)
     ['recherche', 'palmares', 'statistiques'].forEach(t => {
-        const btn = document.getElementById(`tab-${t}`);
-        const pane = document.getElementById(`pane-${t}`);
-        if (t === tab) {
-            btn.setAttribute('aria-selected', 'true');
-            inactiveTabCls.forEach(c => btn.classList.remove(c));
-            activeTabCls.forEach(c => btn.classList.add(c));
-            btn.classList.remove('font-bold', 'text-slate-600');
-            pane.classList.remove('hidden');
-        } else {
-            btn.setAttribute('aria-selected', 'false');
-            activeTabCls.forEach(c => btn.classList.remove(c));
-            inactiveTabCls.forEach(c => btn.classList.add(c));
-            btn.classList.remove('font-extrabold', 'text-indigo-700', 'bg-white/90', 'shadow-inner');
-            pane.classList.add('hidden');
+        const panelBtn = document.getElementById(`tab-${t}`);
+        const navBtn   = document.getElementById(`nav-tab-${t}`);
+        const pane     = document.getElementById(`pane-${t}`);
+        const isActive = t === tab;
+        if (panelBtn) panelBtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        if (navBtn)   navBtn.setAttribute('aria-selected',   isActive ? 'true' : 'false');
+        if (pane) {
+            if (isActive) pane.classList.remove('hidden');
+            else          pane.classList.add('hidden');
         }
     });
+
+    // Bottom nav (inclut favoris)
+    ['recherche', 'palmares', 'statistiques', 'favoris'].forEach(t => {
+        const btn = document.getElementById(`bn-${t}`);
+        if (btn) btn.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+    });
+
     if (tab === 'palmares' && palmaresMap) setTimeout(() => palmaresMap.invalidateSize(), 100);
     if (tab === 'statistiques') renderDashboard();
 }
@@ -1772,7 +1971,7 @@ async function performSearch() {
 function geolocateMe() {
     if (!navigator.geolocation) { alert("La géolocalisation n'est pas supportée."); return; }
     const resultsContainer = document.getElementById('search-results');
-    resultsContainer.innerHTML = `<div class="py-6 text-center rounded-2xl border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-indigo-50/40 shadow-sm" role="status" aria-live="polite"><span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-md mb-2 mx-auto" aria-hidden="true"><i class="fas fa-compass fa-spin text-xl"></i></span><p class="font-extrabold text-cyan-950 text-sm">Localisation en cours…</p><p class="text-xs text-slate-600 mt-1">Autorisez l’accès si le navigateur le demande</p></div>`;
+    resultsContainer.innerHTML = `<div class="py-6 text-center rounded-2xl border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-indigo-50/40 shadow-sm" role="status" aria-live="polite"><span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-md mb-2 mx-auto" aria-hidden="true"><i class="fas fa-compass fa-spin text-xl"></i></span><p class="font-extrabold text-cyan-950 text-sm">Localisation en cours…</p><p class="text-xs text-slate-600 mt-1">Autorisez l'accès si le navigateur le demande</p></div>`;
     
     navigator.geolocation.getCurrentPosition(
         (pos) => findStationsNear(pos.coords.latitude, pos.coords.longitude, "Votre position actuelle"),
@@ -1782,10 +1981,10 @@ function geolocateMe() {
 
 function applyFuelSort(fuel) {
     if (!currentProximitySearch) return;
-    renderStationsList(currentProximitySearch.lat, currentProximitySearch.lon, currentProximitySearch.labelTitle, fuel);
+    withSearchRadius(() => renderStationsList(currentProximitySearch.lat, currentProximitySearch.lon, currentProximitySearch.labelTitle, fuel));
 }
 
-function findStationsNear(lat, lon, labelTitle) {
+function findStationsNear(lat, lon, labelTitle, customRadius) {
     if (!document.getElementById('home-view').classList.contains('hidden')) {
         pushNav({ type: 'home' });
     }
@@ -1796,8 +1995,8 @@ function findStationsNear(lat, lon, labelTitle) {
 
     currentGeoZone = null;
     stationDetailSearchAnchor = null;
-    currentProximitySearch = { lat, lon, labelTitle };
-    renderStationsList(lat, lon, labelTitle, userFuels[0] || "");
+    currentProximitySearch = { lat, lon, labelTitle, customRadius: customRadius || null };
+    withSearchRadius(() => renderStationsList(lat, lon, labelTitle, userFuels[0] || ""));
 }
 
 function renderStationsList(lat, lon, labelTitle, sortFuel) {
@@ -1832,7 +2031,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
     `;
 
     if (stationsInRadius.length === 0) {
-        html += uiNoticeBlock('fa-circle-notch', 'bg-indigo-500', `Aucune station dans un rayon d’environ ${radiusSettingKmHtml()}.`, 'Ouvrez les <strong class="text-slate-800">paramètres</strong> (icône en haut à droite) pour augmenter le rayon ou cocher d’autres carburants.');
+        html += uiNoticeBlock('fa-circle-notch', 'bg-indigo-500', `Aucune station dans un rayon d'environ ${radiusSettingKmHtml()}.`, 'Ouvrez les <strong class="text-slate-800">param\u00e8tres</strong> (ic\u00f4ne en haut \u00e0 droite) pour augmenter le rayon ou cocher d\'autres carburants.');
     } else {
         html += buildBestPricesWidget(stationsInRadius);
         if (topStations.length === 0) {
@@ -1845,7 +2044,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
         html += `
             <div class="mb-5 rounded-2xl border-2 border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/40 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div class="min-w-0">
-                    <label for="sort-fuel-select" class="flex items-center gap-2 text-sm font-extrabold text-slate-800"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md"><i class="fas fa-sort-amount-down" aria-hidden="true"></i></span>Ordre d’affichage</label>
+                    <label for="sort-fuel-select" class="flex items-center gap-2 text-sm font-extrabold text-slate-800"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md"><i class="fas fa-sort-amount-down" aria-hidden="true"></i></span>Ordre d'affichage</label>
                     <p class="mt-1.5 text-xs font-semibold text-slate-600 pl-11 sm:pl-0 sm:ml-11 leading-snug">Liste : ${listeLabel}</p>
                 </div>
                 <select id="sort-fuel-select" onchange="applyFuelSort(this.value)" class="min-h-[3rem] py-3 px-3 border-2 border-indigo-200 rounded-xl text-base font-bold text-indigo-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto md:min-w-[14rem] touch-manipulation shadow-inner">
@@ -2443,7 +2642,7 @@ function initStationMap(markersData, isMultiple = false) {
     if (stationMap) { stationMap.remove(); }
     
     if (markersData.length === 0) {
-        document.getElementById('station-map').innerHTML = '<div class="h-full w-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-slate-50 text-slate-600 font-semibold rounded-xl border-2 border-slate-200 px-4 text-center" role="status"><span class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-300 text-white shadow-inner" aria-hidden="true"><i class="fas fa-map-marker-slash text-xl"></i></span><span class="text-sm font-extrabold text-slate-800">Carte indisponible</span><span class="text-xs text-slate-500 max-w-xs">Cette fiche n’a pas de coordonnées GPS pour afficher la position.</span></div>';
+        document.getElementById('station-map').innerHTML = '<div class="h-full w-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-slate-50 text-slate-600 font-semibold rounded-xl border-2 border-slate-200 px-4 text-center" role="status"><span class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-300 text-white shadow-inner" aria-hidden="true"><i class="fas fa-map-marker-slash text-xl"></i></span><span class="text-sm font-extrabold text-slate-800">Carte indisponible</span><span class="text-xs text-slate-500 max-w-xs">Cette fiche n\'a pas de coordonn\u00e9es GPS pour afficher la position.</span></div>';
         return;
     }
 

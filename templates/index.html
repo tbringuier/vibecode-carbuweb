@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="light">
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="#1C1917">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Carbu'Web">
     <title>Carbu'Web</title>
     <meta name="description" content="Comparez les prix des carburants en France : recherche par lieu, autour de vous, palmarès et statistiques (données ouvertes).">
@@ -14,533 +14,795 @@
     <meta property="og:title" content="Carbu'Web - Prix des Carburants en France">
     <meta property="og:description" content="Stations-service en France : prix à jour, carte et classements à partir des jeux de données publics.">
     <meta property="og:type" content="website">
-    
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛽</text></svg>">
     <link rel="apple-touch-icon" href="{{ICON_SVG}}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+
     <style>
+        /* ── Tokens de design ───────────────────────────────────── */
         :root {
-            --map-h: clamp(13.75rem, 42dvh, 20rem);
+            --cb-bg:         #F5F3EE;   /* fond papier chaud */
+            --cb-surface:    #FFFFFF;
+            --cb-border:     #E2DDD6;   /* bord stone chaud */
+            --cb-border2:    #D0C9BF;   /* bord appuyé */
+            --cb-text:       #1A1917;   /* quasi-noir chaud */
+            --cb-muted:      #78716C;   /* texte secondaire */
+            --cb-nav:        #1C1917;   /* barre de navigation */
+            --cb-accent:     #2563EB;   /* bleu action */
+            --cb-accent-2:   #1D4ED8;   /* bleu sombre hover */
+            --cb-cheap:      #16A34A;   /* vert meilleur prix */
+            --cb-cheap-bg:   #F0FDF4;
+            --cb-cheap-b:    #BBF7D0;
+            --cb-mid:        #D97706;   /* amber proche min */
+            --cb-mid-bg:     #FFFBEB;
+            --cb-mid-b:      #FDE68A;
+            --cb-dear:       #6D28D9;   /* violet cher */
+            --cb-dear-bg:    #F5F3FF;
+            --cb-dear-b:     #DDD6FE;
+            --cb-tank:       #0D9488;   /* teal plein */
+            --cb-tank-bg:    #F0FDFA;
+            --cb-tank-b:     #99F6E4;
+            --map-h:         clamp(13.75rem, 42dvh, 20rem);
         }
-        @media (min-width: 640px) {
-            :root { --map-h: clamp(17.5rem, 45dvh, 25rem); }
-        }
-        @media (min-width: 1024px) {
-            :root { --map-h: clamp(22rem, 50dvh, 32rem); }
-        }
-        @media (min-width: 1280px) {
-            :root { --map-h: clamp(24rem, 52dvh, 38rem); }
-        }
-        @media (min-width: 1536px) {
-            :root { --map-h: clamp(26rem, 55dvh, 44rem); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            html { scroll-behavior: auto; }
-            .loader { animation: none; border-top-color: #4f46e5; }
-        }
+        @media (min-width:640px)  { :root { --map-h: clamp(17.5rem, 45dvh, 25rem); } }
+        @media (min-width:1024px) { :root { --map-h: clamp(22rem,   50dvh, 32rem); } }
+        @media (min-width:1280px) { :root { --map-h: clamp(24rem,   52dvh, 38rem); } }
+        @media (min-width:1536px) { :root { --map-h: clamp(26rem,   55dvh, 44rem); } }
+
+        /* ── Reset / base ───────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; }
         html {
             scroll-behavior: smooth;
             overflow-x: hidden;
-            max-width: 100%;
             -webkit-text-size-adjust: 100%;
             text-size-adjust: 100%;
             text-rendering: optimizeLegibility;
         }
         body {
+            font-family: 'DM Sans', system-ui, sans-serif;
+            background: var(--cb-bg);
+            color: var(--cb-text);
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             min-height: 100vh;
             min-height: 100dvh;
             max-width: 100%;
             overflow-x: clip;
-            -webkit-tap-highlight-color: rgba(79, 70, 229, 0.12);
+            -webkit-tap-highlight-color: rgba(37,99,235,.1);
         }
-        @supports not (overflow: clip) {
-            body { overflow-x: hidden; }
+        @supports not (overflow: clip) { body { overflow-x: hidden; } }
+
+        /* ── Typographie ────────────────────────────────────────── */
+        .font-display { font-family: 'Syne', system-ui, sans-serif; }
+        .font-mono    { font-family: 'DM Mono', ui-monospace, monospace; }
+        .price-num {
+            font-family: 'DM Mono', ui-monospace, monospace;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -.01em;
         }
-        .layout-shell {
-            width: 100%;
-            max-width: 100%;
-            min-width: 0;
-            margin-left: auto;
-            margin-right: auto;
-            box-sizing: border-box;
-        }
-        /** Large écrans : évite les lignes trop longues, reste pleine largeur sur mobile. */
-        .app-content-max {
-            max-width: min(100%, 112rem);
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .station-map-shell {
-            border-width: 2px;
-            border-color: rgb(199 210 254 / 0.5);
-            border-radius: 0.75rem;
-            overflow: hidden;
-            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            height: var(--map-h);
-            min-height: 13.75rem;
-        }
-        .station-map-shell--neutral {
-            border-color: rgb(226 232 240);
-        }
-        @media (min-width: 1024px) {
-            .station-map-shell.station-map-shell--detail {
-                height: min(26rem, 58vh);
-                min-height: 18rem;
-            }
-        }
-        .station-map-shell .leaflet-container {
-            width: 100%;
-            height: 100%;
-            min-height: 12rem;
-            font-family: inherit;
-        }
+
+        /* ── Skip link ──────────────────────────────────────────── */
         .skip-link {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border: 0;
+            position: absolute; width:1px; height:1px; padding:0;
+            margin:-1px; overflow:hidden; clip:rect(0,0,0,0);
+            white-space:nowrap; border:0;
         }
         .skip-link:focus {
-            position: fixed;
-            left: max(0.75rem, env(safe-area-inset-left, 0px));
-            top: max(0.75rem, env(safe-area-inset-top, 0px));
-            z-index: 100;
-            width: auto;
-            height: auto;
-            margin: 0;
-            padding: 0.625rem 1rem;
-            clip: auto;
-            overflow: visible;
-            white-space: normal;
-            background: #fff;
-            color: #3730a3;
-            font-weight: 600;
-            font-size: 0.875rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-            outline: 2px solid #4f46e5;
-            outline-offset: 2px;
+            position:fixed; left:max(.75rem,env(safe-area-inset-left,0px));
+            top:max(.75rem,env(safe-area-inset-top,0px)); z-index:200;
+            width:auto; height:auto; margin:0; padding:.6rem 1rem;
+            clip:auto; overflow:visible; white-space:normal;
+            background:#fff; color:var(--cb-accent); font-weight:700;
+            font-size:.875rem; border-radius:.5rem;
+            box-shadow:0 4px 24px rgba(0,0,0,.14);
+            outline:2px solid var(--cb-accent); outline-offset:2px;
         }
-        .page-title {
-            letter-spacing: -0.02em;
-            line-height: 1.2;
+
+        /* ── Nav principale (top) ───────────────────────────────── */
+        #top-nav {
+            background: var(--cb-nav);
+            color: #fff;
+            position: sticky; top:0; z-index:50;
+            border-bottom: 1px solid rgba(255,255,255,.06);
         }
-        .section-heading {
-            letter-spacing: -0.015em;
-            line-height: 1.25;
+        .nav-shell {
+            display: flex; align-items: center; gap:.75rem;
+            padding-left:  max(.875rem,env(safe-area-inset-left,0px));
+            padding-right: max(.875rem,env(safe-area-inset-right,0px));
+            padding-top:   max(.625rem,env(safe-area-inset-top,0px));
+            padding-bottom:.625rem;
         }
-        .footer-meta {
-            font-variant-numeric: tabular-nums;
-            min-width: 0;
-            max-width: 100%;
-            overflow-wrap: anywhere;
-            word-break: break-word;
+        @media (min-width:640px) {
+            .nav-shell { padding-left:max(1.25rem,env(safe-area-inset-left,0px)); padding-right:max(1.25rem,env(safe-area-inset-right,0px)); padding-bottom:.75rem; }
         }
-        .footer-meta-row {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: baseline;
-            gap: 0.25rem 0.5rem;
-            min-width: 0;
-            max-width: 100%;
+        @media (min-width:1024px) {
+            .nav-shell { padding-left:max(1.75rem,env(safe-area-inset-left,0px)); padding-right:max(1.75rem,env(safe-area-inset-right,0px)); padding-bottom:.875rem; }
         }
-        .footer-meta-row > span,
-        .footer-meta-row > time {
-            min-width: 0;
-            max-width: 100%;
+        .nav-logo {
+            font-family:'Syne',system-ui,sans-serif;
+            font-weight:800; font-size:1.15rem; line-height:1.2;
+            letter-spacing:-.02em; color:#fff; cursor:pointer;
+            display:flex; align-items:center; gap:.5rem;
+            flex-shrink:0; padding:.25rem 0; user-select:none;
         }
-        .footer-sep.footer-sep-dot {
-            color: #cbd5e1;
-            user-select: none;
+        @media (min-width:640px) { .nav-logo { font-size:1.35rem; } }
+        .nav-logo-icon { color:#FCD34D; }
+
+        /* Tabs desktop inline dans nav */
+        .nav-tabs { display:none; }
+        @media (min-width:1024px) {
+            .nav-tabs {
+                display:flex; align-items:stretch; gap:.25rem;
+                flex:1; justify-content:center;
+            }
+            .nav-tab-btn {
+                padding:.5rem 1.1rem; font-family:'DM Sans',system-ui,sans-serif;
+                font-weight:600; font-size:.9rem; color:rgba(255,255,255,.65);
+                border-radius:.5rem; transition:.15s; white-space:nowrap;
+                display:flex; align-items:center; gap:.45rem;
+                border:1px solid transparent;
+            }
+            .nav-tab-btn:hover { color:#fff; background:rgba(255,255,255,.08); }
+            .nav-tab-btn[aria-selected="true"] {
+                color:#fff; background:rgba(255,255,255,.14);
+                border-color:rgba(255,255,255,.18);
+            }
         }
-        @media (max-width: 639.98px) {
-            .footer-sep.footer-sep-dot { display: none; }
+
+        /* ── Bottom nav (mobile seulement) ─────────────────────── */
+        #bottom-nav {
+            display:flex; position:fixed; bottom:0; left:0; right:0;
+            z-index:50; background:var(--cb-surface);
+            border-top:1px solid var(--cb-border);
+            padding-bottom: env(safe-area-inset-bottom,0px);
         }
-        .footer-git-commit {
-            color: inherit;
-            text-decoration: underline;
-            text-decoration-color: rgba(100, 116, 139, 0.45);
-            text-underline-offset: 2px;
+        @media (min-width:1024px) { #bottom-nav { display:none; } }
+        .bn-item {
+            flex:1; display:flex; flex-direction:column; align-items:center;
+            justify-content:center; gap:.25rem; padding:.55rem .25rem;
+            min-height:3.25rem; cursor:pointer; border:none; background:none;
+            color:var(--cb-muted); font-size:.6rem; font-weight:600;
+            font-family:'DM Sans',system-ui,sans-serif;
+            letter-spacing:.04em; text-transform:uppercase; transition:.15s;
+            -webkit-tap-highlight-color:transparent; touch-action:manipulation;
         }
-        .footer-git-commit:hover {
-            color: #475569;
-            text-decoration-color: rgba(71, 85, 105, 0.7);
+        .bn-item i { font-size:1.1rem; line-height:1; }
+        .bn-item[aria-selected="true"] { color:var(--cb-accent); }
+        .bn-item[aria-selected="true"] i { color:var(--cb-accent); }
+
+        /* ── Layout shell ───────────────────────────────────────── */
+        .app-shell {
+            max-width: min(100%, 112rem);
+            margin: 0 auto;
+            padding-left:  max(.875rem,env(safe-area-inset-left,0px));
+            padding-right: max(.875rem,env(safe-area-inset-right,0px));
         }
-        .footer-git-commit:focus-visible {
-            outline: 2px solid #6366f1;
-            outline-offset: 2px;
-            border-radius: 0.25rem;
+        @media (min-width:640px) {
+            .app-shell { padding-left:max(1.25rem,env(safe-area-inset-left,0px)); padding-right:max(1.25rem,env(safe-area-inset-right,0px)); }
         }
-        .footer-git-commit code {
-            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-            font-size: 0.95em;
-            font-weight: 500;
-            word-break: break-all;
+        @media (min-width:1024px) {
+            .app-shell { padding-left:max(1.75rem,env(safe-area-inset-left,0px)); padding-right:max(1.75rem,env(safe-area-inset-right,0px)); }
         }
-        a:focus-visible,
-        button:focus-visible,
-        input:focus-visible,
-        select:focus-visible,
-        textarea:focus-visible {
-            outline: 2px solid #6366f1;
-            outline-offset: 2px;
+
+        /* ── Carte Leaflet ──────────────────────────────────────── */
+        .station-map-shell {
+            border:1px solid var(--cb-border2);
+            border-radius:.75rem; overflow:hidden;
+            box-shadow:0 1px 3px rgba(0,0,0,.06);
+            height:var(--map-h); min-height:13.75rem;
         }
-        .search-source-pill {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            max-width: min(58vw, 15rem);
-            margin-inline-start: 0.375rem;
-            padding: 0.1875rem 0.5rem;
-            text-transform: none;
-            font-size: clamp(0.6875rem, 0.58rem + 0.4vw, 0.8125rem);
-            font-weight: 600;
-            line-height: 1.25;
-            letter-spacing: 0.02em;
-            color: #4338ca;
-            background-color: #eef2ff;
-            border: 1px solid #c7d2fe;
-            border-radius: 0.375rem;
-            font-variant-numeric: tabular-nums;
-            -webkit-font-smoothing: antialiased;
-            text-rendering: geometricPrecision;
-            box-sizing: border-box;
-        }
-        .distance-km {
-            font-variant-numeric: tabular-nums lining-nums;
-            font-feature-settings: "tnum" 1, "lnum" 1;
-            white-space: nowrap;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4f46e5;
-            border-radius: 50%;
-            width: 2.5rem;
-            height: 2.5rem;
-            animation: spin 1s linear infinite;
-            margin: 1.25rem auto;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .station-map-shell--detail { height:min(26rem,58vh); min-height:18rem; }
+        @media (min-width:1024px) { .station-map-shell--detail { height:min(28rem,60vh); } }
+        .station-map-shell .leaflet-container,
         #station-map, #palmares-map {
-            height: var(--map-h);
-            min-height: 13.75rem;
-            width: 100%;
-            z-index: 10;
-            border-radius: 0.75rem;
-            touch-action: pan-x pan-y pinch-zoom;
+            width:100%; height:100%; min-height:12rem;
+            font-family:inherit; -webkit-font-smoothing:antialiased;
+            border-radius:.75rem;
         }
-        .leaflet-container {
-            font: inherit;
-            -webkit-font-smoothing: antialiased;
+        .leaflet-container img.leaflet-tile { image-rendering:auto; }
+        .leaflet-control-attribution { font-size:.6875rem; max-width:100%; }
+
+        /* ── Cards ──────────────────────────────────────────────── */
+        .cb-card {
+            background:var(--cb-surface);
+            border:1px solid var(--cb-border);
+            border-radius:.875rem;
+            box-shadow:0 1px 4px rgba(0,0,0,.04);
         }
-        .leaflet-container img.leaflet-tile {
-            image-rendering: auto;
+        .cb-card-accent {
+            background:var(--cb-surface);
+            border:1px solid var(--cb-border2);
+            border-radius:.875rem;
+            box-shadow:0 2px 8px rgba(0,0,0,.06);
         }
-        .leaflet-control-attribution {
-            font-size: 0.6875rem;
-            line-height: 1.35;
-            max-width: 100%;
+
+        /* ── Badges prix ────────────────────────────────────────── */
+        .price-cheap { color:var(--cb-cheap); background:var(--cb-cheap-bg); border:1px solid var(--cb-cheap-b); }
+        .price-mid   { color:var(--cb-mid);   background:var(--cb-mid-bg);   border:1px solid var(--cb-mid-b);   }
+        .price-dear  { color:var(--cb-dear);  background:var(--cb-dear-bg);  border:1px solid var(--cb-dear-b);  }
+        .price-neu   { color:var(--cb-text);  background:#F4F4F5;             border:1px solid #E4E4E7;           }
+
+        /* ── Boutons ────────────────────────────────────────────── */
+        .cb-btn {
+            display:inline-flex; align-items:center; justify-content:center;
+            gap:.5rem; padding:.65rem 1.1rem; min-height:2.75rem;
+            border-radius:.625rem; font-weight:600; font-size:.9rem;
+            transition:.15s; cursor:pointer; border:none; touch-action:manipulation;
+            -webkit-tap-highlight-color:transparent;
         }
-        .custom-scrollbar {
-            scrollbar-width: thin;
-            scrollbar-color: #cbd5e1 transparent;
-            -webkit-overflow-scrolling: touch;
+        .cb-btn-primary { background:var(--cb-accent); color:#fff; }
+        .cb-btn-primary:hover { background:var(--cb-accent-2); }
+        .cb-btn-dark { background:var(--cb-nav); color:#fff; }
+        .cb-btn-dark:hover { background:#292524; }
+        .cb-btn-outline {
+            background:transparent; color:var(--cb-text);
+            border:1px solid var(--cb-border2);
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 0.375rem; height: 0.375rem; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 0.25rem; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .touch-pan-x { touch-action: pan-x; overscroll-behavior-x: contain; }
-        .scroll-touch { -webkit-overflow-scrolling: touch; }
-        input[type="range"] {
-            -webkit-appearance: none;
-            appearance: none;
-            height: 0.5rem;
-            border-radius: 0.5rem;
-            background: #e2e8f0;
+        .cb-btn-outline:hover { border-color:var(--cb-accent); color:var(--cb-accent); }
+        .cb-btn-ghost {
+            background:transparent; color:var(--cb-muted);
+            border:1px solid transparent;
         }
+        .cb-btn-ghost:hover { background:var(--cb-bg); color:var(--cb-text); }
+        .cb-btn-danger { background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; }
+        .cb-btn-danger:hover { background:#FEE2E2; }
+
+        /* ── Inputs ─────────────────────────────────────────────── */
+        .cb-input {
+            width:100%; min-height:2.75rem; padding:.6rem .875rem;
+            font-family:inherit; font-size:.9375rem; font-weight:500;
+            color:var(--cb-text); background:var(--cb-surface);
+            border:1px solid var(--cb-border2); border-radius:.625rem;
+            transition:.15s; outline:none;
+        }
+        .cb-input:focus { border-color:var(--cb-accent); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+        .cb-input::placeholder { color:var(--cb-muted); font-weight:400; }
+        .cb-select { appearance:none; padding-right:2rem; cursor:pointer; }
+
+        /* ── Range slider ───────────────────────────────────────── */
+        input[type="range"] { -webkit-appearance:none; appearance:none; height:.375rem; border-radius:1rem; background:var(--cb-border2); outline:none; }
         input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 1.25rem;
-            height: 1.25rem;
-            border-radius: 50%;
-            background: #4f46e5;
-            border: 2px solid #fff;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            cursor: pointer;
-            transition: transform 0.15s ease;
+            -webkit-appearance:none; width:1.25rem; height:1.25rem;
+            border-radius:50%; background:var(--cb-accent);
+            border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2);
+            cursor:pointer; transition:transform .15s;
         }
         input[type="range"]::-moz-range-thumb {
-            width: 1.25rem;
-            height: 1.25rem;
-            border-radius: 50%;
-            background: #4f46e5;
-            border: 2px solid #fff;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            cursor: pointer;
+            width:1.25rem; height:1.25rem; border-radius:50%;
+            background:var(--cb-accent); border:2px solid #fff;
+            box-shadow:0 1px 4px rgba(0,0,0,.2); cursor:pointer;
         }
-        input[type="range"]::-moz-range-track {
-            height: 0.5rem;
-            border-radius: 0.5rem;
-            background: #e2e8f0;
+        @media (pointer:fine) { input[type="range"]::-webkit-slider-thumb:hover { transform:scale(1.15); } }
+
+        /* ── Scrollbar fine ─────────────────────────────────────── */
+        .custom-scrollbar { scrollbar-width:thin; scrollbar-color:var(--cb-border2) transparent; -webkit-overflow-scrolling:touch; }
+        .custom-scrollbar::-webkit-scrollbar { width:.3rem; height:.3rem; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background:var(--cb-border2); border-radius:.5rem; }
+
+        /* ── Loader ─────────────────────────────────────────────── */
+        .loader {
+            border:3px solid var(--cb-border); border-top:3px solid var(--cb-accent);
+            border-radius:50%; width:2.25rem; height:2.25rem;
+            animation:spin 1s linear infinite; margin:1rem auto;
         }
-        @media (pointer: fine) {
-            input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        /* ── Toast ──────────────────────────────────────────────── */
+        #app-toast {
+            transition:opacity .2s ease, transform .2s ease;
+            backdrop-filter:blur(4px);
         }
-        select, input[type="text"], input[type="search"], textarea {
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        #app-toast.toast-hidden { opacity:0; transform:translate(-50%,10px); pointer-events:none; }
+        #app-toast.toast-visible { opacity:1; transform:translate(-50%,0); }
+
+        /* ── Drag handle ────────────────────────────────────────── */
+        .drag-handle {
+            cursor:grab; color:var(--cb-border2); padding:.25rem;
+            touch-action:none; user-select:none; display:flex;
+            align-items:center; justify-content:center;
+            transition:color .15s;
         }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-        #app-toast { transition: opacity 0.25s ease, transform 0.25s ease; }
-        #app-toast.toast-hidden { opacity: 0; transform: translate(-50%, 12px); pointer-events: none; }
-        #app-toast.toast-visible { opacity: 1; transform: translate(-50%, 0); }
+        .drag-handle:hover { color:var(--cb-muted); }
+        .drag-handle:active { cursor:grabbing; }
+
+        /* ── Onboarding ─────────────────────────────────────────── */
+        .onb-step { display:none; }
+        .onb-step.active { display:block; }
+        .onb-dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--cb-border2); transition:.2s; }
+        .onb-dot.active { background:var(--cb-accent); }
+
+        /* ── Search source pill ─────────────────────────────────── */
+        .search-source-pill {
+            display:inline-flex; align-items:center; flex-shrink:0;
+            max-width:min(56vw,14rem); padding:.125rem .5rem;
+            font-size:.6875rem; font-weight:600; letter-spacing:.02em;
+            color:var(--cb-muted); background:var(--cb-bg);
+            border:1px solid var(--cb-border); border-radius:.375rem;
+        }
+
+        /* ── Focus visible ──────────────────────────────────────── */
+        a:focus-visible, button:focus-visible,
+        input:focus-visible, select:focus-visible, textarea:focus-visible {
+            outline:2px solid var(--cb-accent); outline-offset:2px;
+        }
+
+        /* ── Accessibilité réduc. mouvement ─────────────────────── */
+        @media (prefers-reduced-motion:reduce) {
+            html { scroll-behavior:auto; }
+            .loader { animation:none; border-top-color:var(--cb-accent); }
+        }
+
+        /* ── Distance km ────────────────────────────────────────── */
+        .distance-km { font-variant-numeric:tabular-nums lining-nums; white-space:nowrap; }
+
+        /* ── Main padding bottom (space for bottom nav) ─────────── */
+        @media (max-width:1023px) {
+            #main-content { padding-bottom:5rem; }
+        }
+
+        /* ── Station map detail ─────────────────────────────────── */
+        #station-map { height:var(--map-h); min-height:13.75rem; width:100%; z-index:10; border-radius:.75rem; touch-action:pan-x pan-y pinch-zoom; }
+        #palmares-map { height:var(--map-h); min-height:13.75rem; width:100%; z-index:10; border-radius:.75rem; touch-action:pan-x pan-y pinch-zoom; }
+
+        /* ── Footer meta ────────────────────────────────────────── */
+        .footer-meta { font-variant-numeric:tabular-nums; min-width:0; max-width:100%; overflow-wrap:anywhere; word-break:break-word; }
+        .footer-git-commit { color:inherit; text-decoration:underline; text-decoration-color:rgba(120,113,108,.4); text-underline-offset:2px; }
+        .footer-git-commit:hover { text-decoration-color:rgba(120,113,108,.7); }
+        .footer-git-commit code { font-family:'DM Mono',ui-monospace,monospace; font-size:.9em; font-weight:500; word-break:break-all; }
+
+        /* ── DnD ghost ──────────────────────────────────────────── */
+        .dnd-ghost {
+            position:fixed; z-index:9999; pointer-events:none;
+            opacity:.92; transform:scale(1.02) rotate(.4deg);
+            box-shadow:0 16px 40px rgba(0,0,0,.18);
+            border-radius:.875rem; transition:none;
+        }
+        .dnd-placeholder {
+            border:2px dashed var(--cb-border2); border-radius:.875rem;
+            background:var(--cb-bg); transition:height .1s;
+        }
+        .dragging-item { opacity:.25; }
+
+        /* ── Section heading ────────────────────────────────────── */
+        .section-heading { font-family:'Syne',system-ui,sans-serif; letter-spacing:-.02em; }
+
+        /* ── Favoris tab (mobile) ───────────────────────────────── */
+        /* Shows aside, hides main panel on mobile only */
+        #home-view.fav-tab #home-aside { display: block !important; }
+        @media (max-width: 1023px) {
+            #home-view.fav-tab #home-main-panel { display: none; }
+        }
+
+        /* ── Scroll horizontal snap (vehicle bar, tabs) ─────────── */
+        .snap-x-list { display:flex; gap:.5rem; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+        .snap-x-list::-webkit-scrollbar { display:none; }
+        .snap-x-list > * { scroll-snap-align:start; }
+
+        /* ── Tabs panel (desktop) ───────────────────────────────── */
+        .panel-tabs {
+            display:flex; border-bottom:1px solid var(--cb-border);
+            background:var(--cb-surface);
+            border-radius:.875rem .875rem 0 0;
+            overflow:hidden;
+        }
+        @media (min-width:1024px) { .panel-tabs { display:flex; } }
+        /* On mobile they're hidden (bottom nav handles navigation) */
+        @media (max-width:1023px) { .panel-tabs { display:none; } }
+        .panel-tab-btn {
+            flex:1; padding:.75rem .5rem; display:flex; align-items:center;
+            justify-content:center; gap:.4rem; font-weight:600;
+            font-size:.85rem; color:var(--cb-muted); border:none; background:none;
+            border-bottom:2px solid transparent; cursor:pointer; transition:.15s;
+            touch-action:manipulation; white-space:nowrap;
+        }
+        .panel-tab-btn[aria-selected="true"] {
+            color:var(--cb-accent); border-bottom-color:var(--cb-accent);
+            background:rgba(37,99,235,.04);
+        }
+        .panel-tab-btn:hover:not([aria-selected="true"]) { color:var(--cb-text); background:var(--cb-bg); }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen min-h-[100dvh] flex flex-col text-[0.9375rem] leading-relaxed sm:text-base sm:leading-relaxed w-full max-w-[100%] min-w-0 overflow-x-clip">
-    <a href="#app" class="skip-link">Aller au contenu principal</a>
-    <nav class="w-full min-w-0 max-w-full overflow-x-clip bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg sticky top-0 z-50 backdrop-blur-sm supports-[backdrop-filter]:bg-indigo-600/95" aria-label="En-tête">
-        <div class="layout-shell app-content-max flex justify-between items-center gap-3 min-w-0 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(1.5rem,env(safe-area-inset-left,0px))] lg:pr-[max(1.5rem,env(safe-area-inset-right,0px))] xl:pl-[max(2rem,env(safe-area-inset-left,0px))] xl:pr-[max(2rem,env(safe-area-inset-right,0px))] 2xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] 2xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] pt-[max(0.625rem,env(safe-area-inset-top,0px))] pb-2.5 sm:pb-3 md:pb-4">
-            <h1 class="page-title text-lg sm:text-2xl md:text-[1.65rem] font-extrabold cursor-pointer min-w-0 truncate touch-manipulation py-1" onclick="goHome()">
-                <i class="fas fa-gas-pump mr-1.5 sm:mr-2 text-yellow-300 shrink-0" aria-hidden="true"></i>Carbu'Web
+<body class="min-h-screen min-h-[100dvh] flex flex-col overflow-x-clip">
+    <a href="#main-content" class="skip-link">Aller au contenu principal</a>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         NAVIGATION PRINCIPALE (top, sticky)
+    ═══════════════════════════════════════════════════════════════ -->
+    <nav id="top-nav" aria-label="En-tête">
+        <div class="nav-shell">
+            <h1 class="nav-logo" onclick="goHome()" title="Accueil">
+                <i class="fas fa-gas-pump nav-logo-icon" aria-hidden="true"></i>
+                Carbu'Web
             </h1>
-            <button type="button" id="btn-open-settings" onclick="toggleSettings()" aria-expanded="false" aria-controls="settings-modal" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] sm:min-h-[2.75rem] sm:min-w-[2.75rem] hover:text-yellow-300 transition text-xl rounded-xl sm:rounded-full hover:bg-white/10 active:bg-white/15 shrink-0" aria-label="Ouvrir les paramètres (rayon, carburants)">
-                <i class="fas fa-cog" aria-hidden="true"></i>
-            </button>
+
+            <!-- Tabs desktop (inline nav) -->
+            <div class="nav-tabs" role="tablist" aria-label="Sections">
+                <button type="button" role="tab" id="nav-tab-recherche"   aria-selected="true"  onclick="switchTab('recherche')"   class="nav-tab-btn"><i class="fas fa-search" aria-hidden="true"></i><span>Recherche</span></button>
+                <button type="button" role="tab" id="nav-tab-palmares"    aria-selected="false" onclick="switchTab('palmares')"    class="nav-tab-btn"><i class="fas fa-trophy" aria-hidden="true"></i><span>Palmarès</span></button>
+                <button type="button" role="tab" id="nav-tab-statistiques" aria-selected="false" onclick="switchTab('statistiques')" class="nav-tab-btn"><i class="fas fa-chart-bar" aria-hidden="true"></i><span>Statistiques</span></button>
+            </div>
+
+            <div class="flex items-center gap-1 ml-auto">
+                <button type="button" id="btn-open-settings" onclick="toggleSettings()"
+                    aria-expanded="false" aria-controls="settings-modal"
+                    aria-label="Paramètres"
+                    class="cb-btn cb-btn-ghost text-white/80 hover:text-white hover:bg-white/10 min-h-[2.5rem] min-w-[2.5rem] !gap-0 rounded-lg">
+                    <i class="fas fa-sliders-h text-base" aria-hidden="true"></i>
+                </button>
+            </div>
         </div>
     </nav>
 
-    <div id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" class="hidden fixed inset-0 bg-black/45 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border-2 border-indigo-200/50 w-full max-w-md lg:max-w-lg max-h-[min(90dvh,90vh)] sm:max-h-[85dvh] overflow-y-auto custom-scrollbar animate-[fadeIn_0.15s_ease-out] pb-[max(1rem,env(safe-area-inset-bottom,0px))] sm:pb-6">
-            <div class="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-4 sm:px-6 py-4 -mx-0 sm:rounded-t-2xl mb-5 shadow-inner">
-                <div class="flex justify-between items-center gap-3">
-                <h2 id="settings-modal-title" class="section-heading text-xl font-extrabold flex items-center gap-2"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20" aria-hidden="true"><i class="fas fa-sliders-h text-lg"></i></span>Paramètres</h2>
-                <button type="button" onclick="toggleSettings()" class="touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] -mr-1 text-white/90 hover:bg-white/15 rounded-xl transition" aria-label="Fermer les paramètres"><i class="fas fa-times text-xl" aria-hidden="true"></i></button>
-                </div>
-                <p class="text-sm text-blue-100 mt-2 font-medium leading-snug">Rayon, carburants suivis et véhicules (réservoir pour l’estimation du plein).</p>
-            </div>
-            <div class="px-4 sm:px-6">
-            
-            <div class="mb-6">
-                <div class="flex justify-between items-center mb-2">
-                    <label class="block text-sm font-semibold text-slate-700" id="vehicles-section-label"><i class="fas fa-car mr-1.5 text-indigo-500" aria-hidden="true"></i>Mes véhicules</label>
-                </div>
-                <div id="vehicles-list" class="space-y-2 mb-3"></div>
-                <div id="vehicle-form" class="hidden bg-gradient-to-br from-slate-50 to-indigo-50/30 border-2 border-indigo-200/60 rounded-2xl p-3 mb-3 space-y-3 shadow-sm">
-                    <div id="vehicle-name-field-wrap">
-                        <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="vehicle-name-input">Nom du véhicule</label>
-                        <input type="text" id="vehicle-name-input" placeholder="ex. : Citadine" maxlength="30" autocomplete="off" class="vehicle-form-input w-full min-h-[2.75rem] py-2 px-3 text-sm bg-white border-2 border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 font-medium transition-colors">
-                        <p id="vehicle-name-error" class="hidden text-xs font-bold text-red-700 mt-1.5 flex items-center gap-1.5" role="alert"><i class="fas fa-exclamation-circle shrink-0" aria-hidden="true"></i>Indiquez un nom.</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">Icône</label>
-                        <div id="vehicle-icon-picker" class="flex flex-wrap gap-1.5"></div>
-                    </div>
-                    <div id="vehicle-fuels-field-wrap" class="rounded-xl transition-[box-shadow,background-color] duration-150">
-                        <span class="block text-xs font-semibold text-slate-600 mb-1.5" id="vehicle-fuels-label">Carburants</span>
-                        <div id="vehicle-fuel-checkboxes" class="flex flex-wrap gap-1.5" role="group" aria-labelledby="vehicle-fuels-label"></div>
-                        <p id="vehicle-fuels-error" class="hidden text-xs font-bold text-red-700 mt-1.5 flex items-center gap-1.5" role="alert"><i class="fas fa-exclamation-circle shrink-0" aria-hidden="true"></i>Cochez au moins un carburant.</p>
-                    </div>
-                    <div id="vehicle-tank-field-wrap">
-                        <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="vehicle-tank-input">Réservoir (litres) <span class="font-normal text-slate-400">— optionnel</span></label>
-                        <input type="number" id="vehicle-tank-input" min="1" max="999" step="1" placeholder="ex : 50" inputmode="numeric" class="vehicle-form-input w-full min-h-[2.75rem] py-2 px-3 text-sm bg-white border-2 border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 font-medium tabular-nums transition-colors">
-                        <p id="vehicle-tank-error" class="hidden text-xs font-bold text-red-700 mt-1.5 flex items-center gap-1.5" role="alert"><i class="fas fa-exclamation-circle shrink-0" aria-hidden="true"></i>Entre 1 et 999 litres, ou laissez vide.</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button type="button" id="vehicle-form-save" onclick="saveVehicleForm()" class="touch-manipulation flex-1 bg-indigo-600 text-white font-bold py-2 rounded-xl text-sm hover:bg-indigo-700 transition min-h-[2.75rem]"><i class="fas fa-check mr-1"></i>Enregistrer</button>
-                        <button type="button" onclick="closeVehicleForm()" class="touch-manipulation px-4 py-2 bg-slate-200 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-300 transition min-h-[2.75rem]">Annuler</button>
-                    </div>
-                </div>
-                <button type="button" id="vehicle-add-btn" onclick="openVehicleForm()" class="touch-manipulation w-full py-2.5 min-h-[2.75rem] border-2 border-dashed border-slate-300 text-slate-500 font-semibold rounded-xl text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition flex items-center justify-center gap-2"><i class="fas fa-plus"></i>Ajouter un véhicule</button>
+    <!-- ═══════════════════════════════════════════════════════════════
+         MODALE PARAMÈTRES
+    ═══════════════════════════════════════════════════════════════ -->
+    <div id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title"
+        class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md lg:max-w-lg max-h-[min(90dvh,90vh)] sm:max-h-[85dvh] overflow-y-auto custom-scrollbar pb-[max(1rem,env(safe-area-inset-bottom,0px))] sm:pb-6 border border-[var(--cb-border)]">
+
+            <!-- Header -->
+            <div class="sticky top-0 z-10 bg-[var(--cb-nav)] text-white px-5 py-4 rounded-t-2xl sm:rounded-t-2xl flex justify-between items-center gap-3">
+                <h2 id="settings-modal-title" class="section-heading text-lg font-bold flex items-center gap-2.5">
+                    <i class="fas fa-sliders-h" aria-hidden="true"></i>Paramètres
+                </h2>
+                <button type="button" onclick="toggleSettings()"
+                    class="cb-btn cb-btn-ghost text-white/70 hover:text-white hover:bg-white/10 min-h-[2.5rem] min-w-[2.5rem] !gap-0 rounded-lg"
+                    aria-label="Fermer les paramètres">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
             </div>
 
-            <hr class="border-slate-200 mb-6">
+            <div class="px-5 pt-5">
 
-            <div class="mb-6">
-                <label class="block text-sm font-semibold text-slate-700 mb-2" for="radius-slider">
-                    Rayon de recherche : <span id="radius-display" class="text-indigo-600 font-bold tabular-nums">10</span>&nbsp;km <span class="font-normal text-slate-500 font-medium">(ordre de grandeur route)</span>
-                </label>
-                <input type="range" id="radius-slider" min="1" max="50" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" aria-valuemin="1" aria-valuemax="50" aria-describedby="radius-help">
-                <p id="radius-help" class="text-xs text-slate-500 mt-1.5 leading-snug">Les stations proposées et les distances affichées s’appuient sur une estimation de trajet routier, pas à vol d’oiseau.</p>
-            </div>
+                <!-- Véhicules -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="text-sm font-semibold text-[var(--cb-text)] flex items-center gap-2" id="vehicles-section-label">
+                            <i class="fas fa-car text-[var(--cb-accent)]" aria-hidden="true"></i>Mes véhicules
+                        </label>
+                    </div>
+                    <div id="vehicles-list" class="space-y-2 mb-3"></div>
 
-            <button type="button" onclick="resetSettings()" class="touch-manipulation w-full text-sm text-red-700 hover:text-white hover:bg-red-600 font-extrabold py-3 min-h-[2.75rem] mt-4 transition text-center flex justify-center items-center rounded-2xl border-2 border-red-200 bg-red-50">
-                <i class="fas fa-trash-alt mr-2" aria-hidden="true"></i>Réinitialiser paramètres et favoris
-            </button>
-            </div>
+                    <!-- Formulaire véhicule -->
+                    <div id="vehicle-form" class="hidden cb-card p-4 mb-3 space-y-3 border-[var(--cb-accent)]/30">
+                        <div id="vehicle-name-field-wrap">
+                            <label class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5" for="vehicle-name-input">Nom du véhicule</label>
+                            <input type="text" id="vehicle-name-input" placeholder="ex. : Citadine" maxlength="30" autocomplete="off"
+                                class="cb-input vehicle-form-input">
+                            <p id="vehicle-name-error" class="hidden text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1.5" role="alert">
+                                <i class="fas fa-exclamation-circle shrink-0" aria-hidden="true"></i>Indiquez un nom.
+                            </p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5">Icône</label>
+                            <div id="vehicle-icon-picker" class="flex flex-wrap gap-1.5"></div>
+                        </div>
+                        <div id="vehicle-fuels-field-wrap" class="rounded-lg transition-all">
+                            <span class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5" id="vehicle-fuels-label">Carburants</span>
+                            <div id="vehicle-fuel-checkboxes" class="flex flex-wrap gap-1.5" role="group" aria-labelledby="vehicle-fuels-label"></div>
+                            <p id="vehicle-fuels-error" class="hidden text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1.5" role="alert">
+                                <i class="fas fa-exclamation-circle shrink-0" aria-hidden="true"></i>Cochez au moins un carburant.
+                            </p>
+                        </div>
+                        <div id="vehicle-tank-field-wrap">
+                            <label class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5" for="vehicle-tank-input">
+                                Réservoir (litres) <span class="font-normal text-[var(--cb-muted)] opacity-70">— optionnel</span>
+                            </label>
+                            <input type="number" id="vehicle-tank-input" min="1" max="999" step="1" placeholder="ex : 50"
+                                inputmode="numeric" class="cb-input vehicle-form-input">
+                            <p id="vehicle-tank-error" class="hidden text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1.5" role="alert">
+                                <i class="fas fa-exclamation-circle shrink-0" aria-hidden="true"></i>Entre 1 et 999 litres, ou laissez vide.
+                            </p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" id="vehicle-form-save" onclick="saveVehicleForm()"
+                                class="cb-btn cb-btn-primary flex-1 min-h-[2.75rem]">
+                                <i class="fas fa-check" aria-hidden="true"></i>Enregistrer
+                            </button>
+                            <button type="button" onclick="closeVehicleForm()"
+                                class="cb-btn cb-btn-outline px-4 min-h-[2.75rem]">
+                                Annuler
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" id="vehicle-add-btn" onclick="openVehicleForm()"
+                        class="w-full min-h-[2.75rem] border border-dashed border-[var(--cb-border2)] text-[var(--cb-muted)] font-semibold rounded-lg text-sm hover:border-[var(--cb-accent)] hover:text-[var(--cb-accent)] hover:bg-[var(--cb-bg)] transition flex items-center justify-center gap-2">
+                        <i class="fas fa-plus" aria-hidden="true"></i>Ajouter un véhicule
+                    </button>
+                </div>
+
+                <hr class="border-[var(--cb-border)] mb-6">
+
+                <!-- Rayon -->
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-[var(--cb-text)] mb-2" for="radius-slider">
+                        Rayon de recherche : <span id="radius-display" class="text-[var(--cb-accent)] font-bold price-num">10</span>&nbsp;km
+                    </label>
+                    <input type="range" id="radius-slider" min="1" max="50" value="10"
+                        class="w-full" aria-valuemin="1" aria-valuemax="50" aria-describedby="radius-help">
+                    <p id="radius-help" class="text-xs text-[var(--cb-muted)] mt-1.5 leading-snug">
+                        Rayon de recherche autour d'un point. Les distances affichées sont estimées en trajet routier.
+                    </p>
+                </div>
+
+                <!-- Reset -->
+                <button type="button" onclick="resetSettings()"
+                    class="cb-btn cb-btn-danger w-full min-h-[2.75rem] mb-2 font-semibold">
+                    <i class="fas fa-trash-alt" aria-hidden="true"></i>Réinitialiser paramètres et favoris
+                </button>
+
+            </div><!-- /px-5 -->
         </div>
     </div>
 
-    <main class="layout-shell app-content-max flex-grow w-full min-w-0 max-w-full overflow-x-clip pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(1.5rem,env(safe-area-inset-left,0px))] lg:pr-[max(1.5rem,env(safe-area-inset-right,0px))] xl:pl-[max(2rem,env(safe-area-inset-left,0px))] xl:pr-[max(2rem,env(safe-area-inset-right,0px))] 2xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] 2xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] py-3 sm:py-5 mt-2 sm:mt-4" id="app" tabindex="-1">
-        <div id="loading" class="text-center mt-16 sm:mt-20 max-w-sm mx-auto px-4" role="status" aria-live="polite" aria-busy="true">
-            <div class="inline-flex flex-col items-center rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white px-8 py-10 shadow-md">
-                <div class="loader" aria-hidden="true"></div>
-                <p class="text-slate-800 font-extrabold mt-5 text-base">Chargement des stations…</p>
-                <p class="text-slate-600 text-sm mt-2 leading-relaxed">Données publiques, mise en cache locale.</p>
-            </div>
-        </div>
+    <!-- ═══════════════════════════════════════════════════════════════
+         CONTENU PRINCIPAL
+    ═══════════════════════════════════════════════════════════════ -->
+    <main id="main-content" class="flex-grow w-full min-w-0 overflow-x-clip py-4 sm:py-5" tabindex="-1">
+        <div class="app-shell">
 
-        <div id="vehicle-bar" class="hidden mb-4" role="toolbar" aria-label="Filtrer l’affichage par véhicule">
-            <div class="flex gap-2 overflow-x-auto custom-scrollbar scroll-touch snap-x snap-mandatory pb-1" id="vehicle-bar-list" role="group"></div>
-        </div>
-
-        <div id="home-view" class="hidden min-w-0 max-w-full">
-            <div class="grid grid-cols-1 lg:grid-cols-12 lg:gap-5 lg:items-start xl:gap-6">
-
-            <aside class="min-w-0 lg:col-span-4 xl:col-span-4 space-y-4 sm:space-y-5 mb-4 sm:mb-5 lg:mb-0">
-            <div id="welcome-card" class="relative bg-gradient-to-br from-white via-indigo-50/40 to-cyan-50/30 rounded-2xl shadow-md border-2 border-indigo-200/60 p-4 sm:p-5 overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-200/20 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none" aria-hidden="true"></div>
-                <button type="button" onclick="dismissWelcome()" class="touch-manipulation absolute top-3 right-3 sm:top-4 sm:right-4 z-10 inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] rounded-xl bg-white/80 border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition shadow-sm" aria-label="Fermer la carte de bienvenue"><i class="fas fa-times text-lg" aria-hidden="true"></i></button>
-                <h2 class="section-heading text-lg sm:text-xl font-extrabold text-slate-900 mb-2 pr-12 flex items-center gap-2"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shrink-0" aria-hidden="true"><i class="fas fa-hand-sparkles"></i></span>Bienvenue</h2>
-                <p class="text-sm text-slate-700 font-semibold mb-4 max-w-prose leading-relaxed">Prix à jour, <strong class="text-indigo-800">sources officielles</strong>. Trois accès rapides :</p>
-                <ul class="text-sm text-slate-600 space-y-3 max-w-prose">
-                    <li class="flex gap-3 items-start"><i class="fas fa-search text-indigo-500 w-5 shrink-0 mt-0.5 text-center" aria-hidden="true"></i> <span><strong class="text-slate-700">Recherche</strong> — adresse, ville ou code postal, ou position actuelle.</span></li>
-                    <li class="flex gap-3 items-start"><i class="fas fa-trophy text-amber-500 w-5 shrink-0 mt-0.5 text-center" aria-hidden="true"></i> <span><strong class="text-slate-700">Palmarès</strong> — classement par carburant et zone.</span></li>
-                    <li class="flex gap-3 items-start"><i class="fas fa-chart-pie text-purple-500 w-5 shrink-0 mt-0.5 text-center" aria-hidden="true"></i> <span><strong class="text-slate-700">Statistiques</strong> — moyennes nationales et par région.</span></li>
-                </ul>
-                <p class="text-xs text-slate-500 mt-4">Rayon et carburants : icône <span class="whitespace-nowrap">« paramètres »</span> en haut à droite.</p>
-            </div>
-
-            <div id="favorites-container" class="hidden">
-                <h2 class="section-heading text-lg font-extrabold text-slate-900 mb-3 flex flex-wrap items-center gap-2"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shadow-sm" aria-hidden="true"><i class="fas fa-star"></i></span>Lieux enregistrés</h2>
-                <div id="favorites-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5 sm:gap-3"></div>
-            </div>
-            </aside>
-
-            <div class="min-w-0 lg:col-span-8 xl:col-span-8 bg-white rounded-2xl shadow-md border-2 border-slate-200/80 overflow-hidden lg:shadow-lg">
-                <div class="flex border-b-2 border-slate-200/80 bg-gradient-to-r from-slate-50 to-indigo-50/30 overflow-x-auto custom-scrollbar snap-x snap-mandatory" role="tablist" aria-label="Sections principales">
-                    <button type="button" role="tab" onclick="switchTab('recherche')" id="tab-recherche" aria-selected="true" class="touch-manipulation flex-1 min-w-[31%] sm:min-w-0 snap-start py-3.5 sm:py-4 px-1 text-xs sm:text-base font-extrabold text-indigo-700 border-b-2 border-indigo-600 bg-white/90 shadow-inner transition leading-tight"><i class="fas fa-search mr-0.5 sm:mr-2 shrink-0 text-indigo-500" aria-hidden="true"></i><span class="truncate">Recherche</span></button>
-                    <button type="button" role="tab" onclick="switchTab('palmares')" id="tab-palmares" aria-selected="false" class="touch-manipulation flex-1 min-w-[31%] sm:min-w-0 snap-start py-3.5 sm:py-4 px-1 text-xs sm:text-base font-bold text-slate-600 hover:text-indigo-700 hover:bg-white/60 border-b-2 border-transparent transition leading-tight"><i class="fas fa-trophy text-amber-500 mr-0.5 sm:mr-2 shrink-0" aria-hidden="true"></i><span class="truncate">Palmarès</span></button>
-                    <button type="button" role="tab" onclick="switchTab('statistiques')" id="tab-statistiques" aria-selected="false" class="touch-manipulation flex-1 min-w-[31%] sm:min-w-0 snap-start py-3.5 sm:py-4 px-1 text-xs sm:text-base font-bold text-slate-600 hover:text-indigo-700 hover:bg-white/60 border-b-2 border-transparent transition leading-tight"><i class="fas fa-chart-pie text-purple-500 mr-0.5 sm:mr-2 shrink-0" aria-hidden="true"></i><span class="truncate sm:max-w-none"><span class="sm:hidden">Stats</span><span class="hidden sm:inline">Statistiques</span></span></button>
+            <!-- Chargement -->
+            <div id="loading" class="text-center mt-16 sm:mt-20 max-w-xs mx-auto" role="status" aria-live="polite" aria-busy="true">
+                <div class="cb-card p-8 flex flex-col items-center gap-3">
+                    <div class="loader" aria-hidden="true"></div>
+                    <p class="font-semibold text-[var(--cb-text)]">Chargement des stations…</p>
+                    <p class="text-sm text-[var(--cb-muted)]">Données publiques, mise en cache locale.</p>
                 </div>
+            </div>
 
-                <div class="p-4 sm:p-5 lg:p-6">
-                    <div id="pane-recherche" class="space-y-4">
-                        <button type="button" onclick="geolocateMe()" class="touch-manipulation w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-extrabold py-3.5 sm:py-3 min-h-[3rem] rounded-2xl hover:from-indigo-700 hover:to-blue-700 active:opacity-95 transition flex justify-center items-center gap-3 mb-4 px-3 text-sm sm:text-base text-center leading-snug shadow-md border-2 border-indigo-700/20">
-                            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 shrink-0" aria-hidden="true"><i class="fas fa-location-arrow text-lg"></i></span><span>Stations autour de ma position</span>
-                        </button>
-                        
-                        <div class="relative">
-                            <label for="search-input" class="sr-only">Rechercher une adresse ou une station</label>
-                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none text-base" aria-hidden="true"></i>
-                            <input type="search" id="search-input" enterkeyhint="search" autocomplete="street-address" placeholder="Adresse, ville, code postal…" class="w-full min-h-[3rem] py-3 pl-12 pr-4 text-base bg-white border-2 border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 font-semibold shadow-sm placeholder:text-slate-400" oninput="debouncedSearch()">
-                        </div>
-                        <div id="search-results" class="space-y-3 max-h-[min(60dvh,60vh)] overflow-y-auto pr-1 sm:pr-2 custom-scrollbar scroll-touch"></div>
-                    </div>
+            <!-- Barre véhicules -->
+            <div id="vehicle-bar" class="hidden mb-4" role="toolbar" aria-label="Filtrer par véhicule">
+                <div class="snap-x-list" id="vehicle-bar-list" role="group" aria-label="Véhicules"></div>
+            </div>
 
-                    <div id="pane-palmares" class="hidden space-y-4">
-                        <p class="text-sm text-slate-700 font-semibold leading-snug border-l-4 border-amber-400 pl-3 py-2 bg-amber-50/60 rounded-r-lg">Choisissez un <strong class="text-slate-900">carburant</strong> et une <strong class="text-slate-900">zone</strong>, puis lancez le classement.</p>
-                        <div class="flex flex-col md:flex-row md:items-end gap-4 min-w-0">
-                            <div class="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-3.5">
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="palmares-carb">Carburant</label>
-                                <select id="palmares-carb" class="w-full min-h-[2.75rem] py-2.5 px-3 sm:min-h-[3rem] sm:py-3 sm:px-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base"></select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="palmares-sort">Ordre de tri</label>
-                                <select id="palmares-sort" class="w-full min-h-[2.75rem] py-2.5 px-3 sm:min-h-[3rem] sm:py-3 sm:px-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base">
-                                    <option value="asc">Prix croissant</option>
-                                    <option value="desc">Prix décroissant</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="select-region">Région</label>
-                                <select id="select-region" onchange="updateDepartments()" class="w-full min-h-[2.75rem] py-2.5 px-3 sm:min-h-[3rem] sm:py-3 sm:px-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base">
-                                    <option value="national">🇫🇷 Toute la France</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1" for="select-dept">Département</label>
-                                <select id="select-dept" class="w-full min-h-[2.75rem] py-2.5 px-3 sm:min-h-[3rem] sm:py-3 sm:px-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium text-base disabled:opacity-50" disabled>
-                                    <option value="">Optionnel</option>
-                                </select>
-                            </div>
-                            </div>
-                            <button type="button" onclick="findCheapest()" class="touch-manipulation w-full md:w-auto md:min-w-[13rem] shrink-0 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white font-extrabold py-3 sm:py-3.5 min-h-[2.85rem] md:min-h-[3rem] rounded-2xl hover:brightness-105 active:opacity-95 transition shadow-lg border-2 border-orange-600/30 flex justify-center items-center gap-2 sm:gap-3 text-sm sm:text-base px-4 self-stretch md:self-auto">
-                            <span class="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-white/20 shrink-0" aria-hidden="true"><i class="fas fa-search-dollar text-lg sm:text-xl"></i></span><span class="text-center leading-tight sm:whitespace-nowrap">Afficher le<br class="sm:hidden" aria-hidden="true"> palmarès</span>
-                        </button>
-                        </div>
-                        
-                        <div id="palmares-map" class="hidden station-map-shell station-map-shell--neutral w-full max-w-full min-w-0"></div>
-                        <div id="palmares-results" class="space-y-2.5 sm:space-y-3"></div>
-                    </div>
+            <!-- ──────────────────────────────────────────────────────
+                 VUE ACCUEIL
+            ────────────────────────────────────────────────────── -->
+            <div id="home-view" class="hidden min-w-0 max-w-full">
+                <div class="grid grid-cols-1 lg:grid-cols-12 lg:gap-5 xl:gap-6 lg:items-start">
 
-                    <div id="pane-statistiques" class="hidden space-y-4 lg:space-y-5">
-                        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-2 lg:gap-6">
-                        <h2 class="section-heading text-xl sm:text-2xl font-extrabold text-slate-900 flex flex-wrap items-center gap-3 shrink-0"><span class="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-100 text-purple-600 shadow-sm" aria-hidden="true"><i class="fas fa-chart-bar text-xl"></i></span>Vue d’ensemble nationale</h2>
-                        <p class="text-sm text-slate-700 font-semibold max-w-prose lg:max-w-md leading-relaxed lg:text-right">Moyennes et répartition sur <strong class="text-slate-900">toutes les stations</strong> du jeu de données courant.</p>
-                        </div>
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
-                            <div class="bg-gradient-to-br from-white to-indigo-50/20 p-3 sm:p-5 border-2 border-slate-200/80 rounded-2xl shadow-sm">
-                                <h3 class="section-heading font-extrabold mb-3 sm:mb-4 text-center text-slate-800 text-sm sm:text-base">Prix moyens par carburant</h3>
-                                <div class="relative mx-auto w-full h-[210px] sm:h-[270px] lg:h-[300px] max-w-full">
-                                    <canvas id="chart-nat-prices" role="img" aria-label="Graphique des prix moyens nationaux par type de carburant"></canvas>
+                    <!-- Aside (favoris + onboarding) — visible desktop, masqué mobile sauf tab Favoris -->
+                    <aside id="home-aside" class="min-w-0 hidden lg:block lg:col-span-4 xl:col-span-4 space-y-4 mb-4 lg:mb-0">
+
+                        <!-- Onboarding -->
+                        <div id="welcome-card" class="cb-card-accent overflow-hidden">
+                            <div class="bg-[var(--cb-nav)] text-white px-4 py-3 flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-yellow-300" aria-hidden="true"><i class="fas fa-gas-pump"></i></span>
+                                    <span class="section-heading font-bold text-base">Bienvenue sur Carbu'Web</span>
                                 </div>
+                                <button type="button" onclick="dismissWelcome()"
+                                    class="text-white/60 hover:text-white transition min-h-[2rem] min-w-[2rem] flex items-center justify-center rounded-lg hover:bg-white/10"
+                                    aria-label="Fermer">
+                                    <i class="fas fa-times" aria-hidden="true"></i>
+                                </button>
                             </div>
-                            <div class="bg-gradient-to-br from-white to-violet-50/20 p-3 sm:p-5 border-2 border-slate-200/80 rounded-2xl shadow-sm">
-                                <h3 class="section-heading font-extrabold mb-3 sm:mb-4 text-center text-slate-800 text-sm sm:text-base">Stations proposant chaque carburant</h3>
-                                <div class="relative mx-auto w-full h-[210px] sm:h-[270px] lg:h-[300px] max-w-full flex items-center justify-center">
-                                    <canvas id="chart-nat-fuels" role="img" aria-label="Répartition du nombre de stations par carburant"></canvas>
+                            <div class="p-4">
+                                <!-- Étape 1 -->
+                                <div class="onb-step active" id="onb-1">
+                                    <p class="text-sm text-[var(--cb-muted)] mb-3 leading-relaxed">
+                                        Prix à jour depuis les <strong class="text-[var(--cb-text)]">sources officielles</strong>. Trois façons d'explorer :
+                                    </p>
+                                    <ul class="space-y-2.5 text-sm text-[var(--cb-muted)]">
+                                        <li class="flex gap-2.5 items-start">
+                                            <i class="fas fa-search text-[var(--cb-accent)] w-4 shrink-0 mt-0.5" aria-hidden="true"></i>
+                                            <span><strong class="text-[var(--cb-text)]">Recherche</strong> — adresse, ville, code postal ou position GPS</span>
+                                        </li>
+                                        <li class="flex gap-2.5 items-start">
+                                            <i class="fas fa-trophy text-amber-500 w-4 shrink-0 mt-0.5" aria-hidden="true"></i>
+                                            <span><strong class="text-[var(--cb-text)]">Palmarès</strong> — classement des moins chères par zone</span>
+                                        </li>
+                                        <li class="flex gap-2.5 items-start">
+                                            <i class="fas fa-chart-bar text-purple-500 w-4 shrink-0 mt-0.5" aria-hidden="true"></i>
+                                            <span><strong class="text-[var(--cb-text)]">Statistiques</strong> — moyennes nationales et régionales</span>
+                                        </li>
+                                    </ul>
+                                    <p class="text-xs text-[var(--cb-muted)] mt-3 border-t border-[var(--cb-border)] pt-3">
+                                        Configurez votre rayon et vos carburants via le bouton <i class="fas fa-sliders-h" aria-hidden="true"></i> en haut à droite.
+                                    </p>
+                                </div>
+                                <!-- Dots + actions -->
+                                <div class="flex items-center justify-between mt-4 pt-3 border-t border-[var(--cb-border)]">
+                                    <div class="flex gap-1.5 items-center">
+                                        <div class="onb-dot active" aria-hidden="true"></div>
+                                    </div>
+                                    <button type="button" onclick="dismissWelcome()"
+                                        class="cb-btn cb-btn-outline text-xs py-1.5 px-3 min-h-0 rounded-md">
+                                        C'est parti !
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 pt-2 border-t border-slate-200/80">
-                        <h2 class="section-heading text-xl sm:text-2xl font-extrabold text-slate-900 flex flex-wrap items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 shadow-sm" aria-hidden="true"><i class="fas fa-map-marked-alt text-xl"></i></span>Moyennes par région</h2>
-                        <p class="text-sm text-slate-600 font-medium max-w-prose sm:max-w-sm sm:text-right leading-snug">Régions dépliables · colonnes <strong class="text-slate-800">triables</strong></p>
-                        </div>
-                        <div class="overflow-x-auto touch-pan-x bg-white border-2 border-slate-200/80 rounded-2xl shadow-md custom-scrollbar">
-                            <table class="w-full text-sm text-left text-slate-600" id="table-regions"></table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            </div>
-        </div>
 
-        <div id="station-view" class="hidden min-w-0 max-w-full w-full max-w-6xl xl:max-w-7xl mx-auto">
-            <div class="flex justify-between items-center gap-2 mb-4 sm:mb-6">
-                <button type="button" onclick="goBack()" class="group touch-manipulation text-indigo-800 font-extrabold hover:text-white transition flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 px-4 py-2.5 min-h-[2.75rem] rounded-2xl hover:from-indigo-600 hover:to-blue-600 hover:border-indigo-600 active:opacity-95 text-sm sm:text-base shrink-0 shadow-sm">
-                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-indigo-200 text-indigo-600 group-hover:bg-white/20" aria-hidden="true"><i class="fas fa-arrow-left text-sm"></i></span>Retour
-                </button>
-                <button type="button" id="btn-favorite-station" class="hidden touch-manipulation inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-2xl transition hover:scale-110 active:scale-95 rounded-full" title="Favori" aria-label="Favori"><i class="far fa-star text-slate-300 hover:text-yellow-400" aria-hidden="true"></i></button>
+                        <!-- Favoris -->
+                        <div id="favorites-container" class="hidden">
+                            <h2 class="section-heading text-base font-bold text-[var(--cb-text)] mb-3 flex items-center gap-2">
+                                <i class="fas fa-star text-amber-400" aria-hidden="true"></i>Lieux enregistrés
+                            </h2>
+                            <div id="favorites-list" class="space-y-2.5"></div>
+                        </div>
+                    </aside>
+
+                    <!-- Panel principal avec tabs -->
+                    <div id="home-main-panel" class="min-w-0 lg:col-span-8 xl:col-span-8">
+                        <div class="cb-card overflow-hidden">
+
+                            <!-- Tabs desktop -->
+                            <div class="panel-tabs" role="tablist" aria-label="Sections principales">
+                                <button type="button" role="tab" id="tab-recherche"    aria-selected="true"  onclick="switchTab('recherche')"    class="panel-tab-btn"><i class="fas fa-search" aria-hidden="true"></i><span>Recherche</span></button>
+                                <button type="button" role="tab" id="tab-palmares"     aria-selected="false" onclick="switchTab('palmares')"     class="panel-tab-btn"><i class="fas fa-trophy" aria-hidden="true"></i><span>Palmarès</span></button>
+                                <button type="button" role="tab" id="tab-statistiques" aria-selected="false" onclick="switchTab('statistiques')" class="panel-tab-btn"><i class="fas fa-chart-bar" aria-hidden="true"></i><span class="hidden sm:inline">Statistiques</span><span class="sm:hidden">Stats</span></button>
+                            </div>
+
+                            <div class="p-4 sm:p-5 lg:p-6">
+
+                                <!-- ─── Recherche ─── -->
+                                <div id="pane-recherche" class="space-y-4">
+                                    <button type="button" onclick="geolocateMe()"
+                                        class="cb-btn cb-btn-dark w-full min-h-[3rem] text-sm sm:text-base font-semibold">
+                                        <i class="fas fa-location-arrow" aria-hidden="true"></i>
+                                        Stations autour de ma position
+                                    </button>
+
+                                    <div class="relative">
+                                        <label for="search-input" class="sr-only">Rechercher une adresse ou une station</label>
+                                        <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--cb-muted)] pointer-events-none text-sm" aria-hidden="true"></i>
+                                        <input type="search" id="search-input" enterkeyhint="search"
+                                            autocomplete="street-address"
+                                            placeholder="Adresse, ville, code postal…"
+                                            class="cb-input pl-10"
+                                            oninput="debouncedSearch()">
+                                    </div>
+                                    <div id="search-results" class="space-y-2 max-h-[min(62dvh,62vh)] overflow-y-auto pr-0.5 custom-scrollbar"></div>
+                                </div>
+
+                                <!-- ─── Palmarès ─── -->
+                                <div id="pane-palmares" class="hidden space-y-4">
+                                    <p class="text-sm text-[var(--cb-muted)] border-l-2 border-amber-400 pl-3 py-1.5 leading-snug">
+                                        Choisissez un <strong class="text-[var(--cb-text)]">carburant</strong> et une <strong class="text-[var(--cb-text)]">zone</strong>, puis lancez le classement.
+                                    </p>
+                                    <div class="flex flex-col md:flex-row md:items-end gap-3 min-w-0">
+                                        <div class="min-w-0 flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                            <div>
+                                                <label class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5" for="palmares-carb">Carburant</label>
+                                                <select id="palmares-carb" class="cb-input cb-select"></select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5" for="palmares-sort">Tri</label>
+                                                <select id="palmares-sort" class="cb-input cb-select">
+                                                    <option value="asc">Prix croissant</option>
+                                                    <option value="desc">Prix décroissant</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5" for="select-region">Région</label>
+                                                <select id="select-region" onchange="updateDepartments()" class="cb-input cb-select">
+                                                    <option value="national">🇫🇷 France entière</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-semibold text-[var(--cb-muted)] mb-1.5" for="select-dept">Département</label>
+                                                <select id="select-dept" class="cb-input cb-select disabled:opacity-40" disabled>
+                                                    <option value="">Optionnel</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <button type="button" onclick="findCheapest()"
+                                            class="cb-btn cb-btn-primary w-full md:w-auto md:min-w-[11rem] min-h-[2.75rem] font-semibold shrink-0">
+                                            <i class="fas fa-search-dollar" aria-hidden="true"></i>
+                                            Afficher le palmarès
+                                        </button>
+                                    </div>
+                                    <div id="palmares-map" class="hidden station-map-shell w-full max-w-full min-w-0"></div>
+                                    <div id="palmares-results" class="space-y-2.5 sm:space-y-3"></div>
+                                </div>
+
+                                <!-- ─── Statistiques ─── -->
+                                <div id="pane-statistiques" class="hidden space-y-5">
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                        <h2 class="section-heading text-xl font-bold text-[var(--cb-text)] flex items-center gap-2">
+                                            <i class="fas fa-chart-bar text-purple-500" aria-hidden="true"></i>Vue nationale
+                                        </h2>
+                                        <p class="text-xs text-[var(--cb-muted)]">Moyennes sur toutes les stations indexées</p>
+                                    </div>
+                                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <div class="cb-card p-4">
+                                            <h3 class="text-xs font-semibold text-[var(--cb-muted)] uppercase tracking-wide mb-3 text-center">Prix moyens / L</h3>
+                                            <div class="relative mx-auto w-full h-[200px] sm:h-[250px]">
+                                                <canvas id="chart-nat-prices" role="img" aria-label="Graphique des prix moyens par carburant"></canvas>
+                                            </div>
+                                        </div>
+                                        <div class="cb-card p-4">
+                                            <h3 class="text-xs font-semibold text-[var(--cb-muted)] uppercase tracking-wide mb-3 text-center">Stations par carburant</h3>
+                                            <div class="relative mx-auto w-full h-[200px] sm:h-[250px] flex items-center justify-center">
+                                                <canvas id="chart-nat-fuels" role="img" aria-label="Répartition du nombre de stations par carburant"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 pt-2 border-t border-[var(--cb-border)]">
+                                        <h2 class="section-heading text-base font-bold text-[var(--cb-text)] flex items-center gap-2">
+                                            <i class="fas fa-map-marked-alt text-[var(--cb-accent)]" aria-hidden="true"></i>Moyennes par région
+                                        </h2>
+                                        <p class="text-xs text-[var(--cb-muted)]">Colonnes triables · régions dépliables</p>
+                                    </div>
+                                    <div class="overflow-x-auto cb-card custom-scrollbar">
+                                        <table class="w-full text-sm text-left" id="table-regions"></table>
+                                    </div>
+                                </div>
+
+                            </div><!-- /p-4 -->
+                        </div><!-- /cb-card -->
+                    </div><!-- /col-span-8 -->
+                </div><!-- /grid -->
+            </div><!-- /home-view -->
+
+            <!-- ──────────────────────────────────────────────────────
+                 VUE STATION (détail / liste proximité / zone)
+            ────────────────────────────────────────────────────── -->
+            <div id="station-view" class="hidden min-w-0 max-w-full max-w-5xl xl:max-w-6xl mx-auto">
+                <div class="flex justify-between items-center gap-2 mb-4">
+                    <button type="button" onclick="goBack()"
+                        class="cb-btn cb-btn-outline gap-2 text-sm font-semibold">
+                        <i class="fas fa-arrow-left text-xs" aria-hidden="true"></i>Retour
+                    </button>
+                    <button type="button" id="btn-favorite-station"
+                        class="hidden min-h-[2.75rem] min-w-[2.75rem] flex items-center justify-center text-2xl transition hover:scale-110 active:scale-95 rounded-lg"
+                        title="Favori" aria-label="Favori">
+                        <i class="far fa-star text-[var(--cb-border2)] hover:text-amber-400" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div id="station-content"></div>
             </div>
-            <div id="station-content"></div>
-        </div>
+
+        </div><!-- /app-shell -->
     </main>
 
-    <div id="app-toast" role="status" aria-live="polite" class="toast-hidden fixed left-1/2 z-[90] max-w-[min(92vw,22rem)] px-4 py-3.5 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white text-sm font-bold shadow-2xl border border-white/10 flex items-center gap-3 justify-center text-center" style="bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem));"></div>
+    <!-- ═══════════════════════════════════════════════════════════════
+         BOTTOM NAV (mobile seulement)
+    ═══════════════════════════════════════════════════════════════ -->
+    <nav id="bottom-nav" aria-label="Navigation principale (mobile)">
+        <button type="button" role="tab" id="bn-recherche"    aria-selected="true"  onclick="switchTab('recherche')"    class="bn-item"><i class="fas fa-search" aria-hidden="true"></i>Recherche</button>
+        <button type="button" role="tab" id="bn-palmares"     aria-selected="false" onclick="switchTab('palmares')"     class="bn-item"><i class="fas fa-trophy" aria-hidden="true"></i>Palmarès</button>
+        <button type="button" role="tab" id="bn-statistiques" aria-selected="false" onclick="switchTab('statistiques')" class="bn-item"><i class="fas fa-chart-bar" aria-hidden="true"></i>Stats</button>
+        <button type="button" role="tab" id="bn-favoris"      aria-selected="false" onclick="switchTab('favoris')"      class="bn-item"><i class="fas fa-star" aria-hidden="true"></i>Favoris</button>
+    </nav>
 
+    <!-- Toast -->
+    <div id="app-toast" role="status" aria-live="polite"
+        class="toast-hidden fixed left-1/2 z-[90] max-w-[min(90vw,20rem)] px-4 py-3 rounded-xl bg-[var(--cb-nav)] text-white text-sm font-medium shadow-xl border border-white/10 flex items-center gap-2.5"
+        style="bottom:max(5.5rem,calc(env(safe-area-inset-bottom,0px)+5rem))"></div>
 
-    <footer class="mt-auto w-full min-w-0 max-w-full overflow-x-clip border-t border-slate-200/90 bg-white/90 text-slate-500" role="contentinfo">
-        <div class="layout-shell app-content-max py-5 sm:py-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(1.5rem,env(safe-area-inset-left,0px))] lg:pr-[max(1.5rem,env(safe-area-inset-right,0px))] xl:pl-[max(2rem,env(safe-area-inset-left,0px))] xl:pr-[max(2rem,env(safe-area-inset-right,0px))] 2xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] 2xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))]">
-            <div class="footer-meta text-center text-[0.6875rem] sm:text-xs leading-relaxed text-slate-500 w-full max-w-4xl mx-auto px-0 sm:px-2">
-                <p class="text-slate-600 footer-meta-row">
+    <!-- ═══════════════════════════════════════════════════════════════
+         FOOTER
+    ═══════════════════════════════════════════════════════════════ -->
+    <footer class="border-t border-[var(--cb-border)] bg-[var(--cb-surface)] text-[var(--cb-muted)]" role="contentinfo">
+        <div class="app-shell py-5 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
+            <div class="footer-meta text-center text-xs leading-relaxed max-w-3xl mx-auto">
+                <p class="flex flex-wrap justify-center gap-x-2.5 gap-y-0.5">
                     <span>{{FUEL_DATA_UPDATE_FOOTER_HTML}}</span>
-                    <span class="footer-sep footer-sep-dot" aria-hidden="true">·</span>
-                    <span><span id="footer-station-count" class="tabular-nums font-medium text-slate-700">{{STATION_COUNT}}</span> stations indexées</span>
-                    <span class="footer-sep footer-sep-dot" aria-hidden="true">·</span>
-                    <span>Site généré <time datetime="{{BUILD_DATETIME_ISO}}" title="Heure de Paris (build)">{{BUILD_DATETIME_PARIS}}</time></span>
-                    <span class="footer-sep footer-sep-dot" aria-hidden="true">·</span>
+                    <span aria-hidden="true" class="text-[var(--cb-border2)]">·</span>
+                    <span><span id="footer-station-count" class="price-num font-medium text-[var(--cb-text)]">{{STATION_COUNT}}</span> stations</span>
+                    <span aria-hidden="true" class="text-[var(--cb-border2)]">·</span>
+                    <span>Généré <time datetime="{{BUILD_DATETIME_ISO}}">{{BUILD_DATETIME_PARIS}}</time></span>
+                    <span aria-hidden="true" class="text-[var(--cb-border2)]">·</span>
                     <span>Commit {{GIT_COMMIT_HTML}}</span>
                 </p>
-                <p class="mt-3 text-slate-400 max-w-3xl mx-auto px-0 sm:px-1 text-pretty">
-                    Données ouvertes : <a href="https://data.economie.gouv.fr/explore/dataset/prix-carburants-quotidien/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500 break-words">prix-carburants-quotidien</a>
-                    <span class="text-slate-300 mx-1" aria-hidden="true">(</span>jour {{BUILD_DATE}}<span class="text-slate-300 mx-1" aria-hidden="true">)</span>
-                    et <a href="https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500 break-words">flux instantané</a>.
+                <p class="mt-2 text-[.6875rem] leading-relaxed max-w-xl mx-auto">
+                    Données : <a href="https://data.economie.gouv.fr/explore/dataset/prix-carburants-quotidien/information/" target="_blank" rel="noopener noreferrer" class="underline decoration-[var(--cb-border2)] underline-offset-2 hover:text-[var(--cb-text)]">prix-carburants-quotidien</a>
+                    ({{BUILD_DATE}}) et <a href="https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/information/" target="_blank" rel="noopener noreferrer" class="underline decoration-[var(--cb-border2)] underline-offset-2 hover:text-[var(--cb-text)]">flux instantané</a>.
                 </p>
-                <p class="mt-3 min-w-0 max-w-full flex justify-center px-1">
-                    <a href="https://github.com/tbringuier/vibecode-carbuweb" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-slate-500 font-medium hover:text-indigo-600 transition underline decoration-transparent hover:decoration-indigo-300 underline-offset-2 max-w-full min-w-0 break-words text-center"><i class="fab fa-github text-base shrink-0" aria-hidden="true"></i><span class="min-w-0">Code source sur GitHub</span></a>
+                <p class="mt-2">
+                    <a href="https://github.com/tbringuier/vibecode-carbuweb" target="_blank" rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1.5 hover:text-[var(--cb-text)] transition">
+                        <i class="fab fa-github" aria-hidden="true"></i>Code source
+                    </a>
                 </p>
             </div>
         </div>

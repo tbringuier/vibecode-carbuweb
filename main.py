@@ -71,7 +71,9 @@ EXCEL_RT_URL = (
 ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]
 
 # Au-delà de ce délai (jours calendaires depuis la date de mise à jour du prix), la donnée est ignorée.
-MAX_PRICE_DATA_AGE_DAYS = 7
+# 30 jours : couvre les stations dont le prix n'a pas changé depuis plusieurs semaines (ex. Total qui
+# n'a pas modifié ses prix depuis >7j — la donnée était faussement marquée « en rupture »).
+MAX_PRICE_DATA_AGE_DAYS = 30
 
 # Colonnes flux instantané (export XLSX data.gouv, libellés FR)
 RT_FUEL_COLUMNS = (
@@ -573,8 +575,9 @@ def merge_flux_instantane(db):
             maj_iso, flux_date = flux_maj_iso_and_date(row.get(time_col))
             if not maj_iso or not flux_date:
                 continue
-            if _price_row_is_stale_by_calendar(flux_date):
-                continue
+            # Le flux instantané n'est jamais ignoré pour péremption : il représente l'état
+            # déclaré en temps réel par la station dans le système gouvernemental. Une station
+            # qui n'a pas modifié son prix depuis >7j (ex. Total) doit rester visible.
             existing = st["carburants_disponibles"].get(fuel)
             if not flux_replaces_daily_entry(existing, maj_iso):
                 continue
