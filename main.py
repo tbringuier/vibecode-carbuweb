@@ -928,7 +928,14 @@ def generate_site():
     with open(build_json, "w", encoding="utf-8") as f:
         json.dump(db_out, f, ensure_ascii=False, separators=(",", ":"))
 
-    # index.html — métadonnées de build + minify
+    # Build timestamp for cache-busting filenames
+    build_ts = str(int(time.time()))
+
+    # Timestamped asset filenames
+    app_js_name = f"app.{build_ts}.js"
+    icon_svg_name = f"icon.{build_ts}.svg"
+
+    # index.html — métadonnées de build + asset placeholders + minify
     with open(os.path.join(TEMPLATES_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
     build_dt = datetime.now(ZoneInfo("Europe/Paris"))
@@ -943,21 +950,35 @@ def generate_site():
         "{{FUEL_DATA_UPDATE_FOOTER_HTML}}", footer_fuel_data_update_html(db_out["meta"])
     )
     html = html.replace("{{GIT_COMMIT_HTML}}", _git_commit_footer_html(commit_short, commit_url))
+    html = html.replace("{{APP_JS}}", app_js_name)
+    html = html.replace("{{ICON_SVG}}", icon_svg_name)
     with open(os.path.join(BUILD_DIR, "index.html"), "w", encoding="utf-8") as f:
         f.write(minify_html(html))
 
-    # app.js — minify
+    # app.js — minify with timestamped name
     with open(os.path.join(TEMPLATES_DIR, "app.js"), "r", encoding="utf-8") as f:
         js = f.read()
-    with open(os.path.join(BUILD_DIR, "app.js"), "w", encoding="utf-8") as f:
+    with open(os.path.join(BUILD_DIR, app_js_name), "w", encoding="utf-8") as f:
         f.write(minify_js(js))
 
-    for extra in ("sw.js", "icon.svg", "CNAME"):
+    # icon.svg — copy with timestamped name
+    icon_src = os.path.join(TEMPLATES_DIR, "icon.svg")
+    if os.path.isfile(icon_src):
+        shutil.copy2(icon_src, os.path.join(BUILD_DIR, icon_svg_name))
+
+    # Clean up old timestamped files from previous builds
+    for pattern in ("app.*.js", "icon.*.svg"):
+        for old in glob.glob(os.path.join(BUILD_DIR, pattern)):
+            basename = os.path.basename(old)
+            if basename != app_js_name and basename != icon_svg_name:
+                os.remove(old)
+
+    for extra in ("sw.js", "CNAME"):
         src = os.path.join(TEMPLATES_DIR, extra)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(BUILD_DIR, extra))
 
-    log.info("Static site written to %s/", BUILD_DIR)
+    log.info("Static site written to %s/  (assets: %s, %s)", BUILD_DIR, app_js_name, icon_svg_name)
 
 
 # ---------------------------------------------------------------------------
