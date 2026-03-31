@@ -175,10 +175,12 @@ function renderVehicleBar() {
     }
     bar.classList.remove('hidden');
     const isAll = !activeVehicleId;
-    let html = `<button type="button" onclick="switchVehicle(null)" class="touch-manipulation snap-start flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition border ${isAll ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}"><i class="fas fa-list-ul"></i>Tous</button>`;
+    const chipOn = 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-900/10 ring-2 ring-indigo-500/30';
+    const chipOff = 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/90 active:bg-indigo-50';
+    let html = `<button type="button" onclick="switchVehicle(null)" aria-pressed="${isAll}" class="touch-manipulation snap-start min-h-[2.5rem] flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-extrabold whitespace-nowrap transition border-2 ${isAll ? chipOn : chipOff}"><i class="fas fa-list-ul text-[0.85em] opacity-90" aria-hidden="true"></i><span>Tous</span></button>`;
     userVehicles.forEach(v => {
         const active = activeVehicleId === v.id;
-        html += `<button type="button" onclick="switchVehicle('${v.id}')" class="touch-manipulation snap-start flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition border ${active ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}"><i class="fas ${v.icon}"></i>${esc(v.name)}</button>`;
+        html += `<button type="button" onclick="switchVehicle('${v.id}')" aria-pressed="${active}" class="touch-manipulation snap-start min-h-[2.5rem] flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-extrabold whitespace-nowrap transition border-2 ${active ? chipOn : chipOff}"><i class="fas ${v.icon} text-[0.85em] opacity-90" aria-hidden="true"></i><span class="truncate max-w-[10rem] sm:max-w-[14rem]">${esc(v.name)}</span></button>`;
     });
     list.innerHTML = html;
 }
@@ -248,7 +250,7 @@ function refreshVisibleViewsAfterDbSwap() {
     }
 
     const palmTab = document.getElementById('tab-palmares');
-    if (palmTab && palmTab.classList.contains('border-indigo-600')) {
+    if (palmTab && palmTab.getAttribute('aria-selected') === 'true') {
         try {
             findCheapest();
         } catch (e) {
@@ -283,6 +285,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         debouncedSaveSettings();
     });
 
+    const vNameEl = document.getElementById('vehicle-name-input');
+    vNameEl?.addEventListener('input', () => {
+        if (vNameEl.value.trim()) setVehicleNameError(false);
+    });
+    const vTankEl = document.getElementById('vehicle-tank-input');
+    vTankEl?.addEventListener('input', () => {
+        const t = vTankEl.value.trim();
+        if (t === '') {
+            setVehicleTankError(false);
+            return;
+        }
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n) && n >= 1 && n <= 999) setVehicleTankError(false);
+    });
+
     try {
         db = await fetchDataJsonFresh();
 
@@ -305,7 +322,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         cleanupLegacyServiceWorkers();
         startPeriodicDataRefresh();
     } catch (e) {
-        document.getElementById('loading').innerHTML = `<p class="text-red-500 font-bold mb-3"><i class="fas fa-exclamation-triangle mr-2"></i>Impossible de charger les données.</p><p class="text-sm text-slate-500 mb-4">${esc(e.message || String(e))}</p><button onclick="location.reload()" class="bg-indigo-600 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-700 transition"><i class="fas fa-redo mr-2"></i>Réessayer</button>`;
+        document.getElementById('loading').innerHTML = `<div class="max-w-md mx-auto px-2">${uiNoticeBlock('fa-plug', 'bg-red-500', 'Impossible de charger les données.', `<p class="text-left text-sm">${esc(e.message || String(e))}</p>`)}<button type="button" onclick="location.reload()" class="touch-manipulation mt-4 w-full min-h-[3rem] bg-indigo-600 text-white font-extrabold px-6 py-3 rounded-2xl hover:bg-indigo-700 transition shadow-md border-2 border-indigo-700/30"><i class="fas fa-redo mr-2" aria-hidden="true"></i>Recharger la page</button></div>`;
     }
 });
 
@@ -323,6 +340,15 @@ function normalizeText(text) {
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Bloc d’information / vide : contraste élevé, lisible, `role="status"` pour les lecteurs d’écran. */
+function uiNoticeBlock(iconClass, iconWrapClass, title, bodyHtml) {
+    return `<div class="p-5 sm:p-6 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/20 text-center shadow-sm" role="status">
+        <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl ${iconWrapClass} text-white shadow-md mb-3 mx-auto" aria-hidden="true"><i class="fas ${iconClass} text-xl"></i></span>
+        <p class="font-extrabold text-slate-900 text-sm sm:text-base leading-snug">${title}</p>
+        ${bodyHtml ? `<div class="text-sm text-slate-600 mt-2 max-w-lg mx-auto leading-relaxed">${bodyHtml}</div>` : ''}
+    </div>`;
 }
 
 function formatFrInt(n) {
@@ -438,25 +464,92 @@ function hasTrackedFuel(station) {
 // Gestion véhicules (paramètres)
 let editingVehicleId = null;
 
+function clearVehicleFormErrors() {
+    const nameIn = document.getElementById('vehicle-name-input');
+    const tankIn = document.getElementById('vehicle-tank-input');
+    const fuelWrap = document.getElementById('vehicle-fuels-field-wrap');
+    const errCls = ['border-red-500', 'bg-red-50', 'ring-2', 'ring-red-400', 'focus:ring-red-500', 'focus:border-red-500'];
+    if (nameIn) {
+        errCls.forEach(c => nameIn.classList.remove(c));
+        nameIn.removeAttribute('aria-invalid');
+    }
+    document.getElementById('vehicle-name-error')?.classList.add('hidden');
+    if (tankIn) {
+        errCls.forEach(c => tankIn.classList.remove(c));
+        tankIn.removeAttribute('aria-invalid');
+    }
+    document.getElementById('vehicle-tank-error')?.classList.add('hidden');
+    if (fuelWrap) {
+        ['ring-2', 'ring-red-400', 'bg-red-50/50', 'border', 'border-red-200', 'p-2', '-m-0.5'].forEach(c => fuelWrap.classList.remove(c));
+    }
+    document.getElementById('vehicle-fuels-error')?.classList.add('hidden');
+}
+
+function setVehicleNameError(show) {
+    const el = document.getElementById('vehicle-name-input');
+    const err = document.getElementById('vehicle-name-error');
+    if (!el) return;
+    const errCls = ['border-red-500', 'bg-red-50', 'ring-2', 'ring-red-400', 'focus:ring-red-500', 'focus:border-red-500'];
+    if (show) {
+        errCls.forEach(c => el.classList.add(c));
+        el.setAttribute('aria-invalid', 'true');
+        err?.classList.remove('hidden');
+    } else {
+        errCls.forEach(c => el.classList.remove(c));
+        el.removeAttribute('aria-invalid');
+        err?.classList.add('hidden');
+    }
+}
+
+function setVehicleFuelsError(show) {
+    const wrap = document.getElementById('vehicle-fuels-field-wrap');
+    const err = document.getElementById('vehicle-fuels-error');
+    if (!wrap) return;
+    const wrapCls = ['ring-2', 'ring-red-400', 'bg-red-50/50', 'border', 'border-red-200', 'p-2', '-m-0.5'];
+    if (show) {
+        wrapCls.forEach(c => wrap.classList.add(c));
+        err?.classList.remove('hidden');
+    } else {
+        wrapCls.forEach(c => wrap.classList.remove(c));
+        err?.classList.add('hidden');
+    }
+}
+
+function setVehicleTankError(show) {
+    const el = document.getElementById('vehicle-tank-input');
+    const err = document.getElementById('vehicle-tank-error');
+    if (!el) return;
+    const errCls = ['border-red-500', 'bg-red-50', 'ring-2', 'ring-red-400', 'focus:ring-red-500', 'focus:border-red-500'];
+    if (show) {
+        errCls.forEach(c => el.classList.add(c));
+        el.setAttribute('aria-invalid', 'true');
+        err?.classList.remove('hidden');
+    } else {
+        errCls.forEach(c => el.classList.remove(c));
+        el.removeAttribute('aria-invalid');
+        err?.classList.add('hidden');
+    }
+}
+
 function renderVehiclesList() {
     const container = document.getElementById('vehicles-list');
     if (!container) return;
     if (userVehicles.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-400 italic">Aucun véhicule enregistré. L\'app utilise vos carburants ci-dessous.</p>';
+        container.innerHTML = '<div class="rounded-2xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-indigo-50/20 px-4 py-3.5 text-center shadow-sm" role="status"><p class="text-sm font-extrabold text-slate-800">Aucun véhicule enregistré</p><p class="text-xs text-slate-600 mt-1.5 leading-relaxed">L’app s’appuie sur les carburants que vous cochez plus bas jusqu’à ce que vous définissiez un véhicule.</p></div>';
         return;
     }
     let html = '';
     userVehicles.forEach(v => {
-        const fuelBadges = v.fuels.map(f => `<span class="text-[10px] bg-indigo-100 text-indigo-700 font-semibold px-1.5 py-0.5 rounded">${f}</span>`).join(' ');
+        const fuelBadges = v.fuels.map(f => `<span class="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-lg border border-indigo-200/60">${esc(f)}</span>`).join(' ');
         const isActive = activeVehicleId === v.id;
-        html += `<div class="flex items-center gap-2 p-2.5 rounded-xl border ${isActive ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200'} group">
-            <div class="h-9 w-9 rounded-full ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'} flex items-center justify-center shrink-0"><i class="fas ${v.icon} text-sm"></i></div>
+        html += `<div class="flex items-center gap-2.5 p-3 rounded-2xl border-2 shadow-sm transition ${isActive ? 'bg-gradient-to-br from-indigo-50 to-white border-indigo-200 ring-1 ring-indigo-100' : 'bg-white border-slate-200 hover:border-slate-300'}">
+            <div class="h-10 w-10 rounded-xl ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'} flex items-center justify-center shrink-0" aria-hidden="true"><i class="fas ${v.icon} text-sm"></i></div>
             <div class="flex-1 min-w-0">
-                <div class="font-bold text-sm text-slate-800 truncate">${esc(v.name)}</div>
-                <div class="flex flex-wrap gap-1 mt-0.5">${fuelBadges}${v.tankSize ? `<span class="text-[10px] bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded"><i class="fas fa-gas-pump mr-0.5"></i>${v.tankSize}L</span>` : ''}</div>
+                <div class="font-extrabold text-sm text-slate-900 truncate">${esc(v.name)}</div>
+                <div class="flex flex-wrap gap-1 mt-1">${fuelBadges}${v.tankSize ? `<span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-lg border border-slate-200/80"><i class="fas fa-gas-pump mr-0.5 text-slate-500" aria-hidden="true"></i>${v.tankSize}\u202fL</span>` : ''}</div>
             </div>
-            <button type="button" onclick="openVehicleForm('${v.id}')" class="touch-manipulation h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition text-xs" title="Modifier"><i class="fas fa-pen"></i></button>
-            <button type="button" onclick="confirmDeleteVehicle('${v.id}')" class="touch-manipulation h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition text-xs" title="Supprimer"><i class="fas fa-trash"></i></button>
+            <button type="button" onclick="openVehicleForm('${v.id}')" class="touch-manipulation min-h-10 min-w-10 flex items-center justify-center rounded-xl text-slate-500 hover:text-indigo-700 hover:bg-indigo-100 transition text-sm shrink-0" title="Modifier" aria-label="Modifier ${esc(v.name)}"><i class="fas fa-pen" aria-hidden="true"></i></button>
+            <button type="button" onclick="confirmDeleteVehicle('${v.id}')" class="touch-manipulation min-h-10 min-w-10 flex items-center justify-center rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition text-sm shrink-0" title="Supprimer" aria-label="Supprimer ${esc(v.name)}"><i class="fas fa-trash" aria-hidden="true"></i></button>
         </div>`;
     });
     container.innerHTML = html;
@@ -464,6 +557,7 @@ function renderVehiclesList() {
 
 function openVehicleForm(vehicleId) {
     editingVehicleId = vehicleId || null;
+    clearVehicleFormErrors();
     const form = document.getElementById('vehicle-form');
     const addBtn = document.getElementById('vehicle-add-btn');
     form.classList.remove('hidden');
@@ -492,6 +586,7 @@ function openVehicleForm(vehicleId) {
 
 function closeVehicleForm() {
     editingVehicleId = null;
+    clearVehicleFormErrors();
     document.getElementById('vehicle-form').classList.add('hidden');
     const addBtn = document.getElementById('vehicle-add-btn');
     if (addBtn) addBtn.classList.remove('hidden');
@@ -511,17 +606,44 @@ function toggleVehicleFuelStyle(cb) {
     } else {
         label.className = label.className.replace('border-indigo-500 bg-indigo-50 text-indigo-700', 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300');
     }
+    if (document.querySelectorAll('.vehicle-fuel-cb:checked').length > 0) setVehicleFuelsError(false);
 }
 
 function saveVehicleForm() {
-    const name = document.getElementById('vehicle-name-input').value.trim();
-    if (!name) { document.getElementById('vehicle-name-input').focus(); return; }
+    clearVehicleFormErrors();
+    const nameIn = document.getElementById('vehicle-name-input');
+    const tankIn = document.getElementById('vehicle-tank-input');
+    const name = nameIn ? nameIn.value.trim() : '';
     const selectedIcon = document.querySelector('#vehicle-icon-picker .vehicle-icon-btn.border-indigo-500');
     const icon = selectedIcon ? selectedIcon.dataset.icon : 'fa-car';
     const fuels = [...document.querySelectorAll('.vehicle-fuel-cb:checked')].map(cb => cb.value);
-    if (fuels.length === 0) { showToast('Cochez au moins un carburant', 'fa-exclamation-triangle'); return; }
-    const tankRaw = parseInt(document.getElementById('vehicle-tank-input').value, 10);
-    const tankSize = Number.isFinite(tankRaw) && tankRaw > 0 ? tankRaw : null;
+    const tankStr = tankIn ? tankIn.value.trim() : '';
+    let tankSize = null;
+    let tankBad = false;
+    if (tankStr !== '') {
+        const tankRaw = parseInt(tankStr, 10);
+        if (!Number.isFinite(tankRaw) || tankRaw < 1 || tankRaw > 999) tankBad = true;
+        else tankSize = tankRaw;
+    }
+    let valid = true;
+    if (!name) {
+        setVehicleNameError(true);
+        valid = false;
+    }
+    if (fuels.length === 0) {
+        setVehicleFuelsError(true);
+        valid = false;
+    }
+    if (tankBad) {
+        setVehicleTankError(true);
+        valid = false;
+    }
+    if (!valid) {
+        if (!name && nameIn) nameIn.focus();
+        else if (fuels.length === 0) document.querySelector('.vehicle-fuel-cb')?.focus();
+        else if (tankIn) tankIn.focus();
+        return;
+    }
 
     if (editingVehicleId) {
         updateVehicle(editingVehicleId, name, icon, fuels, tankSize);
@@ -791,15 +913,20 @@ function renderFavorites() {
                 if (tags.length) pricesHtml = `<div class="flex flex-wrap gap-1 mt-1.5">${tags.join('')}</div>`;
             }
             allHtml += `
-                <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-xl hover:shadow-md hover:border-yellow-300 transition group">
-                    <div class="flex justify-between items-start">
+                <div class="p-4 bg-gradient-to-br from-amber-50 via-yellow-50/60 to-orange-50/30 border-2 border-amber-300/70 rounded-2xl hover:shadow-lg hover:border-amber-500 transition group shadow-sm">
+                    <div class="flex justify-between items-start gap-2">
                         <div onclick="showStation('${f.id}')" class="flex-1 min-w-0 cursor-pointer">
-                            <div class="font-bold text-yellow-800 truncate"><i class="fas fa-gas-pump mr-2 text-yellow-600"></i>${esc(f.name)}</div>
-                            <div class="text-xs text-yellow-700 truncate mt-1">${esc(f.adresse)}</div>
+                            <div class="flex items-start gap-2 min-w-0">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md" aria-hidden="true"><i class="fas fa-gas-pump"></i></span>
+                                <div class="min-w-0">
+                                    <div class="font-extrabold text-amber-950 truncate leading-tight">${esc(f.name)}</div>
+                                    <div class="text-xs font-semibold text-amber-900/85 truncate mt-1">${esc(f.adresse)}</div>
+                                </div>
+                            </div>
                         </div>
-                        <button onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="ml-2 flex-shrink-0 text-yellow-400 hover:text-red-500 transition" title="Retirer des favoris"><i class="fas fa-star text-lg"></i></button>
+                        <button type="button" onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="touch-manipulation ml-1 flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-white border-2 border-amber-200 text-amber-500 hover:text-red-600 hover:border-red-300 transition" title="Retirer des favoris" aria-label="Retirer cette station des favoris"><i class="fas fa-star text-lg" aria-hidden="true"></i></button>
                     </div>
-                    <div onclick="showStation('${f.id}')" class="cursor-pointer">${pricesHtml}</div>
+                    <div onclick="showStation('${f.id}')" class="cursor-pointer mt-2">${pricesHtml}</div>
                 </div>`;
         } else {
             let bestCards = '';
@@ -820,20 +947,25 @@ function renderFavorites() {
                         const stB = db.stations[best.id];
                         const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
                         const maj = fd ? formatMajHtml(fd) : "";
-                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-gradient-to-b from-green-50 to-emerald-50/80 border-2 border-green-200/90 rounded-xl p-2 text-center cursor-pointer hover:shadow-md transition min-w-0 shadow-sm"><div class="text-[10px] font-extrabold uppercase tracking-wide text-green-900">${fuel}</div><div class="text-base font-black text-green-800 tabular-nums my-0.5">${best.prix.toFixed(3)}<span class="text-xs font-bold">€</span></div>${fullTankHtml(best.prix, 'compact')}${maj ? `<div class="text-[8px] text-green-700 font-semibold italic leading-tight mt-0.5" translate="no"><i class="fas fa-clock mr-0.5 not-italic"></i>${maj}</div>` : ''}<div class="text-[9px] font-semibold text-green-700 truncate mt-0.5">${esc(best.nom)}</div></div>`;
+                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-gradient-to-b from-green-50 to-emerald-50/80 border-2 border-green-300/80 rounded-xl p-2 text-center cursor-pointer hover:shadow-lg transition min-w-0 shadow-md"><div class="text-[10px] font-extrabold uppercase tracking-wide text-green-950">${fuel}</div><div class="text-base font-black text-green-900 tabular-nums my-0.5">${best.prix.toFixed(3)}<span class="text-xs font-bold">€</span></div>${fullTankHtml(best.prix, 'proximity', 'green')}${maj ? `<div class="text-[8px] text-green-800 font-bold italic leading-tight mt-0.5" translate="no"><i class="fas fa-clock mr-0.5 not-italic text-amber-600"></i>${maj}</div>` : ''}<div class="text-[9px] font-bold text-green-900 truncate mt-0.5">${esc(best.nom)}</div></div>`;
                     }
                 });
                 }
             }
             const widgetRow = bestCards ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-2">${bestCards}</div>` : '';
             allHtml += `
-                <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl hover:shadow-md hover:border-indigo-300 transition group">
-                    <div class="flex justify-between items-center">
+                <div class="p-4 bg-gradient-to-br from-indigo-50 via-white to-violet-50/40 border-2 border-indigo-200/80 rounded-2xl hover:shadow-lg hover:border-indigo-400 transition group shadow-sm">
+                    <div class="flex justify-between items-start gap-2">
                         <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="flex-1 min-w-0 cursor-pointer">
-                            <div class="font-bold text-indigo-800 truncate"><i class="fas fa-map-marker-alt mr-2 text-indigo-600"></i>${esc(f.name)}</div>
-                            <div class="text-xs text-indigo-700 mt-1">Adresse favorite · ${radiusSettingKmHtml()}</div>
+                            <div class="flex items-start gap-2">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md" aria-hidden="true"><i class="fas fa-map-marker-alt"></i></span>
+                                <div class="min-w-0">
+                                    <div class="font-extrabold text-indigo-950 truncate leading-tight">${esc(f.name)}</div>
+                                    <div class="text-xs font-bold text-indigo-800 mt-1">Lieu favori · rayon ${radiusSettingKmHtml()}</div>
+                                </div>
+                            </div>
                         </div>
-                        <button onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="ml-2 flex-shrink-0 text-yellow-400 hover:text-red-500 transition" title="Retirer des favoris"><i class="fas fa-star text-lg"></i></button>
+                        <button type="button" onclick="event.stopPropagation(); removeFavorite('${f.id}')" class="touch-manipulation flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border-2 border-indigo-200 text-amber-500 hover:text-red-600 hover:border-red-300 transition" title="Retirer des favoris" aria-label="Retirer ce lieu des favoris"><i class="fas fa-star text-lg" aria-hidden="true"></i></button>
                     </div>
                     <div onclick="findStationsNear(${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="cursor-pointer">${widgetRow}</div>
                 </div>`;
@@ -993,7 +1125,7 @@ function fullTankHtml(prixNum, variant = 'detail', listTone = 'neutral') {
     if (variant === 'compact') {
         return `<div class="full-tank-estimate mt-1 flex items-center justify-center gap-1 rounded-lg border border-teal-200/90 bg-gradient-to-r from-teal-50 to-cyan-50 px-1.5 py-1 text-center shadow-sm"><span class="text-teal-600 text-sm leading-none">${iconFill}</span><span class="text-[10px] font-bold leading-tight text-teal-950"><em class="not-italic font-semibold text-teal-800">Plein</em> <strong class="tabular-nums">${total}\u202f€</strong></span></div>`;
     }
-    return `<div class="full-tank-estimate mt-2 flex items-center gap-2 rounded-xl border border-teal-200 bg-gradient-to-r from-teal-50 via-cyan-50/80 to-teal-50 px-3 py-2.5 shadow-sm"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-700 text-lg">${iconFill}</span><div class="min-w-0 text-left leading-tight"><div class="text-[11px] font-bold uppercase tracking-wide text-teal-800/90">Estimation plein réservoir</div><div class="text-lg font-black tabular-nums text-teal-950">${total}<span class="text-sm font-bold text-teal-700">\u202f€</span></div></div></div>`;
+    return `<div class="full-tank-estimate mt-2 flex items-center gap-3 rounded-2xl border-2 border-teal-300/80 bg-gradient-to-br from-teal-50 via-cyan-50/90 to-teal-50/80 px-3 py-3 shadow-md"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-500 text-white text-lg shadow-md" aria-hidden="true">${iconFill}</span><div class="min-w-0 text-left leading-tight"><div class="text-[10px] font-extrabold uppercase tracking-wide text-teal-900/90">Estimation plein réservoir</div><div class="text-xl font-black tabular-nums text-teal-950">${total}<span class="text-sm font-bold text-teal-700">\u202f€</span></div><div class="text-[10px] font-semibold text-teal-800/80 mt-0.5">Basée sur le réservoir du véhicule actif</div></div></div>`;
 }
 
 /** Colonne prix + plein pour une ligne de résultat de recherche (stations). */
@@ -1011,14 +1143,14 @@ function buildSearchStationPriceColumn(stationId, station) {
         const t = [col.title, mj ? `Maj. ${mj}` : ''].filter(Boolean).join(' · ');
         const ta = t ? ` title="${esc(t)}"` : '';
         blocks += `
-            <div class="flex flex-col items-stretch gap-0.5 rounded-xl border border-slate-200/90 bg-white p-2 shadow-sm"${ta}>
+            <div class="flex flex-col items-stretch gap-1 rounded-2xl border-2 border-slate-200/90 bg-gradient-to-b from-white to-slate-50/50 p-2 shadow-md"${ta}>
                 <div class="text-[10px] font-extrabold uppercase tracking-wide ${col.text} truncate">${f}</div>
                 <div class="${col.bg} ${col.text} font-black text-base tabular-nums text-center rounded-lg border border-white/50 px-2 py-1">${d.prix}<span class="text-xs font-bold opacity-90">€</span></div>
-                ${fullTankHtml(prixNum, 'compact')}
-                ${mj ? `<div class="text-[9px] font-medium text-slate-500 text-center italic" translate="no"><i class="fas fa-clock mr-0.5 text-slate-400 not-italic"></i>${mj}</div>` : ''}
+                ${fullTankHtml(prixNum, 'proximity', tankToneFromPrixColorBg(col.bg))}
+                ${mj ? `<div class="text-[9px] font-bold text-slate-600 text-center italic" translate="no"><i class="fas fa-clock mr-0.5 text-amber-500 not-italic"></i>${mj}</div>` : ''}
             </div>`;
     });
-    return `<div class="flex flex-col gap-2 shrink-0 w-[6.85rem] sm:w-[7.5rem]">${blocks}</div><i class="fas fa-chevron-right text-indigo-200 group-hover:text-indigo-500 transition flex-shrink-0 self-center text-lg ml-1"></i>`;
+    return `<div class="flex flex-col gap-2 shrink-0 w-[7.35rem] sm:w-[8.35rem]">${blocks}</div><i class="fas fa-chevron-right text-indigo-200 group-hover:text-indigo-500 transition flex-shrink-0 self-center text-lg ml-1" aria-hidden="true"></i>`;
 }
 
 /**
@@ -1134,21 +1266,27 @@ function prixColorTag(stationId, carburant, prix) {
 
 // UI Navigation Tabs
 function switchTab(tab) {
+    const activeTabCls = ['font-extrabold', 'text-indigo-700', 'border-indigo-600', 'bg-white/90', 'shadow-inner'];
+    const inactiveTabCls = ['font-bold', 'text-slate-600', 'border-transparent', 'hover:text-indigo-700', 'hover:bg-white/60'];
     ['recherche', 'palmares', 'statistiques'].forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
         const pane = document.getElementById(`pane-${t}`);
-        if(t === tab) {
-            btn.classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600', 'bg-indigo-50');
-            btn.classList.remove('text-slate-500');
+        if (t === tab) {
+            btn.setAttribute('aria-selected', 'true');
+            inactiveTabCls.forEach(c => btn.classList.remove(c));
+            activeTabCls.forEach(c => btn.classList.add(c));
+            btn.classList.remove('font-bold', 'text-slate-600');
             pane.classList.remove('hidden');
         } else {
-            btn.classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600', 'bg-indigo-50');
-            btn.classList.add('text-slate-500');
+            btn.setAttribute('aria-selected', 'false');
+            activeTabCls.forEach(c => btn.classList.remove(c));
+            inactiveTabCls.forEach(c => btn.classList.add(c));
+            btn.classList.remove('font-extrabold', 'text-indigo-700', 'bg-white/90', 'shadow-inner');
             pane.classList.add('hidden');
         }
     });
-    if(tab === 'palmares' && palmaresMap) setTimeout(() => palmaresMap.invalidateSize(), 100);
-    if(tab === 'statistiques') renderDashboard();
+    if (tab === 'palmares' && palmaresMap) setTimeout(() => palmaresMap.invalidateSize(), 100);
+    if (tab === 'statistiques') renderDashboard();
 }
 
 function pushNav(state) {
@@ -1199,7 +1337,7 @@ function buildBestPricesWidget(stations) {
         }
     });
     if (!cards) return '';
-    return `<div class="mb-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4"><h4 class="text-base font-extrabold text-green-800 mb-3 flex items-center"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Les meilleurs prix</h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div></div>`;
+    return `<div class="mb-5 bg-gradient-to-br from-green-50 via-emerald-50/80 to-teal-50/40 border-2 border-green-300/70 rounded-2xl p-4 shadow-sm"><h4 class="text-base font-extrabold text-green-900 mb-3 flex flex-wrap items-center gap-2"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shadow-sm" aria-hidden="true"><i class="fas fa-trophy text-lg"></i></span><span>Les meilleurs prix <em class="not-italic text-green-700 font-bold text-sm">dans la zone affichée</em></span></h4><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cards}</div></div>`;
 }
 
 function searchGeoZone(type, name, overrideFuel) {
@@ -1241,22 +1379,32 @@ function searchGeoZone(type, name, overrideFuel) {
 
     let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
 
+    const listeGeoLabel = sortFuel
+        ? `<span class="text-white font-bold tabular-nums">${total}</span> <span class="text-blue-100/90">avec</span> <em class="not-italic font-black text-amber-200">${esc(sortFuel)}</em>`
+        : `<span class="text-blue-100/95 font-medium">tous carburants suivis</span>`;
+
     let html = `
-        <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
-            <div class="bg-gradient-to-r from-indigo-600 to-blue-500 p-4 sm:p-6 text-white text-center">
-                <h2 class="text-lg sm:text-2xl font-extrabold mb-1"><i class="fas fa-map-marked-alt mr-2"></i>${esc(zoneLabel)}</h2>
-                <p class="text-blue-100 text-xs sm:text-sm">${nbZoneSuivis} station${nbZoneSuivis > 1 ? 's' : ''} avec vos carburants suivis${sortFuel && total !== nbZoneSuivis ? ` · ${total} pour le tri « ${esc(sortFuel)} »` : ''}</p>
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-indigo-200/60">
+            <div class="bg-gradient-to-br from-indigo-600 via-blue-600 to-violet-600 p-4 sm:p-6 text-white text-center shadow-inner">
+                <h2 class="text-lg sm:text-2xl font-extrabold drop-shadow-sm leading-tight px-1"><i class="fas fa-map-marked-alt mr-2 text-cyan-200" aria-hidden="true"></i><em class="not-italic font-black text-white">${esc(zoneLabel)}</em></h2>
+                <p class="mt-3 flex flex-wrap justify-center gap-2 text-xs sm:text-sm font-semibold">
+                    <span class="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 backdrop-blur-sm shadow-sm"><i class="fas fa-gas-pump text-amber-200" aria-hidden="true"></i><strong class="tabular-nums font-black">${nbZoneSuivis}</strong>&nbsp;station${nbZoneSuivis > 1 ? 's' : ''} <span class="font-medium opacity-90">(suivies)</span></span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 backdrop-blur-sm shadow-sm">Liste : ${listeGeoLabel}</span>
+                </p>
             </div>
             <div class="p-4 sm:p-6 md:p-8">
-                <div id="station-map" class="mb-6 border border-slate-200 rounded-xl overflow-hidden"></div>
+                <div id="station-map" class="station-map-shell mb-5 sm:mb-6 w-full"></div>
                 ${stationsInZoneForWidget.length ? buildBestPricesWidget(stationsInZoneForWidget) : ''}
-                <div class="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
-                    <label class="text-sm font-bold text-slate-700 w-full md:w-auto"><i class="fas fa-sort-amount-down mr-2 text-indigo-500"></i>Trier par prix :</label>
-                    <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="min-h-[3rem] py-3 px-3 border border-slate-300 rounded-xl text-base font-medium text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto touch-manipulation">
+                <div class="mb-5 rounded-2xl border-2 border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/40 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <label for="geo-sort-select" class="flex items-center gap-2 text-sm font-extrabold text-slate-800"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md" aria-hidden="true"><i class="fas fa-sort-amount-down"></i></span>Trier par prix</label>
+                        <p class="mt-1.5 text-xs font-semibold text-slate-600 pl-11 sm:pl-0 sm:ml-11">Carburant utilisé pour la colonne de droite</p>
+                    </div>
+                    <select id="geo-sort-select" onchange="applyGeoSort('${type}', '${name.replace(/'/g, "\\'")}', this.value)" class="min-h-[3rem] py-3 px-3 border-2 border-indigo-200 rounded-xl text-base font-bold text-indigo-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto md:min-w-[14rem] touch-manipulation shadow-inner">
                         ${sortOptions}
                     </select>
                 </div>
-                <div class="space-y-3 max-h-[min(70dvh,70vh)] overflow-y-auto custom-scrollbar scroll-touch">`;
+                <div class="space-y-4 max-h-[min(70dvh,70vh)] overflow-y-auto custom-scrollbar scroll-touch">`;
 
     let minPrixListe = null;
     if (sortFuel && total > 0) {
@@ -1264,7 +1412,7 @@ function searchGeoZone(type, name, overrideFuel) {
     }
 
     if (stationsInZoneForWidget.length > 0 && total === 0) {
-        html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200 mb-3"><i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i><b>Aucune station ne propose ce carburant dans cette zone.</b><br><span class="text-sm">Les « meilleurs prix » ci-dessus concernent tous vos carburants suivis.</span></div>`;
+        html += uiNoticeBlock('fa-filter', 'bg-amber-500', 'Aucune station ne propose ce carburant dans cette zone.', 'Les <strong class="text-slate-800">meilleurs prix</strong> ci-dessus restent calculés sur <strong class="text-slate-800">tous vos carburants</strong> suivis.');
     }
 
     stations.forEach((res) => {
@@ -1279,18 +1427,66 @@ function searchGeoZone(type, name, overrideFuel) {
         }
         res.markerType = markerType;
 
-        let dateMaj = '';
-        let fuelForDate = sortFuel || Object.keys(res.station.carburants_disponibles)[0];
-        if (fuelForDate && res.station.carburants_disponibles[fuelForDate]) {
-            const mj = formatMajHtml(res.station.carburants_disponibles[fuelForDate]);
-            if (mj) dateMaj = `<span class="text-[10px] text-slate-400 ml-2 whitespace-nowrap" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</span>`;
+        let carbsHtml = '';
+        if (sortFuel && res.station.carburants_disponibles[sortFuel]) {
+            const mj = formatMajHtml(res.station.carburants_disponibles[sortFuel]);
+            const fuelChip = `<div class="mt-2 inline-flex items-center gap-2 rounded-xl border-2 border-amber-300/70 bg-gradient-to-r from-amber-50 to-orange-50/80 px-3 py-2 shadow-sm">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white text-sm shadow" aria-hidden="true"><i class="fas fa-gas-pump"></i></span>
+                <div class="min-w-0 leading-tight text-left">
+                    <div class="text-[9px] font-extrabold uppercase tracking-wider text-amber-900/80">Carburant trié</div>
+                    <div class="text-sm font-black text-amber-950">${esc(sortFuel)}</div>
+                </div>
+            </div>`;
+            const majBlock = mj
+                ? `<div class="mt-2 flex items-start gap-2 rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-white px-3 py-2 shadow-sm" translate="no">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600 text-sm" aria-hidden="true"><i class="fas fa-clock"></i></span>
+                    <div class="min-w-0 leading-tight">
+                        <div class="text-[9px] font-extrabold uppercase tracking-wide text-slate-500">Mise à jour prix</div>
+                        <div class="text-xs font-bold italic text-slate-800">${mj}</div>
+                    </div>
+                </div>`
+                : '';
+            carbsHtml = fuelChip + majBlock;
+        } else {
+            const carbsArray = [];
+            for (const [c, d] of Object.entries(res.station.carburants_disponibles)) {
+                if (userFuels.includes(c)) {
+                    const mj = formatMajHtml(d);
+                    const prixNum = parseFloat(d.prix);
+                    const col = prixColorTag(res.id, c, d.prix);
+                    const tone = tankToneFromPrixColorBg(col.bg);
+                    const bord = tone === 'green' ? 'border-emerald-300/80' : tone === 'amber' ? 'border-amber-300/80' : tone === 'indigo' ? 'border-indigo-300/80' : 'border-slate-200';
+                    carbsArray.push(`<div class="inline-flex flex-col gap-1 rounded-2xl border-2 ${bord} ${col.bg} px-2.5 py-2 shadow-md min-w-[6.5rem] sm:min-w-[7rem]">
+                        <span class="font-extrabold text-[10px] uppercase tracking-wide ${col.text} text-center">${c}</span>
+                        <span class="font-black tabular-nums ${col.text} text-lg text-center leading-none">${d.prix}<span class="text-sm font-bold">€</span><span class="block text-[9px] font-bold uppercase opacity-80 mt-0.5">/ litre</span></span>
+                        ${fullTankHtml(prixNum, 'proximity', tone)}
+                        ${mj ? `<span class="text-[9px] font-bold text-center italic ${col.text} opacity-95 leading-tight" translate="no"><i class="fas fa-clock mr-0.5 not-italic opacity-70"></i>${mj}</span>` : ''}
+                    </div>`);
+                }
+            }
+            if (carbsArray.length) {
+                carbsHtml = `<div class="mt-3"><div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5"><i class="fas fa-layer-group text-indigo-500" aria-hidden="true"></i>Vos carburants suivis</div><div class="flex flex-wrap gap-2.5 items-stretch">${carbsArray.join('')}</div></div>`;
+            }
+        }
+
+        let rowShell = 'from-white via-slate-50/50 to-indigo-50/20 border-slate-200/90';
+        if (sortFuel) {
+            if (res.markerType === 'station_green') rowShell = 'from-emerald-50/50 via-white to-teal-50/30 border-emerald-300/70';
+            else if (res.markerType === 'station_orange') rowShell = 'from-amber-50/45 via-white to-orange-50/25 border-amber-300/70';
+            else if (res.markerType === 'station_blue') rowShell = 'from-indigo-50/40 via-white to-violet-50/20 border-indigo-200/80';
         }
 
         html += `
-            <div onclick="showStation('${res.id}')" class="p-4 bg-gradient-to-br from-white to-slate-50/80 border-2 border-slate-200/80 rounded-xl hover:shadow-lg hover:border-indigo-400 cursor-pointer transition flex justify-between items-center gap-3 group">
+            <div onclick="showStation('${res.id}')" class="p-4 sm:p-5 bg-gradient-to-br ${rowShell} border-2 rounded-2xl hover:shadow-xl hover:border-indigo-500 cursor-pointer transition flex justify-between items-stretch gap-3 sm:gap-4 group shadow-sm">
                 <div class="flex-1 min-w-0">
-                    <div class="font-extrabold text-slate-900 text-lg group-hover:text-indigo-700 transition truncate leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
-                    <div class="text-sm text-slate-600 truncate mt-1.5 flex items-start gap-2 flex-wrap"><i class="fas fa-map-marker-alt mt-0.5 text-indigo-400 text-base shrink-0"></i><span class="font-medium min-w-0"><span class="italic text-slate-700">${esc(res.station.adresse)}</span>, <strong class="font-bold not-italic text-slate-900">${esc(res.station.code_postal)}</strong> ${esc(res.station.ville)}</span>${dateMaj}</div>
+                    <div class="flex items-start gap-2 min-w-0">
+                        <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 shadow-inner" aria-hidden="true"><i class="fas fa-gas-pump text-lg"></i></span>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-black text-slate-950 text-base sm:text-lg group-hover:text-indigo-800 transition leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                            <div class="text-sm text-slate-700 mt-1.5 flex items-start gap-2 leading-snug"><i class="fas fa-map-marker-alt mt-0.5 text-rose-500 text-base shrink-0" aria-hidden="true"></i><span class="font-semibold min-w-0"><span class="italic text-slate-600">${esc(res.station.adresse)}</span><span class="text-slate-400 font-normal"> · </span><strong class="font-extrabold text-slate-900 not-italic">${esc(res.station.code_postal)} ${esc(res.station.ville)}</strong></span></div>
+                        </div>
+                    </div>
+                    ${carbsHtml}
                 </div>
                 ${rightContent}
             </div>`;
@@ -1378,17 +1574,17 @@ function renderRegionsTable() {
         regions.sort((a, b) => a[0].localeCompare(b[0]));
     }
 
-    let tableHtml = `<thead class="bg-slate-100 text-slate-700 uppercase text-[10px] sm:text-xs"><tr><th class="px-2 py-2 sm:px-4 sm:py-3 sticky left-0 bg-slate-100 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] z-10 whitespace-nowrap">Région</th><th class="px-2 py-2 sm:px-4 sm:py-3 whitespace-nowrap">Stations</th>`;
+    let tableHtml = `<thead class="bg-gradient-to-r from-indigo-100 via-slate-100 to-violet-100 text-indigo-950 uppercase text-[10px] sm:text-xs font-extrabold tracking-wide border-b-2 border-indigo-200/60"><tr><th scope="col" class="px-2 py-2.5 sm:px-4 sm:py-3 sticky left-0 bg-indigo-100/95 backdrop-blur-sm shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] z-10 whitespace-nowrap">Région</th><th scope="col" class="px-2 py-2.5 sm:px-4 sm:py-3 whitespace-nowrap text-center">Stations</th>`;
     fuels.forEach(f => {
         const arrow = dashSortFuel === f ? (dashSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
         const cls = dashSortFuel === f ? 'text-indigo-600' : 'text-slate-400';
-        tableHtml += `<th class="px-2 py-2 sm:px-4 sm:py-3 cursor-pointer select-none hover:text-indigo-600 transition whitespace-nowrap" onclick="sortDashboardBy('${f}')">${f} <i class="fas ${arrow} ${cls} text-[10px] ml-0.5 sm:ml-1"></i></th>`;
+        tableHtml += `<th scope="col" class="px-2 py-2.5 sm:px-4 sm:py-3 cursor-pointer select-none hover:bg-white/60 transition whitespace-nowrap text-center rounded-t-lg" onclick="sortDashboardBy('${f}')" title="Trier par ${esc(f)}">${f} <i class="fas ${arrow} ${cls} text-[10px] ml-0.5 sm:ml-1" aria-hidden="true"></i></th>`;
     });
     tableHtml += `</tr></thead><tbody class="text-sm">`;
 
     for (const [region, data] of regions) {
         const slug = region.replace(/[^a-zA-Z0-9]/g, '_');
-        tableHtml += `<tr class="border-b hover:bg-slate-50 cursor-pointer" onclick="toggleRegionAccordion('${slug}')"><td class="px-2 py-2.5 sm:px-4 sm:py-3 font-bold sticky left-0 bg-white/95 backdrop-blur-sm z-10 max-w-[42vw] sm:max-w-none shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]"><i id="chevron-${slug}" class="fas fa-chevron-right text-xs text-slate-400 mr-1.5 sm:mr-2 transition-transform shrink-0"></i><span class="align-middle">${esc(region)}</span></td><td class="px-2 py-2.5 sm:px-4 sm:py-3 text-center tabular-nums">${data.station_count}</td>`;
+        tableHtml += `<tr class="border-b border-slate-200/80 hover:bg-indigo-50/40 cursor-pointer transition-colors" onclick="toggleRegionAccordion('${slug}')"><th scope="row" class="px-2 py-2.5 sm:px-4 sm:py-3 font-extrabold text-left text-slate-900 sticky left-0 bg-white/98 backdrop-blur-sm z-10 max-w-[42vw] sm:max-w-none shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]"><i id="chevron-${slug}" class="fas fa-chevron-right text-xs text-indigo-400 mr-1.5 sm:mr-2 transition-transform shrink-0" aria-hidden="true"></i><span class="align-middle">${esc(region)}</span></th><td class="px-2 py-2.5 sm:px-4 sm:py-3 text-center tabular-nums font-semibold text-slate-800">${data.station_count}</td>`;
         fuels.forEach(f => {
             let p = data.avg_prices[f];
             tableHtml += `<td class="px-2 py-2.5 sm:px-4 sm:py-3 text-center font-medium tabular-nums text-xs sm:text-sm">${p > 0 ? p.toFixed(3) + ' €' : '-'}</td>`;
@@ -1431,7 +1627,7 @@ async function performSearch() {
     stationDetailSearchAnchor = null;
 
     if (normQuery.length < 3) { resultsContainer.innerHTML = ''; return; }
-    resultsContainer.innerHTML = '<div class="text-center text-slate-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Recherche en cours...</div>';
+    resultsContainer.innerHTML = `<div class="py-6 text-center rounded-2xl border-2 border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white shadow-sm" role="status" aria-live="polite"><span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md mb-2 mx-auto" aria-hidden="true"><i class="fas fa-spinner fa-spin text-xl"></i></span><p class="font-extrabold text-indigo-900 text-sm">Recherche en cours…</p><p class="text-xs text-slate-600 mt-1 px-4">Sources locales et OpenStreetMap</p></div>`;
 
     let html = '';
 
@@ -1563,12 +1759,7 @@ async function performSearch() {
     html += stationsHtml;
 
     if (html === '') {
-        html = `
-            <div class="p-6 bg-slate-50 text-slate-500 rounded-xl text-center border border-slate-200 mt-4">
-                <i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i>
-                <b>Aucun résultat trouvé.</b><br>
-                <span class="text-sm mt-2 block">Note : les stations-services dont les prix n'ont pas été mis à jour depuis plus de 7 jours, ou ne proposant pas les carburants que vous avez cochés dans vos paramètres, sont masquées.</span>
-            </div>`;
+        html = `<div class="mt-4">${uiNoticeBlock('fa-search', 'bg-slate-500', 'Aucun résultat pour cette recherche.', 'Les stations dont les prix sont <strong class="text-slate-800">anciens</strong> ou qui ne vendent pas vos <strong class="text-slate-800">carburants suivis</strong> sont masquées. Essayez un autre mot-clé ou ouvrez les paramètres.')}</div>`;
     }
     if (currentSignal.aborted) return;
     resultsContainer.innerHTML = html;
@@ -1581,11 +1772,11 @@ async function performSearch() {
 function geolocateMe() {
     if (!navigator.geolocation) { alert("La géolocalisation n'est pas supportée."); return; }
     const resultsContainer = document.getElementById('search-results');
-    resultsContainer.innerHTML = '<div class="text-center text-indigo-600 py-4 font-bold"><i class="fas fa-compass fa-spin mr-2 text-2xl mb-2"></i><br>Recherche de votre position...</div>';
+    resultsContainer.innerHTML = `<div class="py-6 text-center rounded-2xl border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-indigo-50/40 shadow-sm" role="status" aria-live="polite"><span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-md mb-2 mx-auto" aria-hidden="true"><i class="fas fa-compass fa-spin text-xl"></i></span><p class="font-extrabold text-cyan-950 text-sm">Localisation en cours…</p><p class="text-xs text-slate-600 mt-1">Autorisez l’accès si le navigateur le demande</p></div>`;
     
     navigator.geolocation.getCurrentPosition(
         (pos) => findStationsNear(pos.coords.latitude, pos.coords.longitude, "Votre position actuelle"),
-        () => resultsContainer.innerHTML = '<div class="p-6 bg-slate-50 text-slate-500 rounded-xl text-center border border-slate-200"><i class="fas fa-exclamation-triangle text-2xl mb-2 text-red-400 block"></i><b>Impossible d\'obtenir votre position.</b></div>'
+        () => { resultsContainer.innerHTML = uiNoticeBlock('fa-location-slash', 'bg-red-500', 'Position non disponible.', 'Vérifiez les <strong class="text-slate-800">autorisations</strong> du site et que le <strong class="text-slate-800">GPS</strong> est activé.'); }
     );
 }
 
@@ -1637,19 +1828,15 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
                 </p>
             </div>
             <div class="p-4 sm:p-6 md:p-8">
-                <div id="station-map" class="mb-6 border-2 border-indigo-200/50 rounded-xl overflow-hidden shadow-sm"></div>
+                <div id="station-map" class="station-map-shell mb-5 sm:mb-6 w-full"></div>
     `;
 
     if (stationsInRadius.length === 0) {
-        html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200">
-            <i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i>
-            Aucune station-service dans un rayon d'environ ${radiusSettingKmHtml()} autour du point.<br>
-            <span class="text-sm">Modifiez vos paramètres (en haut à droite) pour élargir la recherche ou ajouter des carburants.</span>
-        </div>`;
+        html += uiNoticeBlock('fa-circle-notch', 'bg-indigo-500', `Aucune station dans un rayon d’environ ${radiusSettingKmHtml()}.`, 'Ouvrez les <strong class="text-slate-800">paramètres</strong> (icône en haut à droite) pour augmenter le rayon ou cocher d’autres carburants.');
     } else {
         html += buildBestPricesWidget(stationsInRadius);
         if (topStations.length === 0) {
-            html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200 mb-4"><i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i><b>Aucune station ne propose ce carburant dans le rayon.</b><br><span class="text-sm">Les « meilleurs prix » ci-dessus concernent tous vos carburants suivis.</span></div>`;
+            html += `<div class="mb-4">${uiNoticeBlock('fa-gas-pump', 'bg-amber-500', 'Aucune station ne propose ce carburant dans le rayon.', 'Les <strong class="text-slate-800">meilleurs prix</strong> ci-dessus restent calculés sur <strong class="text-slate-800">tous vos carburants</strong> suivis.')}</div>`;
         }
         let sortOptions = userFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
         const listeLabel = sortFuel
@@ -1833,7 +2020,7 @@ function findCheapest() {
 
     if (resultats.length === 0) {
         document.getElementById('palmares-map').classList.add('hidden');
-        resultsContainer.innerHTML = `<div class="p-6 bg-slate-50 text-slate-500 rounded-xl text-center border border-slate-200"><i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i><b>Aucune station-service ne propose ce carburant dans cette zone.</b></div>`;
+        resultsContainer.innerHTML = uiNoticeBlock('fa-filter', 'bg-amber-500', 'Aucune station ne propose ce carburant dans la zone choisie.', 'Élargissez la zone (région, département) ou choisissez un <strong class="text-slate-800">autre carburant</strong>.');
         return;
     }
 
@@ -1842,31 +2029,49 @@ function findCheapest() {
     
     const top10 = resultats.slice(0, 10);
 
-    let html = `<h4 class="font-extrabold text-slate-800 text-lg mb-3 flex items-center"><i class="fas fa-list-ol text-indigo-500 mr-2"></i> Top ${top10.length} :</h4><div class="space-y-3">`;
+    let html = `<h4 class="section-heading flex flex-wrap items-center gap-3 text-lg font-extrabold text-slate-900 mb-4"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 shadow-sm" aria-hidden="true"><i class="fas fa-list-ol text-lg"></i></span><span class="leading-tight">Top <strong class="tabular-nums text-indigo-700">${top10.length}</strong> <em class="not-italic text-sm font-bold text-slate-500">classement</em></span></h4><div class="space-y-4">`;
     top10.forEach((res, index) => {
-        let medailleClass = 'bg-white border-slate-200';
-        let badge = `<span class="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded-full mr-3 border border-slate-200">#${index+1}</span>`;
+        let rowShell = 'from-white via-slate-50/40 to-indigo-50/20 border-slate-200/90';
+        let badge = `<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-slate-700 font-black text-sm shadow-inner border-2 border-slate-300/80" aria-label="Rang ${index + 1}">${index + 1}</span>`;
         if (sort === 'asc') {
-            if (index === 0) { medailleClass = 'bg-yellow-100 border-yellow-400'; badge = `<span class="text-xl mr-3">🥇</span>`; }
-            else if (index === 1) { medailleClass = 'bg-slate-100 border-slate-400'; badge = `<span class="text-xl mr-3">🥈</span>`; }
-            else if (index === 2) { medailleClass = 'bg-orange-50 border-orange-300'; badge = `<span class="text-xl mr-3">🥉</span>`; }
+            if (index === 0) {
+                rowShell = 'from-amber-50/80 via-yellow-50/50 to-white border-amber-400/90';
+                badge = `<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-amber-950 shadow-lg border-2 border-amber-300" role="img" aria-label="Premier du classement"><i class="fas fa-crown text-lg" aria-hidden="true"></i></span>`;
+            } else if (index === 1) {
+                rowShell = 'from-slate-100/90 via-white to-slate-50/50 border-slate-400/70';
+                badge = `<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-md border-2 border-slate-400" role="img" aria-label="Deuxième du classement"><i class="fas fa-medal text-lg" aria-hidden="true"></i></span>`;
+            } else if (index === 2) {
+                rowShell = 'from-orange-50/70 via-amber-50/40 to-white border-orange-300/80';
+                badge = `<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-amber-600 text-white shadow-md border-2 border-orange-400" role="img" aria-label="Troisième du classement"><i class="fas fa-medal text-lg" aria-hidden="true"></i></span>`;
+            }
         }
         
-        let colorPrix = sort === 'asc' ? 'text-green-600' : 'text-red-600';
+        let colorPrix = sort === 'asc' ? 'text-emerald-700' : 'text-red-700';
+        let tankTone = 'neutral';
+        if (sort === 'asc' && index === 0) tankTone = 'green';
+        else if (sort === 'asc' && index <= 2) tankTone = 'amber';
+        else if (sort === 'asc') tankTone = 'indigo';
+
         const carbEnt = res.station.carburants_disponibles[carb];
         const majP = carbEnt ? formatMajHtml(carbEnt) : "";
         
         html += `
-            <div onclick="showStation('${res.id}')" class="p-4 border-2 rounded-xl flex items-center cursor-pointer hover:shadow-lg hover:border-indigo-400 transition gap-3 group ${medailleClass}">
+            <div onclick="showStation('${res.id}')" class="p-4 sm:p-5 border-2 rounded-2xl flex items-stretch cursor-pointer hover:shadow-xl hover:border-indigo-500 transition gap-3 sm:gap-4 group bg-gradient-to-br ${rowShell} shadow-sm">
                 ${badge}
                 <div class="flex-1 min-w-0">
-                    <div class="font-extrabold text-slate-900 text-lg truncate group-hover:text-indigo-700 transition leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
-                    <div class="text-sm text-slate-600 truncate mt-1 font-medium"><em class="not-italic font-semibold text-slate-700">${esc(res.station.ville)}</em> <span class="text-slate-500">·</span> <strong class="font-bold text-slate-800">${esc(res.station.code_postal)}</strong></div>
-                    ${majP ? `<div class="text-[10px] text-slate-500 mt-1 font-medium italic" translate="no"><i class="fas fa-clock mr-0.5 text-slate-400 not-italic"></i>${majP}</div>` : ''}
+                    <div class="flex items-start gap-2 min-w-0">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 shadow-inner mt-0.5" aria-hidden="true"><i class="fas fa-gas-pump"></i></span>
+                        <div class="min-w-0">
+                            <div class="font-black text-slate-950 text-base sm:text-lg truncate group-hover:text-indigo-800 transition leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                            <div class="text-sm text-slate-700 mt-1 font-semibold leading-snug"><em class="not-italic text-slate-600">${esc(res.station.ville)}</em> <span class="text-slate-400">·</span> <strong class="text-slate-900 tabular-nums">${esc(res.station.code_postal)}</strong></div>
+                            ${majP ? `<div class="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-600" translate="no"><span class="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-600" aria-hidden="true"><i class="fas fa-clock text-xs"></i></span>${majP}</div>` : ''}
+                        </div>
+                    </div>
                 </div>
-                <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                    <div class="font-black ${colorPrix} text-xl bg-white px-3 py-1.5 rounded-xl shadow-md border-2 border-slate-100 tabular-nums">${res.prixInfo.toFixed(3)} €</div>
-                    ${fullTankHtml(res.prixInfo, 'compact')}
+                <div class="flex flex-col items-end gap-1.5 flex-shrink-0 justify-center">
+                    <div class="text-[9px] font-extrabold uppercase tracking-wide text-slate-500 text-right">Prix / L</div>
+                    <div class="font-black ${colorPrix} text-xl bg-white px-3 py-2 rounded-xl shadow-md border-2 border-white/80 tabular-nums">${res.prixInfo.toFixed(3)} €</div>
+                    ${fullTankHtml(res.prixInfo, 'proximity', tankTone)}
                 </div>
             </div>
         `;
@@ -2036,21 +2241,26 @@ function showStation(stationId) {
     const gmapsLink = getGoogleMapsLink(station.lat, station.lon, `${station.adresse}, ${station.code_postal} ${station.ville}`);
     
     let html = `
-        <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
-            <div class="bg-gradient-to-r from-indigo-600 to-blue-500 p-4 sm:p-6 text-white relative">
-                <h2 class="text-xl sm:text-3xl font-extrabold mb-2 sm:mb-3 drop-shadow-md pr-10">${esc(station.nom_osm) || 'Station-service'}</h2>
-                <a href="${gmapsLink}" target="_blank" class="inline-flex items-start text-blue-100 hover:text-white transition group text-sm font-medium bg-black/20 px-4 py-3 rounded-xl hover:bg-black/30 w-full md:w-max">
-                    <i class="fas fa-directions mr-2 mt-1 group-hover:scale-110 transition-transform flex-shrink-0"></i>
-                    <span>${esc(station.adresse)}<br>${esc(station.code_postal)} ${esc(station.ville)}</span>
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-indigo-200/60">
+            <div class="bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-600 p-4 sm:p-5 lg:p-6 text-white relative shadow-inner">
+                <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6">
+                <h2 class="text-xl sm:text-2xl lg:text-3xl font-black drop-shadow-sm pr-10 lg:pr-4 leading-tight min-w-0 flex-1">${esc(station.nom_osm) || 'Station-service'}</h2>
+                <a href="${gmapsLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-start gap-3 text-white hover:text-cyan-100 transition group text-sm font-semibold bg-white/15 hover:bg-white/25 border border-white/20 px-4 py-3 rounded-2xl w-full sm:w-max shrink-0 lg:max-w-md shadow-sm">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 text-white group-hover:scale-105 transition-transform" aria-hidden="true"><i class="fas fa-directions text-lg"></i></span>
+                    <span class="leading-snug min-w-0"><span class="block text-xs font-extrabold uppercase tracking-wide text-cyan-200/95">Itinéraire</span><span class="block mt-0.5">${esc(station.adresse)}<br><strong class="font-black">${esc(station.code_postal)}</strong> ${esc(station.ville)}</span></span>
                 </a>
+                </div>
             </div>
             
             <div class="p-4 sm:p-6 md:p-8">
-                <div id="station-map" class="mb-6 sm:mb-8 border border-slate-200 rounded-xl overflow-hidden"></div>
-
-                <h3 class="font-bold text-lg text-slate-800 mb-4"><i class="fas fa-gas-pump text-indigo-500 mr-2"></i>Prix à la pompe</h3>
+                <div class="grid grid-cols-1 lg:grid-cols-12 lg:gap-6 xl:gap-8 items-start">
+                <div class="lg:col-span-5 xl:col-span-4 min-w-0 order-2 lg:order-1">
+                <div id="station-map" class="station-map-shell station-map-shell--detail mb-6 lg:mb-0 w-full"></div>
+                </div>
+                <div class="lg:col-span-7 xl:col-span-8 min-w-0 order-1 lg:order-2 space-y-4">
+                <h3 class="section-heading flex flex-wrap items-center gap-3 text-lg sm:text-xl font-extrabold text-slate-900 mb-1 lg:mb-2"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 shadow-sm" aria-hidden="true"><i class="fas fa-gas-pump text-lg"></i></span><span class="min-w-0 leading-tight">Prix à la pompe <em class="not-italic block text-sm font-bold text-slate-500 mt-0.5">vos carburants suivis</em></span></h3>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-2 lg:mb-0">
     `;
 
     let mapMarkersData = [];
@@ -2081,25 +2291,31 @@ function showStation(stationId) {
             let minDept = db.stats.min_prices.departemental[station.dept_key] ? db.stats.min_prices.departemental[station.dept_key][carb] : null;
 
             if (minNat !== null && prixActuel <= minNat) {
-                bestBadgeHtml = `<div class="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded mt-2 border border-yellow-300 inline-block"><i class="fas fa-star mr-1"></i>Meilleur prix national</div>`;
+                bestBadgeHtml = `<div class="mt-3 inline-flex items-center gap-2 rounded-xl border-2 border-amber-400/80 bg-gradient-to-r from-amber-50 to-yellow-50 px-3 py-2 text-xs font-extrabold text-amber-950 shadow-sm"><i class="fas fa-star text-amber-500 text-base" aria-hidden="true"></i>Meilleur prix <em class="not-italic">national</em> recensé</div>`;
             } else if (minReg !== null && prixActuel <= minReg) {
-                bestBadgeHtml = `<div class="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded mt-2 border border-yellow-300 inline-block"><i class="fas fa-star mr-1"></i>Meilleur prix régional</div>`;
+                bestBadgeHtml = `<div class="mt-3 inline-flex items-center gap-2 rounded-xl border-2 border-amber-400/80 bg-gradient-to-r from-amber-50 to-yellow-50 px-3 py-2 text-xs font-extrabold text-amber-950 shadow-sm"><i class="fas fa-star text-amber-500 text-base" aria-hidden="true"></i>Meilleur prix <em class="not-italic">régional</em></div>`;
             } else if (minDept !== null && prixActuel <= minDept) {
-                bestBadgeHtml = `<div class="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded mt-2 border border-yellow-300 inline-block"><i class="fas fa-star mr-1"></i>Meilleur prix départemental</div>`;
+                bestBadgeHtml = `<div class="mt-3 inline-flex items-center gap-2 rounded-xl border-2 border-amber-400/80 bg-gradient-to-r from-amber-50 to-yellow-50 px-3 py-2 text-xs font-extrabold text-amber-950 shadow-sm"><i class="fas fa-star text-amber-500 text-base" aria-hidden="true"></i>Meilleur prix <em class="not-italic">départemental</em></div>`;
             }
 
             let priceColor = analyse.priceMain || (analyse.isCheapest ? 'text-green-800' : 'text-slate-900');
             let euroColor = analyse.priceEuro || (analyse.isCheapest ? 'text-green-600' : 'text-slate-500');
 
             html += `
-                <div class="p-4 rounded-xl border ${analyse.bg || 'bg-white'} ${analyse.border || 'border-slate-200'} relative overflow-hidden transition-shadow hover:shadow-md">
-                    <div class="flex justify-between items-start mb-1 gap-2">
-                        <span class="font-bold text-slate-700 text-lg">${carb}</span>
-                        <span class="font-black text-xl sm:text-2xl shrink-0 ${priceColor}">${data.prix} <span class="text-base sm:text-lg ${euroColor}">€</span></span>
+                <div class="p-4 sm:p-5 rounded-2xl border-2 ${analyse.border || 'border-slate-200'} ${analyse.bg || 'bg-white bg-gradient-to-br from-white to-slate-50/80'} relative overflow-hidden transition-shadow hover:shadow-lg shadow-sm">
+                    <div class="flex justify-between items-start gap-3 mb-1">
+                        <div class="min-w-0">
+                            <span class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Carburant</span>
+                            <span class="block font-black text-slate-900 text-lg sm:text-xl leading-tight">${carb}</span>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="text-[10px] font-extrabold uppercase tracking-wide text-slate-500 block">Prix au litre</span>
+                            <span class="font-black text-xl sm:text-2xl tabular-nums ${priceColor}">${data.prix}<span class="text-base sm:text-lg ${euroColor}"> €</span></span>
+                        </div>
                     </div>
                     ${fullTankHtml(prixActuel, 'detail')}
-                    <div class="flex justify-end items-center mt-2">
-                        <span class="text-slate-400 text-xs font-medium" translate="no"><i class="fas fa-clock mr-1"></i>${formatMajHtml(data)}</span>
+                    <div class="flex justify-end items-center mt-3 pt-2 border-t border-slate-200/60">
+                        <span class="inline-flex items-center gap-1.5 text-slate-600 text-xs font-bold" translate="no"><span class="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-600" aria-hidden="true"><i class="fas fa-clock text-sm"></i></span>Mise à jour : ${formatMajHtml(data)}</span>
                     </div>
                     ${bestBadgeHtml}
                     ${analyse.hintHtml || ''}
@@ -2113,19 +2329,19 @@ function showStation(stationId) {
     });
 
     if (!aDesPrixAffiches) {
-        html += `<div class="col-span-1 md:col-span-2 p-6 bg-slate-50 rounded-xl text-center text-slate-500 font-medium border border-slate-200"><i class="fas fa-filter text-2xl mb-2 text-slate-300 block"></i>Aucun prix pour vos carburants favoris.</div>`;
+        html += `<div class="col-span-1 sm:col-span-2">${uiNoticeBlock('fa-sliders-h', 'bg-indigo-500', 'Aucun prix affiché pour vos carburants suivis.', 'Modifiez les <strong class="text-slate-800">carburants</strong> dans les <strong class="text-slate-800">paramètres</strong> (icône en haut à droite).')}</div>`;
     }
-    html += `</div>`; 
+    html += `</div></div></div>`;
 
     if (alternatives.length > 0) {
         const altOrigin = getActiveSearchOrigin();
         let alternativesTitle = currentGeoZone
-            ? `<i class="fas fa-car-side mr-2"></i>Alternatives dans ${esc(currentGeoZone.name)}`
+            ? `Alternatives dans <em class="not-italic font-black text-violet-900">${esc(currentGeoZone.name)}</em>`
             : altOrigin
-            ? `<i class="fas fa-car-side mr-2"></i>Alternatives autour de ${esc(altOrigin.labelTitle || 'votre point de recherche')}`
-            : `<i class="fas fa-car-side mr-2"></i>Alternatives à proximité (${radiusSettingKmHtml()})`;
+            ? `Alternatives autour de <em class="not-italic font-black text-violet-900">${esc(altOrigin.labelTitle || 'votre point de recherche')}</em>`
+            : `Alternatives à proximité <span class="text-violet-800 font-bold tabular-nums">(${radiusSettingKmHtml()})</span>`;
             
-        html += `<h3 class="font-bold text-lg text-slate-800 mb-2">${alternativesTitle}</h3><p class="text-sm text-slate-500 mb-4">Stations où vous pouvez payer moins cher pour un ou plusieurs de vos carburants suivis — à titre indicatif dans la zone affichée.</p><div class="space-y-3 mb-8">`;
+        html += `<h3 class="section-heading flex flex-wrap items-center gap-3 text-lg sm:text-xl font-extrabold text-slate-900 mb-2"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600 shadow-sm" aria-hidden="true"><i class="fas fa-car-side text-lg"></i></span><span class="min-w-0 leading-tight">${alternativesTitle}</span></h3><p class="text-sm text-slate-600 font-semibold mb-4 max-w-prose leading-relaxed border-l-4 border-violet-300 pl-3">Stations où vous pouvez payer <strong class="text-slate-800">moins cher</strong> pour un ou plusieurs de vos carburants suivis — estimation dans la zone ou le rayon affiché.</p><div class="space-y-4 mb-8">`;
         let altGroup = {};
         
         alternatives.forEach(alt => {
@@ -2146,7 +2362,7 @@ function showStation(stationId) {
                     <div class="flex-1 min-w-0">
                         <div class="font-extrabold ${t.textMain} text-lg group-hover:opacity-80 transition truncate">${esc(info.nom)}</div>
                         <div class="text-sm font-semibold ${t.textSub} mt-1"><i class="fas fa-route mr-1"></i> à ${distanceKmSpan(info.dist)} d'ici</div>
-                        <div class="text-sm text-slate-600 mt-2 bg-white inline-block px-3 py-1.5 rounded-lg border ${t.badgeBorder} truncate max-w-full shadow-sm leading-tight">📉 <b>${t.title} :</b><br> ${info.carbs.join('<br> ')}</div>
+                        <div class="text-sm text-slate-700 mt-2 bg-white/95 inline-block px-3 py-2 rounded-xl border-2 ${t.badgeBorder} max-w-full shadow-sm leading-relaxed"><span class="inline-flex items-center gap-1.5 font-extrabold text-slate-900"><i class="fas fa-chart-line text-emerald-600" aria-hidden="true"></i>${t.title}</span><div class="mt-1.5 space-y-1">${info.carbs.map(c => `<div class="text-sm border-t border-slate-100 pt-1 first:border-0 first:pt-0">${c}</div>`).join('')}</div></div>
                     </div>
                     <div class="h-10 w-10 flex-shrink-0 ${t.iconBg} rounded-full flex items-center justify-center ${t.hoverIcon} group-hover:text-white transition ${t.iconText}"><i class="fas fa-arrow-right"></i></div>
                 </button>
@@ -2160,15 +2376,15 @@ function showStation(stationId) {
 
     html += `<div class="grid grid-cols-1 md:grid-cols-2 gap-6">`;
     if (hasRealHours) {
-        html += `<div><h3 class="font-bold text-lg mb-3 text-slate-800"><i class="fas fa-clock text-indigo-500 mr-2"></i>Horaires</h3><div class="bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm">`;
+        html += `<div><h3 class="section-heading flex flex-wrap items-center gap-3 text-lg font-extrabold text-slate-900 mb-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600 shadow-sm" aria-hidden="true"><i class="fas fa-clock text-lg"></i></span><span class="leading-tight">Horaires <em class="not-italic block text-xs font-bold text-slate-500">accès et automate</em></span></h3><div class="bg-gradient-to-br from-slate-50 to-white border-2 border-slate-200 p-4 rounded-2xl text-sm shadow-sm">`;
         if (station.horaires.automate_24_24) {
-            html += `<div class="text-green-600 font-bold bg-green-50 p-3 rounded-xl border border-green-200"><i class="fas fa-check-circle text-xl mr-2"></i> Automate 24/24</div>`;
+            html += `<div class="text-green-800 font-extrabold bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border-2 border-green-300/80 shadow-sm flex items-center gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-500 text-white shadow-md" aria-hidden="true"><i class="fas fa-check-circle text-xl"></i></span><span>Automate <em class="not-italic">24h/24</em> signalé pour cette station</span></div>`;
         } else {
-            html += `<ul class="space-y-2 text-slate-700">`;
+            html += `<ul class="space-y-2 text-slate-800" role="list">`;
             for (const [jour, hor] of Object.entries(station.horaires.jours)) {
                 if (hor === "Horaires indisponibles") continue;
-                const colorClass = hor !== "Fermé" ? 'text-slate-800' : 'text-red-500 italic';
-                html += `<li class="flex border-b border-slate-200 pb-1 last:border-0 last:pb-0"><span class="font-semibold w-28">${jour}</span> <span class="${colorClass}">${hor}</span></li>`;
+                const colorClass = hor !== "Fermé" ? 'text-slate-900 font-semibold' : 'text-red-600 font-bold italic';
+                html += `<li class="flex flex-wrap gap-2 border-b border-slate-200/80 pb-2 last:border-0 last:pb-0"><span class="font-extrabold text-indigo-900 w-28 shrink-0">${jour}</span> <span class="${colorClass} min-w-0">${hor}</span></li>`;
             }
             html += `</ul>`;
         }
@@ -2176,12 +2392,12 @@ function showStation(stationId) {
     }
 
     let aDesRupturesAffichees = false;
-    let rupturesHtml = `<div><h3 class="font-bold text-lg mb-3 text-slate-800"><i class="fas fa-ban text-red-500 mr-2"></i>Indisponible</h3><div class="space-y-2">`;
+    let rupturesHtml = `<div><h3 class="section-heading flex flex-wrap items-center gap-3 text-lg font-extrabold text-slate-900 mb-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600 shadow-sm" aria-hidden="true"><i class="fas fa-ban text-lg"></i></span><span class="leading-tight">Indisponible <em class="not-italic block text-xs font-bold text-red-700/80">ruptures signalées</em></span></h3><div class="space-y-3">`;
     for (const [carb, data] of Object.entries(station.carburants_en_rupture)) {
         if (!userFuels.includes(carb)) continue;
         aDesRupturesAffichees = true;
-        let infoSup = data.motif ? ` (${data.motif})` : '';
-        rupturesHtml += `<div class="bg-red-50 border border-red-200 p-3 rounded-xl flex items-center"><div class="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-bold flex-shrink-0 mr-3"><i class="fas fa-tint-slash"></i></div><div class="min-w-0"><div class="font-bold text-red-800">${carb}</div><div class="text-xs text-red-600 truncate">Depuis le ${data.debut}${infoSup}</div></div></div>`;
+        let infoSup = data.motif ? ` (${esc(data.motif)})` : '';
+        rupturesHtml += `<div class="bg-gradient-to-br from-red-50 to-orange-50/30 border-2 border-red-200/90 p-3 rounded-2xl flex items-center gap-3 shadow-sm"><div class="h-10 w-10 bg-red-500 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 shadow-md" aria-hidden="true"><i class="fas fa-tint-slash text-lg"></i></div><div class="min-w-0"><div class="font-extrabold text-red-950">${esc(carb)}</div><div class="text-xs text-red-800 font-semibold mt-0.5">Depuis le <span class="tabular-nums">${esc(data.debut)}</span>${infoSup}</div></div></div>`;
     }
     rupturesHtml += `</div></div>`;
     if(aDesRupturesAffichees) html += rupturesHtml;
@@ -2227,7 +2443,7 @@ function initStationMap(markersData, isMultiple = false) {
     if (stationMap) { stationMap.remove(); }
     
     if (markersData.length === 0) {
-        document.getElementById('station-map').innerHTML = '<div class="h-full w-full flex items-center justify-center bg-slate-50 text-slate-400 font-medium rounded-xl border border-slate-200"><i class="fas fa-map-marker-slash mr-2"></i> Coordonnées GPS indisponibles</div>';
+        document.getElementById('station-map').innerHTML = '<div class="h-full w-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-slate-50 text-slate-600 font-semibold rounded-xl border-2 border-slate-200 px-4 text-center" role="status"><span class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-300 text-white shadow-inner" aria-hidden="true"><i class="fas fa-map-marker-slash text-xl"></i></span><span class="text-sm font-extrabold text-slate-800">Carte indisponible</span><span class="text-xs text-slate-500 max-w-xs">Cette fiche n’a pas de coordonnées GPS pour afficher la position.</span></div>';
         return;
     }
 
@@ -2241,7 +2457,7 @@ function initStationMap(markersData, isMultiple = false) {
     markersData.forEach(m => {
         if (m.type === 'search_point') {
             L.circle([m.lat, m.lon], { radius: maxStraightLineKmForRadius() * 1000, color: '#4f46e5', fillColor: '#4f46e5', fillOpacity: 0.05, weight: 2, dashArray: '6 4' }).addTo(stationMap);
-            L.circleMarker([m.lat, m.lon], { radius: 10, color: '#1e1b4b', fillColor: '#4f46e5', fillOpacity: 0.9, weight: 3 }).bindPopup(`<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 block">${esc(m.adresse) || ''}</span><span class="text-xs text-indigo-500 font-bold block mt-1"><span class="distance-km" translate="no">~${userRadius}\u202fkm</span> (estimation trajet)</span></div>`).addTo(stationMap).openPopup();
+            L.circleMarker([m.lat, m.lon], { radius: 10, color: '#1e1b4b', fillColor: '#4f46e5', fillOpacity: 0.9, weight: 3 }).bindPopup(`<div class="min-w-[168px] max-w-[260px] py-1 text-left font-sans"><p class="font-extrabold text-slate-900 text-sm leading-tight">${esc(m.label) || 'Point de recherche'}</p>${m.adresse ? `<p class="text-xs text-slate-600 mt-1 leading-snug">${esc(m.adresse)}</p>` : ''}<p class="text-xs font-bold text-indigo-700 mt-2 tabular-nums leading-snug"><span class="distance-km" translate="no">~${userRadius}\u202fkm</span> <span class="text-slate-500 font-semibold">— estimation trajet routier</span></p></div>`).addTo(stationMap).openPopup();
             bounds.push([m.lat, m.lon]);
             return;
         }
@@ -2250,18 +2466,18 @@ function initStationMap(markersData, isMultiple = false) {
         else if (m.type === 'station_orange') icon = iconOrange;
         else if (m.type === 'station_red') icon = iconRed;
 
-        let popupBtn = m.id ? `<button onclick="showStation('${m.id}')" class="mt-2 w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir la station-service</button>` : '';
+        let popupBtn = m.id ? `<button type="button" onclick="showStation('${m.id}')" class="touch-manipulation mt-2.5 w-full min-h-[2.35rem] bg-indigo-600 text-white px-3 py-2 rounded-xl font-extrabold text-xs hover:bg-indigo-700 transition shadow-sm"><i class="fas fa-eye mr-1" aria-hidden="true"></i>Voir la station</button>` : '';
         let majPopup = '';
         if (m.id && db.stations[m.id]) {
             const stPop = db.stations[m.id];
             for (const f of userFuels) {
                 if (stPop.carburants_disponibles[f]) {
                     const mj = formatMajHtml(stPop.carburants_disponibles[f]);
-                    if (mj) { majPopup = `<span class="text-[10px] text-slate-500 leading-tight block mt-1" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</span>`; break; }
+                    if (mj) { majPopup = `<p class="text-[11px] text-slate-500 leading-snug mt-1.5" translate="no"><i class="fas fa-clock text-slate-400 mr-0.5" aria-hidden="true"></i>${mj}</p>`; break; }
                 }
             }
         }
-        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label) || 'Point'}</b><span class="text-xs text-slate-500 leading-tight block">${esc(m.adresse) || ''}</span>${majPopup}${popupBtn}</div>`;
+        let popupText = `<div class="min-w-[168px] max-w-[260px] py-1 text-left font-sans"><p class="font-extrabold text-slate-900 text-sm leading-tight">${esc(m.label) || 'Station'}</p>${m.adresse ? `<p class="text-xs text-slate-600 mt-1 leading-snug">${esc(m.adresse)}</p>` : ''}${majPopup}${popupBtn}</div>`;
 
         L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(stationMap);
         bounds.push([m.lat, m.lon]);
@@ -2291,9 +2507,9 @@ function initPalmaresMap(markersData) {
         if (m.id && m.carburant && db.stations[m.id]) {
             const fd = db.stations[m.id].carburants_disponibles[m.carburant];
             const mj = fd ? formatMajHtml(fd) : '';
-            if (mj) majLine = `<span class="text-[10px] text-slate-500 block mb-2" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}</span>`;
+            if (mj) majLine = `<p class="text-[11px] text-slate-500 leading-snug mt-1.5" translate="no"><i class="fas fa-clock text-slate-400 mr-0.5" aria-hidden="true"></i>${mj}</p>`;
         }
-        let popupText = `<div class="text-center min-w-[150px]"><b class="text-slate-800 block mb-1">${esc(m.label)}</b><span class="text-xs text-slate-500 leading-tight block mb-2">${esc(m.adresse)}</span><div class="font-black ${colorText} text-lg mb-2">${m.prix.toFixed(3)} €</div>${majLine}<button onclick="showStation('${m.id}')" class="w-full bg-indigo-600 text-white px-2 py-1.5 rounded-md font-bold text-xs hover:bg-indigo-700 transition"><i class="fas fa-eye mr-1"></i> Voir</button></div>`;
+        let popupText = `<div class="min-w-[168px] max-w-[260px] py-1 text-left font-sans"><p class="font-extrabold text-slate-900 text-sm leading-tight">${esc(m.label)}</p><p class="text-xs text-slate-600 mt-1 leading-snug">${esc(m.adresse)}</p><p class="font-black ${colorText} text-lg mt-2 tabular-nums tracking-tight">${m.prix.toFixed(3)}\u202f€<span class="text-slate-500 font-bold text-xs ml-0.5">/L</span></p>${majLine}<button type="button" onclick="showStation('${m.id}')" class="touch-manipulation w-full min-h-[2.35rem] mt-2 bg-indigo-600 text-white px-3 py-2 rounded-xl font-extrabold text-xs hover:bg-indigo-700 transition shadow-sm"><i class="fas fa-eye mr-1" aria-hidden="true"></i>Voir la fiche</button></div>`;
         
         L.marker([m.lat, m.lon], { icon }).bindPopup(popupText).addTo(palmaresMap);
         bounds.push([m.lat, m.lon]);
