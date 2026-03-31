@@ -1,5 +1,6 @@
 .venv/
 build/
 datasets/
+.worktrees/
 !build/.gitkeep
 !datasets/.gitkeep
