@@ -7,14 +7,14 @@ let searchTimeout = null;
 const ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"];
 
 // localStorage keys
-const LS_RADIUS = ‘carbuRadius’;
-const LS_FAVORITES = ‘carbuFavorites’;
-const LS_VEHICLES = ‘carbuVehicles’;
-const LS_ACTIVE_VEHICLE = ‘carbuActiveVehicle’;
-const LS_FUELS = ‘carbuFuels’;
-const LS_WELCOME = ‘carbuWelcomeDismissed’;
+const LS_RADIUS = 'carbuRadius';
+const LS_FAVORITES = 'carbuFavorites';
+const LS_VEHICLES = 'carbuVehicles';
+const LS_ACTIVE_VEHICLE = 'carbuActiveVehicle';
+const LS_FUELS = 'carbuFuels';
+const LS_WELCOME = 'carbuWelcomeDismissed';
 
-/** Rayon par défaut : ordre de grandeur réaliste pour un détour en voiture autour d’un point. */
+/** Rayon par défaut : ordre de grandeur réaliste pour un détour en voiture autour d'un point. */
 const DEFAULT_SEARCH_RADIUS_KM = 10;
 let userRadius = parseInt(localStorage.getItem(LS_RADIUS), 10) || DEFAULT_SEARCH_RADIUS_KM;
 let userFuels = [...ALL_FUELS];
@@ -185,7 +185,7 @@ function renderVehicleBar() {
 
 let chartsInitialized = false;
 let currentProximitySearch = null;
-/** Point de recherche pour carte / comparaison quand on ouvre une station depuis un favori adresse (sans être passé par l’écran liste). */
+/** Point de recherche pour carte / comparaison quand on ouvre une station depuis un favori adresse (sans être passé par l'écran liste). */
 let stationDetailSearchAnchor = null;
 let currentGeoZone = null;
 let navStack = [];
@@ -364,11 +364,11 @@ function showToast(message, iconClass = 'fa-check-circle') {
 
 /** Nettoyage des service workers et caches hérités (idempotent, peut rester indéfiniment). */
 function cleanupLegacyServiceWorkers() {
-    if (!(‘serviceWorker’ in navigator)) return;
+    if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.getRegistrations().then(regs =>
         regs.forEach(r => r.unregister())
     );
-    if (‘caches’ in window) {
+    if ('caches' in window) {
         caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     }
 }
@@ -383,7 +383,7 @@ function distanceHaversine(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Le rayon réglé par l’utilisateur est interprété comme une distance « en voiture » approximative.
+ * Le rayon réglé par l'utilisateur est interprété comme une distance « en voiture » approximative.
  * On en déduit une distance géodésique max pour filtrer les stations (plus courte que le trajet réel).
  */
 const ROUTE_DISTANCE_FACTOR = 1.25;
@@ -392,12 +392,12 @@ function maxStraightLineKmForRadius() {
     return parseFloat(userRadius) / ROUTE_DISTANCE_FACTOR;
 }
 
-/** Estimation d’itinéraire (km) à partir du haversine, pour l’affichage uniquement. */
+/** Estimation d'itinéraire (km) à partir du haversine, pour l'affichage uniquement. */
 function displayRouteKm(straightKm) {
     return Math.round(straightKm * ROUTE_DISTANCE_FACTOR * 10) / 10;
 }
 
-/** Libellé français : virgule décimale, espace insécable étroit avant l’unité (typo + HiDPI). */
+/** Libellé français : virgule décimale, espace insécable étroit avant l'unité (typo + HiDPI). */
 function formatApproxRouteKm(straightKm) {
     const d = displayRouteKm(straightKm);
     const num = String(d.toFixed(1)).replace('.', ',');
@@ -416,7 +416,7 @@ function radiusSettingKmHtml() {
     return `<span class="distance-km" translate="no">~${userRadius}\u202fkm</span>`;
 }
 
-/** Rayon haversine (km) pour comparer les prix « autour » d’une station (borné). */
+/** Rayon haversine (km) pour comparer les prix « autour » d'une station (borné). */
 function nearbyCompareStraightKm() {
     const m = maxStraightLineKmForRadius();
     return Math.min(11, Math.max(4, m));
@@ -713,7 +713,7 @@ function toggleFavoriteProximitySearchPoint() {
 }
 
 /**
- * Étoile d’en-tête : station (fiche) ou lieu de la recherche « autour de ».
+ * Étoile d'en-tête : station (fiche) ou lieu de la recherche « autour de ».
  */
 function syncFavoriteHeaderButton() {
     const btn = document.getElementById('btn-favorite-station');
@@ -1495,7 +1495,7 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
     if (stationsInRadius.length === 0) {
         html += `<div class="p-6 bg-slate-50 rounded-xl text-center text-slate-500 border border-slate-200">
             <i class="fas fa-filter text-2xl mb-2 text-slate-400 block"></i>
-            Aucune station-service dans un rayon d’environ ${radiusSettingKmHtml()} autour du point.<br>
+            Aucune station-service dans un rayon d'environ ${radiusSettingKmHtml()} autour du point.<br>
             <span class="text-sm">Modifiez vos paramètres (en haut à droite) pour élargir la recherche ou ajouter des carburants.</span>
         </div>`;
     } else {
@@ -1739,7 +1739,7 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
             alternative: null,
             numProches: 0,
             hintHtml: prixActNum !== null
-                ? '<p class="mt-2 text-xs text-slate-600 leading-snug"><i class="fas fa-info-circle mr-1 text-slate-400" aria-hidden="true"></i>Pas d’autre station avec ce carburant dans la zone utilisée pour la comparaison.</p>'
+                ? '<p class="mt-2 text-xs text-slate-600 leading-snug"><i class="fas fa-info-circle mr-1 text-slate-400" aria-hidden="true"></i>Pas d\'autre station avec ce carburant dans la zone utilisée pour la comparaison.</p>'
                 : '',
         };
     }
@@ -1775,7 +1775,7 @@ function analyserPrixProximite(stationId, carburant, prixActuel) {
         tier = 'best';
         priceMain = 'text-green-800';
         priceEuro = 'text-green-600';
-        hintHtml = `<p class="mt-2 text-xs text-green-800 leading-snug"><i class="fas fa-check-circle text-green-600 mr-1" aria-hidden="true"></i>Parmi les stations comparées dans cette zone, c’est l’un des meilleurs prix pour ce carburant.</p>`;
+        hintHtml = `<p class="mt-2 text-xs text-green-800 leading-snug"><i class="fas fa-check-circle text-green-600 mr-1" aria-hidden="true"></i>Parmi les stations comparées dans cette zone, c'est l'un des meilleurs prix pour ce carburant.</p>`;
     } else if (delta <= PRICE_NEAR_MAX) {
         bg = 'bg-amber-50';
         border = 'border-amber-200';
@@ -1951,7 +1951,7 @@ function showStation(stationId) {
                 <button onclick="showStation('${altId}')" class="w-full text-left p-4 ${t.bg} border-2 ${t.border} rounded-xl ${t.hoverBg} ${t.hoverBorder} transition shadow-sm flex justify-between items-center group gap-4">
                     <div class="flex-1 min-w-0">
                         <div class="font-extrabold ${t.textMain} text-lg group-hover:opacity-80 transition truncate">${esc(info.nom)}</div>
-                        <div class="text-sm font-semibold ${t.textSub} mt-1"><i class="fas fa-route mr-1"></i> à ${distanceKmSpan(info.dist)} d’ici</div>
+                        <div class="text-sm font-semibold ${t.textSub} mt-1"><i class="fas fa-route mr-1"></i> à ${distanceKmSpan(info.dist)} d'ici</div>
                         <div class="text-sm text-slate-600 mt-2 bg-white inline-block px-3 py-1.5 rounded-lg border ${t.badgeBorder} truncate max-w-full shadow-sm leading-tight">📉 <b>${t.title} :</b><br> ${info.carbs.join('<br> ')}</div>
                     </div>
                     <div class="h-10 w-10 flex-shrink-0 ${t.iconBg} rounded-full flex items-center justify-center ${t.hoverIcon} group-hover:text-white transition ${t.iconText}"><i class="fas fa-arrow-right"></i></div>
