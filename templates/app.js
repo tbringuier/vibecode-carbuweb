@@ -785,8 +785,8 @@ function renderFavorites() {
                     const majT = formatMajLabel(d);
                     const t = [col.title, majT ? `Maj. ${majT}` : ""].filter(Boolean).join(" · ");
                     const ta = t ? ` title="${esc(t)}"` : '';
-                    const tankInfo = fullTankHtml(parseFloat(d.prix));
-                    tags.push(`<span class="inline-block ${col.bg} ${col.text} text-[11px] font-semibold px-1.5 py-0.5 rounded"${ta}>${c} ${d.prix}€</span>${tankInfo}`);
+                    const tankInfo = fullTankHtml(parseFloat(d.prix), 'compact');
+                    tags.push(`<div class="inline-flex flex-col gap-0.5 rounded-lg border border-slate-200/70 bg-white/90 p-1 shadow-sm max-w-[9rem]"${ta}><span class="inline-block ${col.bg} ${col.text} text-[11px] font-bold px-1.5 py-0.5 rounded text-center">${c} ${d.prix}€</span>${tankInfo}</div>`);
                 }
                 if (tags.length) pricesHtml = `<div class="flex flex-wrap gap-1 mt-1.5">${tags.join('')}</div>`;
             }
@@ -820,7 +820,7 @@ function renderFavorites() {
                         const stB = db.stations[best.id];
                         const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
                         const maj = fd ? formatMajHtml(fd) : "";
-                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div>${fullTankHtml(best.prix)}${maj ? `<div class="text-[8px] text-green-600 font-medium leading-tight" translate="no">${maj}</div>` : ''}<div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
+                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-gradient-to-b from-green-50 to-emerald-50/80 border-2 border-green-200/90 rounded-xl p-2 text-center cursor-pointer hover:shadow-md transition min-w-0 shadow-sm"><div class="text-[10px] font-extrabold uppercase tracking-wide text-green-900">${fuel}</div><div class="text-base font-black text-green-800 tabular-nums my-0.5">${best.prix.toFixed(3)}<span class="text-xs font-bold">€</span></div>${fullTankHtml(best.prix, 'compact')}${maj ? `<div class="text-[8px] text-green-700 font-semibold italic leading-tight mt-0.5" translate="no"><i class="fas fa-clock mr-0.5 not-italic"></i>${maj}</div>` : ''}<div class="text-[9px] font-semibold text-green-700 truncate mt-0.5">${esc(best.nom)}</div></div>`;
                     }
                 });
                 }
@@ -903,12 +903,53 @@ function formatMajHtml(entry) {
     return s ? esc(s) : "";
 }
 
-/** Estimation du prix d'un plein complet (si réservoir renseigné). */
-function fullTankHtml(prixNum) {
+/** Montant estimé du plein (litres × prix/L), ou null si non calculable. */
+function fullTankEuroStr(prixNum) {
     const tank = getActiveTankSize();
-    if (!tank || !Number.isFinite(prixNum)) return '';
-    const total = (prixNum * tank).toFixed(2).replace('.', ',');
-    return `<div class="text-[10px] text-slate-400 font-medium">Plein ≈ ${total}\u202f€</div>`;
+    if (!tank || !Number.isFinite(prixNum)) return null;
+    return (prixNum * tank).toFixed(2).replace('.', ',');
+}
+
+/**
+ * Estimation plein réservoir — même langage visuel que les cartes prix (teal, dégradé, icône, graisse).
+ * variant: 'detail' fiche station · 'compact' listes & widgets · 'micro' puce inline (alternatives, etc.).
+ */
+function fullTankHtml(prixNum, variant = 'detail') {
+    const total = fullTankEuroStr(prixNum);
+    if (!total) return '';
+    const iconFill = '<i class="fas fa-fill-drip" aria-hidden="true"></i>';
+    if (variant === 'micro') {
+        return ` <span class="whitespace-nowrap text-[10px] font-bold text-teal-800"><span class="text-teal-600">${iconFill}</span> <em class="not-italic font-semibold text-teal-700">plein</em> <strong class="tabular-nums">${total}\u202f€</strong></span>`;
+    }
+    if (variant === 'compact') {
+        return `<div class="full-tank-estimate mt-1 flex items-center justify-center gap-1 rounded-lg border border-teal-200/90 bg-gradient-to-r from-teal-50 to-cyan-50 px-1.5 py-1 text-center shadow-sm"><span class="text-teal-600 text-sm leading-none">${iconFill}</span><span class="text-[10px] font-bold leading-tight text-teal-950"><em class="not-italic font-semibold text-teal-800">Plein</em> <strong class="tabular-nums">${total}\u202f€</strong></span></div>`;
+    }
+    return `<div class="full-tank-estimate mt-2 flex items-center gap-2 rounded-xl border border-teal-200 bg-gradient-to-r from-teal-50 via-cyan-50/80 to-teal-50 px-3 py-2.5 shadow-sm"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-700 text-lg">${iconFill}</span><div class="min-w-0 text-left leading-tight"><div class="text-[11px] font-bold uppercase tracking-wide text-teal-800/90">Estimation plein réservoir</div><div class="text-lg font-black tabular-nums text-teal-950">${total}<span class="text-sm font-bold text-teal-700">\u202f€</span></div></div></div>`;
+}
+
+/** Colonne prix + plein pour une ligne de résultat de recherche (stations). */
+function buildSearchStationPriceColumn(stationId, station) {
+    const fuelsShown = userFuels.filter(f => station.carburants_disponibles[f]);
+    if (fuelsShown.length === 0) {
+        return '<i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0 text-lg self-center"></i>';
+    }
+    let blocks = '';
+    fuelsShown.forEach(f => {
+        const d = station.carburants_disponibles[f];
+        const prixNum = parseFloat(d.prix);
+        const col = prixColorTag(stationId, f, d.prix);
+        const mj = formatMajHtml(d);
+        const t = [col.title, mj ? `Maj. ${mj}` : ''].filter(Boolean).join(' · ');
+        const ta = t ? ` title="${esc(t)}"` : '';
+        blocks += `
+            <div class="flex flex-col items-stretch gap-0.5 rounded-xl border border-slate-200/90 bg-white p-2 shadow-sm"${ta}>
+                <div class="text-[10px] font-extrabold uppercase tracking-wide ${col.text} truncate">${f}</div>
+                <div class="${col.bg} ${col.text} font-black text-base tabular-nums text-center rounded-lg border border-white/50 px-2 py-1">${d.prix}<span class="text-xs font-bold opacity-90">€</span></div>
+                ${fullTankHtml(prixNum, 'compact')}
+                ${mj ? `<div class="text-[9px] font-medium text-slate-500 text-center italic" translate="no"><i class="fas fa-clock mr-0.5 text-slate-400 not-italic"></i>${mj}</div>` : ''}
+            </div>`;
+    });
+    return `<div class="flex flex-col gap-2 shrink-0 w-[6.85rem] sm:w-[7.5rem]">${blocks}</div><i class="fas fa-chevron-right text-indigo-200 group-hover:text-indigo-500 transition flex-shrink-0 self-center text-lg ml-1"></i>`;
 }
 
 /**
@@ -917,15 +958,17 @@ function fullTankHtml(prixNum) {
  * Colonne largeur fixe + sous-titre sur hauteur fixe pour aligner les cartes entre lignes.
  */
 function buildZonePriceListBadge(prixDisplayStr, prixNum, minPrixInList) {
-    const col = 'price-list-badge flex flex-col items-stretch justify-center shrink-0 w-[7.5rem] sm:w-[8.5rem] gap-1 self-center';
+    const col = 'price-list-badge flex flex-col items-stretch justify-center shrink-0 w-[7.5rem] sm:w-[8.75rem] gap-1 self-center';
     const subSlot = (inner) => `<div class="min-h-[2.75rem] flex items-center justify-center px-0.5">${inner}</div>`;
     const placeholder = '<span class="invisible text-[10px] select-none" aria-hidden="true">·</span>';
+    const tankRow = fullTankHtml(prixNum, 'compact');
 
     if (minPrixInList === null || !Number.isFinite(prixNum)) {
         return {
             markerType: 'station_blue',
             html: `<div class="${col}">
                 <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+                ${tankRow}
                 ${subSlot(placeholder)}
             </div>`,
         };
@@ -936,6 +979,7 @@ function buildZonePriceListBadge(prixDisplayStr, prixNum, minPrixInList) {
             markerType: 'station_green',
             html: `<div class="${col}">
                 <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-900 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+                ${tankRow}
                 ${subSlot(`<p class="text-[10px] font-semibold text-green-700 text-center leading-tight"><i class="fas fa-trophy text-amber-500 mr-0.5" aria-hidden="true"></i>Meilleur prix affiché</p>`)}
             </div>`,
         };
@@ -946,6 +990,7 @@ function buildZonePriceListBadge(prixDisplayStr, prixNum, minPrixInList) {
             markerType: 'station_orange',
             html: `<div class="${col}">
                 <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-950 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+                ${tankRow}
                 ${subSlot(`<p class="text-[10px] text-amber-900 font-medium text-center leading-tight">+${formatFrEuros(delta)} € vs le moins cher</p>`)}
             </div>`,
         };
@@ -954,6 +999,7 @@ function buildZonePriceListBadge(prixDisplayStr, prixNum, minPrixInList) {
         markerType: 'station_blue',
         html: `<div class="${col}">
             <div class="font-black text-lg px-2 sm:px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-950 w-full text-center tabular-nums">${prixDisplayStr} €</div>
+            ${tankRow}
             ${subSlot(`<p class="text-[10px] text-indigo-800 text-center leading-tight"><span class="font-semibold">Mieux à ${minFmt} €</span> dans cette liste</p>`)}
         </div>`,
     };
@@ -1060,7 +1106,7 @@ function buildBestPricesWidget(stations) {
             const addr = stBest ? `${stBest.adresse}, ${stBest.ville}` : '';
             const fd = stBest && stBest.carburants_disponibles ? stBest.carburants_disponibles[fuel] : null;
             const maj = fd ? formatMajHtml(fd) : "";
-            cards += `<div onclick="showStation('${best.id}')" class="bg-green-50 border border-green-200 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-md hover:border-green-300 transition"><div class="text-[11px] font-bold text-green-800 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-700 my-0.5">${best.prix.toFixed(3)} €</div>${maj ? `<div class="text-[9px] text-green-600/90 font-medium" translate="no"><i class="fas fa-clock mr-0.5"></i>${maj}</div>` : ''}<div class="text-[10px] text-green-600 truncate leading-tight">${esc(best.nom)}</div><div class="text-[9px] text-green-500 truncate leading-tight">${esc(addr)}</div></div>`;
+            cards += `<div onclick="showStation('${best.id}')" class="bg-gradient-to-b from-green-50 to-emerald-50/80 border-2 border-green-200/90 rounded-xl p-2.5 text-center cursor-pointer hover:shadow-lg hover:border-green-400 transition shadow-sm"><div class="text-[11px] font-extrabold text-green-900 uppercase tracking-wide">${fuel}</div><div class="text-xl font-black text-green-800 my-0.5 tabular-nums">${best.prix.toFixed(3)} <span class="text-sm font-bold">€</span></div>${fullTankHtml(best.prix, 'compact')}${maj ? `<div class="text-[9px] text-green-700 font-semibold italic" translate="no"><i class="fas fa-clock mr-0.5 not-italic"></i>${maj}</div>` : ''}<div class="text-[10px] font-bold text-green-800 truncate leading-tight mt-0.5">${esc(best.nom)}</div><div class="text-[9px] text-green-600 truncate leading-tight italic">${esc(addr)}</div></div>`;
         }
     });
     if (!cards) return '';
@@ -1152,10 +1198,10 @@ function searchGeoZone(type, name, overrideFuel) {
         }
 
         html += `
-            <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center gap-3 group">
+            <div onclick="showStation('${res.id}')" class="p-4 bg-gradient-to-br from-white to-slate-50/80 border-2 border-slate-200/80 rounded-xl hover:shadow-lg hover:border-indigo-400 cursor-pointer transition flex justify-between items-center gap-3 group">
                 <div class="flex-1 min-w-0">
-                    <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
-                    <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.code_postal)} ${esc(res.station.ville)}${dateMaj}</div>
+                    <div class="font-extrabold text-slate-900 text-lg group-hover:text-indigo-700 transition truncate leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                    <div class="text-sm text-slate-600 truncate mt-1.5 flex items-start gap-2 flex-wrap"><i class="fas fa-map-marker-alt mt-0.5 text-indigo-400 text-base shrink-0"></i><span class="font-medium min-w-0"><span class="italic text-slate-700">${esc(res.station.adresse)}</span>, <strong class="font-bold not-italic text-slate-900">${esc(res.station.code_postal)}</strong> ${esc(res.station.ville)}</span>${dateMaj}</div>
                 </div>
                 ${rightContent}
             </div>`;
@@ -1322,30 +1368,36 @@ async function performSearch() {
     }
 
     if (regionResults.length > 0) {
-        html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4"><i class="fas fa-map-marked-alt mr-1"></i> Régions</div>`;
+        html += `<div class="text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-2 mt-4 flex items-center gap-2"><i class="fas fa-map-marked-alt text-purple-600 text-base"></i><span>Régions</span></div>`;
         regionResults.forEach(g => {
             html += `
-                <div onclick="searchGeoZone('region', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-purple-50 border border-purple-200 rounded-xl hover:shadow-md hover:border-purple-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
-                    <div class="flex-1 min-w-0">
-                        <div class="font-bold text-purple-800 group-hover:text-purple-600 transition truncate text-lg"><i class="fas fa-map-marked-alt mr-2 text-purple-500"></i>${esc(g.nom)}</div>
-                        <div class="text-sm text-purple-600 mt-1">${g.count} stations</div>
+                <div onclick="searchGeoZone('region', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-gradient-to-br from-purple-50 to-fuchsia-50/60 border-2 border-purple-200/80 rounded-xl hover:shadow-lg hover:border-purple-400 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
+                    <div class="flex-1 min-w-0 flex items-start gap-3">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-600 text-xl shadow-sm"><i class="fas fa-map-marked-alt"></i></span>
+                        <div class="min-w-0">
+                            <div class="font-extrabold text-purple-950 group-hover:text-purple-700 transition truncate text-lg leading-tight">${esc(g.nom)}</div>
+                            <div class="text-sm font-semibold text-purple-800 mt-1.5"><strong class="font-black text-purple-900 text-base">${g.count}</strong> <em class="font-medium not-italic text-purple-700">stations</em> <span class="text-purple-600/90">répertoriées</span></div>
+                        </div>
                     </div>
-                    <i class="fas fa-chevron-right text-purple-300 group-hover:text-purple-500 transition flex-shrink-0"></i>
+                    <i class="fas fa-chevron-right text-purple-400 group-hover:text-purple-600 transition flex-shrink-0 text-xl"></i>
                 </div>
             `;
         });
     }
 
     if (deptResults.length > 0) {
-        html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4"><i class="fas fa-map-pin mr-1"></i> Départements</div>`;
+        html += `<div class="text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-2 mt-4 flex items-center gap-2"><i class="fas fa-map-pin text-indigo-600 text-base"></i><span>Départements</span></div>`;
         deptResults.forEach(g => {
             html += `
-                <div onclick="searchGeoZone('dept', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
-                    <div class="flex-1 min-w-0">
-                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg"><i class="fas fa-map-pin mr-2 text-indigo-500"></i>${esc(g.nom)} (${esc(g.code)})</div>
-                        <div class="text-sm text-slate-500 mt-1">${esc(g.region)} · ${g.count} stations</div>
+                <div onclick="searchGeoZone('dept', '${g.nom.replace(/'/g, "\\'")}')" class="p-4 bg-gradient-to-br from-white to-indigo-50/40 border-2 border-slate-200/90 rounded-xl hover:shadow-lg hover:border-indigo-400 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
+                    <div class="flex-1 min-w-0 flex items-start gap-3">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 text-xl shadow-sm"><i class="fas fa-map-pin"></i></span>
+                        <div class="min-w-0">
+                            <div class="font-extrabold text-slate-900 group-hover:text-indigo-700 transition truncate text-lg leading-tight">${esc(g.nom)} <span class="text-indigo-700 font-black">(${esc(g.code)})</span></div>
+                            <div class="text-sm mt-1.5"><em class="font-semibold not-italic text-slate-600">${esc(g.region)}</em> · <strong class="font-bold text-slate-800">${g.count}</strong> <span class="text-slate-600 font-medium">stations</span></div>
+                        </div>
                     </div>
-                    <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0"></i>
+                    <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0 text-xl"></i>
                 </div>
             `;
         });
@@ -1368,18 +1420,18 @@ async function performSearch() {
 
     let stationsHtml = '';
     if (localResults.length > 0) {
-        stationsHtml += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2 min-w-0"><span class="min-w-0 truncate"><i class="fas fa-gas-pump mr-1"></i> Stations-services</span>${searchSourcePill('via data.economie.gouv.fr')}</div>`;
+        stationsHtml += `<div class="text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2 min-w-0"><span class="min-w-0 truncate flex items-center gap-2"><i class="fas fa-gas-pump text-amber-600 text-base"></i><span>Stations-services</span></span>${searchSourcePill('via data.economie.gouv.fr')}</div>`;
         localResults.forEach(res => {
-            const ff = userFuels.find(f => res.station.carburants_disponibles[f]);
-            const mj = ff ? formatMajHtml(res.station.carburants_disponibles[ff]) : "";
             stationsHtml += `
-                <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center group gap-4 mb-2">
+                <div onclick="showStation('${res.id}')" class="p-4 bg-gradient-to-br from-white to-slate-50/90 border-2 border-slate-200/80 rounded-xl hover:shadow-lg hover:border-indigo-400 cursor-pointer transition flex justify-between items-stretch gap-3 group mb-2">
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-slate-800 group-hover:text-indigo-600 transition truncate text-lg">${esc(res.station.nom_osm) || 'Station-service'}</div>
-                        <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.code_postal)} ${esc(res.station.ville)}</div>
-                        ${mj ? `<div class="text-[10px] text-slate-400 mt-0.5" translate="no"><i class="fas fa-clock mr-0.5"></i>${mj}${ff ? ` · ${esc(ff)}` : ''}</div>` : ''}
+                        <div class="font-extrabold text-slate-900 group-hover:text-indigo-700 transition truncate text-lg leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                        <div class="text-sm text-slate-600 truncate mt-2 flex items-start gap-2">
+                            <i class="fas fa-map-marker-alt mt-0.5 text-indigo-500 text-lg shrink-0"></i>
+                            <span class="font-medium leading-snug"><span class="italic text-slate-700">${esc(res.station.adresse)}</span>, <strong class="font-bold not-italic text-slate-900">${esc(res.station.code_postal)}</strong> ${esc(res.station.ville)}</span>
+                        </div>
                     </div>
-                    <i class="fas fa-chevron-right text-slate-300 group-hover:text-indigo-500 transition flex-shrink-0"></i>
+                    <div class="flex items-center shrink-0">${buildSearchStationPriceColumn(res.id, res.station)}</div>
                 </div>
             `;
         });
@@ -1390,7 +1442,7 @@ async function performSearch() {
         const osmData = await osmResponse.json();
 
         if (osmData.length > 0) {
-            html += `<div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2 min-w-0"><span class="min-w-0 truncate"><i class="fas fa-map-marked-alt mr-1"></i> Villes & Adresses</span>${searchSourcePill('via OpenStreetMap')}</div>`;
+            html += `<div class="text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-2 mt-4 flex justify-between items-center gap-2 min-w-0"><span class="min-w-0 truncate flex items-center gap-2"><i class="fas fa-map-marked-alt text-sky-600 text-base"></i><span>Villes & adresses</span></span>${searchSourcePill('via OpenStreetMap')}</div>`;
             osmData.forEach(place => {
                 const parts = place.display_name.split(',');
                 const name = parts[0];
@@ -1399,16 +1451,19 @@ async function performSearch() {
                 const isFav = placeKey && userFavorites.some(f => f.type === 'address' && addressFavoriteKey(f.lat, f.lon) === placeKey);
 
                 html += `
-                    <div class="bg-indigo-50 border border-indigo-100 rounded-xl hover:shadow-md hover:border-indigo-300 transition flex items-center group mb-2 overflow-hidden">
-                        <div onclick="findStationsNear(${place.lat}, ${place.lon}, '${name.replace(/'/g, "\\'")}')" class="p-4 flex-1 min-w-0 cursor-pointer flex justify-between items-center">
-                            <div class="min-w-0">
-                                <div class="font-bold text-indigo-800 group-hover:text-indigo-600 transition truncate text-lg">${esc(name)}</div>
-                                <div class="text-xs text-indigo-500 truncate mt-1"><i class="fas fa-search-location mr-1"></i>${esc(desc)}</div>
+                    <div class="bg-gradient-to-r from-indigo-50 via-blue-50/70 to-indigo-50/80 border-2 border-indigo-200/70 rounded-xl hover:shadow-lg hover:border-indigo-400 transition flex items-stretch group mb-2 overflow-hidden">
+                        <div onclick="findStationsNear(${place.lat}, ${place.lon}, '${name.replace(/'/g, "\\'")}')" class="p-4 flex-1 min-w-0 cursor-pointer flex justify-between items-center gap-3">
+                            <div class="min-w-0 flex items-start gap-3">
+                                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 text-2xl shadow-inner"><i class="fas fa-city"></i></span>
+                                <div class="min-w-0">
+                                    <div class="font-extrabold text-indigo-950 group-hover:text-indigo-700 transition truncate text-lg leading-tight">${esc(name)}</div>
+                                    <div class="text-sm text-indigo-700 mt-1.5 italic leading-snug line-clamp-2"><i class="fas fa-search-location mr-1.5 text-indigo-500 not-italic text-base align-middle"></i>${esc(desc)}</div>
+                                </div>
                             </div>
-                            <i class="fas fa-arrow-right text-indigo-300 group-hover:text-indigo-500 transition ml-3"></i>
+                            <i class="fas fa-arrow-right text-indigo-400 group-hover:text-indigo-600 transition text-xl shrink-0 self-center"></i>
                         </div>
-                        <button onclick="toggleFavoriteAddress(${place.lat}, ${place.lon}, '${name.replace(/'/g, "\\'")}')" class="p-4 text-xl border-l border-indigo-100 transition hover:bg-indigo-100" title="Ajouter aux lieux favoris">
-                            <i class="fas fa-star ${isFav ? 'text-yellow-400' : 'text-indigo-200 hover:text-yellow-400'}"></i>
+                        <button onclick="toggleFavoriteAddress(${place.lat}, ${place.lon}, '${name.replace(/'/g, "\\'")}')" class="px-4 flex items-center justify-center text-2xl border-l-2 border-indigo-200/80 transition hover:bg-indigo-100/90 shrink-0" title="Ajouter aux lieux favoris">
+                            <i class="fas fa-star ${isFav ? 'text-yellow-400' : 'text-indigo-300 hover:text-yellow-400'}"></i>
                         </button>
                     </div>
                 `;
@@ -1538,21 +1593,28 @@ function renderStationsList(lat, lon, labelTitle, sortFuel) {
                 } else {
                     let carbsArray = [];
                     for (const [c, d] of Object.entries(res.station.carburants_disponibles)) {
-                        if(userFuels.includes(c)) {
+                        if (userFuels.includes(c)) {
                             const mj = formatMajHtml(d);
-                            carbsArray.push(`<span class="font-semibold">${c}</span> ${d.prix}€${mj ? `<span class="text-slate-400 font-normal text-[10px] ml-0.5" translate="no">(${mj})</span>` : ''}`);
+                            const prixNum = parseFloat(d.prix);
+                            const col = prixColorTag(res.id, c, d.prix);
+                            carbsArray.push(`<div class="inline-flex flex-col gap-0.5 rounded-xl border border-slate-200/80 ${col.bg} px-2 py-1.5 shadow-sm">
+                                <span class="font-extrabold text-[10px] uppercase tracking-wide ${col.text}">${c}</span>
+                                <span class="font-black tabular-nums ${col.text} text-base">${d.prix}<span class="text-xs font-bold">€</span></span>
+                                ${fullTankHtml(prixNum, 'compact')}
+                                ${mj ? `<span class="text-[9px] font-medium italic ${col.text} opacity-90" translate="no"><i class="fas fa-clock mr-0.5 not-italic"></i>${mj}</span>` : ''}
+                            </div>`);
                         }
                     }
-                    carbsHtml = distText + `<div class="text-sm text-slate-600 mt-1.5">${carbsArray.join(' <span class="text-slate-300">·</span> ')}</div>`;
+                    carbsHtml = distText + `<div class="flex flex-wrap gap-2 mt-2 items-start">${carbsArray.join('')}</div>`;
                     rightContent = '';
                     res.markerType = 'station_blue';
                 }
 
                 html += `
-                <div onclick="showStation('${res.id}')" class="p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-indigo-300 cursor-pointer transition flex justify-between items-center gap-3 group">
+                <div onclick="showStation('${res.id}')" class="p-4 bg-gradient-to-br from-white to-slate-50/80 border-2 border-slate-200/80 rounded-xl hover:shadow-lg hover:border-indigo-400 cursor-pointer transition flex justify-between items-center gap-3 group">
                     <div class="flex-1 min-w-0">
-                        <div class="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition truncate">${esc(res.station.nom_osm) || 'Station-service'}</div>
-                        <div class="text-sm text-slate-500 truncate mt-1"><i class="fas fa-map-marker-alt mr-1 text-slate-300"></i>${esc(res.station.adresse)}, ${esc(res.station.ville)}</div>
+                        <div class="font-extrabold text-slate-900 text-lg group-hover:text-indigo-700 transition truncate leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                        <div class="text-sm text-slate-600 truncate mt-1.5 flex items-start gap-2"><i class="fas fa-map-marker-alt mt-0.5 text-indigo-400 text-base shrink-0"></i><span class="font-medium"><span class="italic text-slate-700">${esc(res.station.adresse)}</span>, <strong class="font-bold not-italic text-slate-900">${esc(res.station.ville)}</strong></span></div>
                         ${carbsHtml}
                     </div>
                     ${rightContent}
@@ -1666,14 +1728,17 @@ function findCheapest() {
         const majP = carbEnt ? formatMajHtml(carbEnt) : "";
         
         html += `
-            <div onclick="showStation('${res.id}')" class="p-4 border rounded-xl flex items-center cursor-pointer hover:shadow-md hover:border-indigo-300 transition gap-2 group ${medailleClass}">
+            <div onclick="showStation('${res.id}')" class="p-4 border-2 rounded-xl flex items-center cursor-pointer hover:shadow-lg hover:border-indigo-400 transition gap-3 group ${medailleClass}">
                 ${badge}
                 <div class="flex-1 min-w-0">
-                    <div class="font-bold text-slate-800 text-lg truncate group-hover:text-indigo-600 transition">${esc(res.station.nom_osm) || 'Station-service'}</div>
-                    <div class="text-xs text-slate-500 truncate">${esc(res.station.ville)} (${esc(res.station.code_postal)})</div>
-                    ${majP ? `<div class="text-[10px] text-slate-400 mt-0.5" translate="no"><i class="fas fa-clock mr-0.5"></i>${majP}</div>` : ''}
+                    <div class="font-extrabold text-slate-900 text-lg truncate group-hover:text-indigo-700 transition leading-tight">${esc(res.station.nom_osm) || 'Station-service'}</div>
+                    <div class="text-sm text-slate-600 truncate mt-1 font-medium"><em class="not-italic font-semibold text-slate-700">${esc(res.station.ville)}</em> <span class="text-slate-500">·</span> <strong class="font-bold text-slate-800">${esc(res.station.code_postal)}</strong></div>
+                    ${majP ? `<div class="text-[10px] text-slate-500 mt-1 font-medium italic" translate="no"><i class="fas fa-clock mr-0.5 text-slate-400 not-italic"></i>${majP}</div>` : ''}
                 </div>
-                <div class="font-black ${colorPrix} text-xl ml-2 bg-white px-3 py-1 rounded-lg shadow-sm border border-slate-100 flex-shrink-0">${res.prixInfo.toFixed(3)} €</div>
+                <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div class="font-black ${colorPrix} text-xl bg-white px-3 py-1.5 rounded-xl shadow-md border-2 border-slate-100 tabular-nums">${res.prixInfo.toFixed(3)} €</div>
+                    ${fullTankHtml(res.prixInfo, 'compact')}
+                </div>
             </div>
         `;
     });
@@ -1903,7 +1968,7 @@ function showStation(stationId) {
                         <span class="font-bold text-slate-700 text-lg">${carb}</span>
                         <span class="font-black text-xl sm:text-2xl shrink-0 ${priceColor}">${data.prix} <span class="text-base sm:text-lg ${euroColor}">€</span></span>
                     </div>
-                    ${fullTankHtml(prixActuel)}
+                    ${fullTankHtml(prixActuel, 'detail')}
                     <div class="flex justify-end items-center mt-2">
                         <span class="text-slate-400 text-xs font-medium" translate="no"><i class="fas fa-clock mr-1"></i>${formatMajHtml(data)}</span>
                     </div>
@@ -1939,7 +2004,7 @@ function showStation(stationId) {
             if (alt.isNew || !alt.isEqual) altGroup[alt.id].isBetter = true; 
             
             let prefix = alt.isNew ? "Non proposé ici, disponible à proximité" : (alt.isEqual ? "Même prix" : "Moins cher");
-            altGroup[alt.id].carbs.push(`<span class="font-bold">${alt.carburant}</span> (${alt.prix}€ <span class="italic text-xs">${prefix}</span>)`);
+            altGroup[alt.id].carbs.push(`<span class="font-bold">${alt.carburant}</span> (${alt.prix}€ <span class="italic text-xs">${prefix}</span>)${fullTankHtml(parseFloat(String(alt.prix).replace(',', '.')), 'micro')}`);
         });
 
         for (const [altId, info] of Object.entries(altGroup)) {

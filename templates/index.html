@@ -44,6 +44,7 @@
         html {
             scroll-behavior: smooth;
             overflow-x: hidden;
+            max-width: 100%;
             -webkit-text-size-adjust: 100%;
             text-size-adjust: 100%;
             text-rendering: optimizeLegibility;
@@ -53,13 +54,20 @@
             -moz-osx-font-smoothing: grayscale;
             min-height: 100vh;
             min-height: 100dvh;
+            max-width: 100%;
+            overflow-x: clip;
             -webkit-tap-highlight-color: rgba(79, 70, 229, 0.12);
+        }
+        @supports not (overflow: clip) {
+            body { overflow-x: hidden; }
         }
         .layout-shell {
             width: 100%;
-            max-width: none;
+            max-width: 100%;
+            min-width: 0;
             margin-left: auto;
             margin-right: auto;
+            box-sizing: border-box;
         }
         .skip-link {
             position: absolute;
@@ -103,6 +111,31 @@
         }
         .footer-meta {
             font-variant-numeric: tabular-nums;
+            min-width: 0;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .footer-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: baseline;
+            gap: 0.25rem 0.5rem;
+            min-width: 0;
+            max-width: 100%;
+        }
+        .footer-meta-row > span,
+        .footer-meta-row > time {
+            min-width: 0;
+            max-width: 100%;
+        }
+        .footer-sep.footer-sep-dot {
+            color: #cbd5e1;
+            user-select: none;
+        }
+        @media (max-width: 639.98px) {
+            .footer-sep.footer-sep-dot { display: none; }
         }
         .footer-git-commit {
             color: inherit;
@@ -123,6 +156,7 @@
             font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
             font-size: 0.95em;
             font-weight: 500;
+            word-break: break-all;
         }
         a:focus-visible,
         button:focus-visible,
@@ -244,10 +278,10 @@
         #app-toast.toast-visible { opacity: 1; transform: translate(-50%, 0); }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen min-h-[100dvh] flex flex-col text-[0.9375rem] leading-relaxed sm:text-base sm:leading-relaxed">
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen min-h-[100dvh] flex flex-col text-[0.9375rem] leading-relaxed sm:text-base sm:leading-relaxed w-full max-w-[100%] min-w-0 overflow-x-clip">
     <a href="#app" class="skip-link">Aller au contenu principal</a>
-    <nav class="bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg sticky top-0 z-50 backdrop-blur-sm supports-[backdrop-filter]:bg-indigo-600/95" aria-label="En-tête">
-        <div class="layout-shell flex justify-between items-center gap-3 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] pt-[max(0.625rem,env(safe-area-inset-top,0px))] pb-2.5 sm:pb-3 md:pb-4">
+    <nav class="w-full min-w-0 max-w-full overflow-x-clip bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg sticky top-0 z-50 backdrop-blur-sm supports-[backdrop-filter]:bg-indigo-600/95" aria-label="En-tête">
+        <div class="layout-shell flex justify-between items-center gap-3 min-w-0 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] pt-[max(0.625rem,env(safe-area-inset-top,0px))] pb-2.5 sm:pb-3 md:pb-4">
             <h1 class="page-title text-lg sm:text-2xl md:text-[1.65rem] font-extrabold cursor-pointer min-w-0 truncate touch-manipulation py-1" onclick="goHome()">
                 <i class="fas fa-gas-pump mr-1.5 sm:mr-2 text-yellow-300 shrink-0" aria-hidden="true"></i>Carbu'Web
             </h1>
@@ -307,7 +341,7 @@
         </div>
     </div>
 
-    <main class="layout-shell flex-grow w-full min-w-0 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] py-3 sm:py-5 mt-2 sm:mt-4" id="app" tabindex="-1">
+    <main class="layout-shell flex-grow w-full min-w-0 max-w-full overflow-x-clip pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))] py-3 sm:py-5 mt-2 sm:mt-4" id="app" tabindex="-1">
         <div id="loading" class="text-center mt-20">
             <div class="loader"></div>
             <p class="text-slate-500 font-medium mt-4 animate-pulse">Chargement des stations…</p>
@@ -317,7 +351,7 @@
             <div class="flex gap-2 overflow-x-auto custom-scrollbar scroll-touch snap-x snap-mandatory pb-1" id="vehicle-bar-list"></div>
         </div>
 
-        <div id="home-view" class="hidden">
+        <div id="home-view" class="hidden min-w-0 max-w-full">
 
             <div id="welcome-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-4 sm:mb-6 relative">
                 <button type="button" onclick="dismissWelcome()" class="touch-manipulation absolute top-3 right-3 sm:top-4 sm:right-4 inline-flex items-center justify-center min-h-[2.75rem] min-w-[2.75rem] text-slate-300 hover:text-slate-500 transition rounded-lg" aria-label="Fermer"><i class="fas fa-times text-lg"></i></button>
@@ -419,7 +453,7 @@
             </div>
         </div>
 
-        <div id="station-view" class="hidden">
+        <div id="station-view" class="hidden min-w-0 max-w-full">
             <div class="flex justify-between items-center gap-2 mb-4 sm:mb-6">
                 <button type="button" onclick="goBack()" class="touch-manipulation text-indigo-600 font-bold hover:text-indigo-800 transition flex items-center bg-indigo-50 px-4 py-2.5 min-h-[2.75rem] rounded-full hover:bg-indigo-100 active:bg-indigo-100/80 text-sm sm:text-base shrink-0">
                     <i class="fas fa-arrow-left mr-2" aria-hidden="true"></i>Retour
@@ -433,25 +467,25 @@
     <div id="app-toast" role="status" aria-live="polite" class="toast-hidden fixed left-1/2 z-[90] max-w-[min(92vw,20rem)] px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-xl flex items-center gap-2 justify-center text-center" style="bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem));"></div>
 
 
-    <footer class="mt-auto border-t border-slate-200/90 bg-white/90 text-slate-500" role="contentinfo">
+    <footer class="mt-auto w-full min-w-0 max-w-full overflow-x-clip border-t border-slate-200/90 bg-white/90 text-slate-500" role="contentinfo">
         <div class="layout-shell py-5 sm:py-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))]">
-            <div class="footer-meta text-center text-[0.6875rem] sm:text-xs leading-relaxed text-slate-500 max-w-4xl mx-auto">
-                <p class="text-slate-600">
-                    {{FUEL_DATA_UPDATE_FOOTER_HTML}}
-                    <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
-                    <span class="whitespace-nowrap"><span id="footer-station-count" class="tabular-nums font-medium text-slate-700">{{STATION_COUNT}}</span> stations indexées</span>
-                    <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
-                    <span class="whitespace-nowrap">Site généré <time datetime="{{BUILD_DATETIME_ISO}}" title="Heure de Paris (build)">{{BUILD_DATETIME_PARIS}}</time></span>
-                    <span class="mx-2 text-slate-300 select-none" aria-hidden="true">·</span>
-                    <span class="whitespace-nowrap">Commit {{GIT_COMMIT_HTML}}</span>
+            <div class="footer-meta text-center text-[0.6875rem] sm:text-xs leading-relaxed text-slate-500 w-full max-w-4xl mx-auto px-0 sm:px-2">
+                <p class="text-slate-600 footer-meta-row">
+                    <span>{{FUEL_DATA_UPDATE_FOOTER_HTML}}</span>
+                    <span class="footer-sep footer-sep-dot" aria-hidden="true">·</span>
+                    <span><span id="footer-station-count" class="tabular-nums font-medium text-slate-700">{{STATION_COUNT}}</span> stations indexées</span>
+                    <span class="footer-sep footer-sep-dot" aria-hidden="true">·</span>
+                    <span>Site généré <time datetime="{{BUILD_DATETIME_ISO}}" title="Heure de Paris (build)">{{BUILD_DATETIME_PARIS}}</time></span>
+                    <span class="footer-sep footer-sep-dot" aria-hidden="true">·</span>
+                    <span>Commit {{GIT_COMMIT_HTML}}</span>
                 </p>
-                <p class="mt-3 text-slate-400 max-w-3xl mx-auto">
-                    Données ouvertes : <a href="https://data.economie.gouv.fr/explore/dataset/prix-carburants-quotidien/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500">prix-carburants-quotidien</a>
+                <p class="mt-3 text-slate-400 max-w-3xl mx-auto px-0 sm:px-1 text-pretty">
+                    Données ouvertes : <a href="https://data.economie.gouv.fr/explore/dataset/prix-carburants-quotidien/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500 break-words">prix-carburants-quotidien</a>
                     <span class="text-slate-300 mx-1" aria-hidden="true">(</span>jour {{BUILD_DATE}}<span class="text-slate-300 mx-1" aria-hidden="true">)</span>
-                    et <a href="https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500">flux instantané</a>.
+                    et <a href="https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/information/" target="_blank" rel="noopener noreferrer" class="text-slate-500 underline decoration-slate-300/80 underline-offset-2 hover:text-slate-700 hover:decoration-slate-500 break-words">flux instantané</a>.
                 </p>
-                <p class="mt-3">
-                    <a href="https://github.com/tbringuier/vibecode-carbuweb" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-slate-500 font-medium hover:text-indigo-600 transition underline decoration-transparent hover:decoration-indigo-300 underline-offset-2"><i class="fab fa-github text-base" aria-hidden="true"></i>Code source sur GitHub</a>
+                <p class="mt-3 min-w-0 max-w-full flex justify-center px-1">
+                    <a href="https://github.com/tbringuier/vibecode-carbuweb" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-slate-500 font-medium hover:text-indigo-600 transition underline decoration-transparent hover:decoration-indigo-300 underline-offset-2 max-w-full min-w-0 break-words text-center"><i class="fab fa-github text-base shrink-0" aria-hidden="true"></i><span class="min-w-0">Code source sur GitHub</span></a>
                 </p>
             </div>
         </div>
