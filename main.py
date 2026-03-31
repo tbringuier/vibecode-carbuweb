@@ -176,9 +176,10 @@ def station_address_correlation_key(adresse, cp, ville):
 
 
 def normalize_price_update_iso(raw):
-    """Chaîne ISO 8601 exploitable (souvent avec offset) pour stockage et comparaison.
+    """Chaîne ISO 8601 avec offset Europe/Paris garanti.
 
-    Les exports Excel utilisent souvent « YYYY-MM-DD HH:MM:SS » sans « T » ; on normalise.
+    Les exports Excel utilisent souvent « YYYY-MM-DD HH:MM:SS » sans « T » ni offset.
+    Les données gouvernementales sont publiées en heure locale française.
     """
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return None
@@ -191,7 +192,17 @@ def normalize_price_update_iso(raw):
             s = m.group(1) + "T" + m.group(2).lstrip()
     if "T" not in s:
         return None
-    return s.replace(" ", "")
+    s = s.replace(" ", "")
+    # If an offset is already present (e.g. +02:00, +01:00, Z), keep it.
+    if re.search(r"[+-]\d{2}:\d{2}$", s) or s.endswith("Z"):
+        return s
+    # No offset: assume Europe/Paris local time — add the correct offset for that date.
+    try:
+        naive = datetime.fromisoformat(s)
+        paris = naive.replace(tzinfo=ZoneInfo("Europe/Paris"))
+        return paris.isoformat(timespec="seconds")
+    except (ValueError, TypeError):
+        return s
 
 
 def _calendar_age_days(ref_cal: str, update_date: str) -> int | None:
@@ -320,7 +331,13 @@ def flux_maj_iso_and_date(raw) -> tuple[str | None, str]:
         rest = s[10:].strip()
         if not rest:
             d = s[:10]
-            return f"{d}T12:00:00", d
+            try:
+                noon = datetime.strptime(d, "%Y-%m-%d").replace(
+                    hour=12, tzinfo=ZoneInfo("Europe/Paris")
+                )
+                return noon.isoformat(timespec="seconds"), d
+            except ValueError:
+                return f"{d}T12:00:00", d
     return None, ""
 
 
