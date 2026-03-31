@@ -272,8 +272,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderFavorites();
         syncFooterStationCount();
         syncFooterFuelDataUpdate();
-        registerServiceWorker();
-        initPwaInstall();
+        cleanupLegacyServiceWorkers();
         startPeriodicDataRefresh();
     } catch (e) {
         document.getElementById('loading').innerHTML = '<p class="text-red-500 font-bold"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur serveur HTTP local.</p>';
@@ -333,63 +332,14 @@ function showToast(message, iconClass = 'fa-check-circle') {
     }, 2400);
 }
 
-let deferredInstallPrompt = null;
-
-function registerServiceWorker() {
-    if (!('serviceWorker' in navigator)) return;
-    const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    if (location.protocol !== 'https:' && !local) return;
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-}
-
-function initPwaInstall() {
-    const bar = document.getElementById('pwa-install-bar');
-    const btn = document.getElementById('pwa-install-btn');
-    const dismiss = document.getElementById('pwa-install-dismiss');
-    const hint = document.getElementById('pwa-install-hint');
-    if (!bar || !dismiss || !hint) return;
-    if (localStorage.getItem('carbuPwaBannerDismissed')) return;
-    if (window.matchMedia('(display-mode: standalone)').matches) return;
-
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const isSafariInstalled = window.navigator.standalone === true;
-    const mobileOrCoarse = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
-
-    const revealBar = () => {
-        if (localStorage.getItem('carbuPwaBannerDismissed')) return;
-        bar.classList.remove('pwa-bar-hidden');
-    };
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredInstallPrompt = e;
-        if (btn) btn.classList.remove('hidden');
-        revealBar();
-    });
-
-    if (btn) {
-        btn.addEventListener('click', async () => {
-            if (!deferredInstallPrompt) return;
-            deferredInstallPrompt.prompt();
-            try { await deferredInstallPrompt.userChoice; } catch (err) {}
-            deferredInstallPrompt = null;
-            btn.classList.add('hidden');
-            bar.classList.add('pwa-bar-hidden');
-            localStorage.setItem('carbuPwaBannerDismissed', '1');
-        });
-    }
-
-    dismiss.addEventListener('click', () => {
-        bar.classList.add('pwa-bar-hidden');
-        localStorage.setItem('carbuPwaBannerDismissed', '1');
-    });
-
-    if (isIOS && !isSafariInstalled) {
-        hint.innerHTML = 'Sur <strong>Safari</strong> : appuyez sur <span class="whitespace-nowrap"><i class="fas fa-share-from-square mx-0.5" aria-hidden="true"></i> Partager</span>, puis <strong>Sur l’écran d’accueil</strong>.';
-        if (btn) btn.classList.add('hidden');
-        setTimeout(revealBar, 1800);
-    } else if (!isIOS && mobileOrCoarse) {
-        setTimeout(revealBar, 2200);
+/** Nettoyage des service workers et caches hérités (idempotent, peut rester indéfiniment). */
+function cleanupLegacyServiceWorkers() {
+    if (!(‘serviceWorker’ in navigator)) return;
+    navigator.serviceWorker.getRegistrations().then(regs =>
+        regs.forEach(r => r.unregister())
+    );
+    if (‘caches’ in window) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     }
 }
 

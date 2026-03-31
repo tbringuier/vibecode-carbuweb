@@ -16,7 +16,6 @@
     <meta property="og:type" content="website">
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛽</text></svg>">
-    <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -243,8 +242,6 @@
         #app-toast { transition: opacity 0.25s ease, transform 0.25s ease; }
         #app-toast.toast-hidden { opacity: 0; transform: translate(-50%, 12px); pointer-events: none; }
         #app-toast.toast-visible { opacity: 1; transform: translate(-50%, 0); }
-        #pwa-install-bar { transition: transform 0.3s ease, opacity 0.3s ease; }
-        #pwa-install-bar.pwa-bar-hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen min-h-[100dvh] flex flex-col text-[0.9375rem] leading-relaxed sm:text-base sm:leading-relaxed">
@@ -431,18 +428,6 @@
 
     <div id="app-toast" role="status" aria-live="polite" class="toast-hidden fixed left-1/2 z-[90] max-w-[min(92vw,20rem)] px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-xl flex items-center gap-2 justify-center text-center" style="bottom: max(5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem));"></div>
 
-    <div id="pwa-install-bar" class="pwa-bar-hidden fixed bottom-0 left-0 right-0 z-[85] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]">
-        <div class="layout-shell mx-auto rounded-2xl bg-indigo-600 text-white shadow-lg border border-indigo-500/30 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 max-w-none sm:max-w-none">
-            <div class="flex-1 min-w-0">
-                <p class="font-bold text-sm sm:text-base"><i class="fas fa-mobile-screen-button mr-2" aria-hidden="true"></i>Installer l’application</p>
-                <p id="pwa-install-hint" class="text-xs sm:text-sm text-indigo-100 mt-1 leading-snug">Raccourci sur l’écran d’accueil pour rouvrir le site plus vite.</p>
-            </div>
-            <div class="flex flex-shrink-0 gap-2 items-center">
-                <button type="button" id="pwa-install-btn" class="hidden whitespace-nowrap bg-white text-indigo-700 font-bold px-4 py-2.5 rounded-xl text-sm hover:bg-indigo-50 transition">Installer</button>
-                <button type="button" id="pwa-install-dismiss" class="text-indigo-200 hover:text-white p-2 rounded-lg transition" aria-label="Fermer la proposition d’installation"><i class="fas fa-times" aria-hidden="true"></i></button>
-            </div>
-        </div>
-    </div>
 
     <footer class="mt-auto border-t border-slate-200/90 bg-white/90 text-slate-500" role="contentinfo">
         <div class="layout-shell py-5 sm:py-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.25rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.25rem,env(safe-area-inset-right,0px))] lg:pl-[max(2rem,env(safe-area-inset-left,0px))] lg:pr-[max(2rem,env(safe-area-inset-right,0px))] xl:pl-[max(2.5rem,env(safe-area-inset-left,0px))] xl:pr-[max(2.5rem,env(safe-area-inset-right,0px))]">
