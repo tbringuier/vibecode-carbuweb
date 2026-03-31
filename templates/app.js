@@ -64,6 +64,13 @@ function applyActiveVehicle() {
     }
 }
 
+/** Taille du réservoir du véhicule actif (litres), ou null si non renseignée. */
+function getActiveTankSize() {
+    if (!activeVehicleId) return null;
+    const v = userVehicles.find(v => v.id === activeVehicleId);
+    return v && v.tankSize ? v.tankSize : null;
+}
+
 function switchVehicle(vehicleId) {
     if (vehicleId === activeVehicleId) return;
     activeVehicleId = vehicleId;
@@ -127,20 +134,21 @@ function generateVehicleId() {
     return 'v' + Date.now() + Math.random().toString(36).slice(2, 6);
 }
 
-function addVehicle(name, icon, fuels) {
+function addVehicle(name, icon, fuels, tankSize) {
     if (!name.trim() || fuels.length === 0) return null;
-    const v = { id: generateVehicleId(), name: name.trim(), icon, fuels: [...fuels] };
+    const v = { id: generateVehicleId(), name: name.trim(), icon, fuels: [...fuels], tankSize: tankSize || null };
     userVehicles.push(v);
     saveVehicles();
     return v;
 }
 
-function updateVehicle(id, name, icon, fuels) {
+function updateVehicle(id, name, icon, fuels, tankSize) {
     const v = userVehicles.find(v => v.id === id);
     if (!v) return;
     v.name = name.trim();
     v.icon = icon;
     v.fuels = [...fuels];
+    v.tankSize = tankSize || null;
     saveVehicles();
     if (activeVehicleId === id) applyActiveVehicle();
 }
@@ -445,7 +453,7 @@ function renderVehiclesList() {
             <div class="h-9 w-9 rounded-full ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'} flex items-center justify-center shrink-0"><i class="fas ${v.icon} text-sm"></i></div>
             <div class="flex-1 min-w-0">
                 <div class="font-bold text-sm text-slate-800 truncate">${esc(v.name)}</div>
-                <div class="flex flex-wrap gap-1 mt-0.5">${fuelBadges}</div>
+                <div class="flex flex-wrap gap-1 mt-0.5">${fuelBadges}${v.tankSize ? `<span class="text-[10px] bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded"><i class="fas fa-gas-pump mr-0.5"></i>${v.tankSize}L</span>` : ''}</div>
             </div>
             <button type="button" onclick="openVehicleForm('${v.id}')" class="touch-manipulation h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition text-xs" title="Modifier"><i class="fas fa-pen"></i></button>
             <button type="button" onclick="confirmDeleteVehicle('${v.id}')" class="touch-manipulation h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition text-xs" title="Supprimer"><i class="fas fa-trash"></i></button>
@@ -463,6 +471,7 @@ function openVehicleForm(vehicleId) {
 
     const existing = vehicleId ? userVehicles.find(v => v.id === vehicleId) : null;
     document.getElementById('vehicle-name-input').value = existing ? existing.name : '';
+    document.getElementById('vehicle-tank-input').value = existing && existing.tankSize ? existing.tankSize : '';
 
     const selectedIcon = existing ? existing.icon : VEHICLE_ICONS[0].icon;
     const picker = document.getElementById('vehicle-icon-picker');
@@ -511,11 +520,13 @@ function saveVehicleForm() {
     const icon = selectedIcon ? selectedIcon.dataset.icon : 'fa-car';
     const fuels = [...document.querySelectorAll('.vehicle-fuel-cb:checked')].map(cb => cb.value);
     if (fuels.length === 0) { showToast('Cochez au moins un carburant', 'fa-exclamation-triangle'); return; }
+    const tankRaw = parseInt(document.getElementById('vehicle-tank-input').value, 10);
+    const tankSize = Number.isFinite(tankRaw) && tankRaw > 0 ? tankRaw : null;
 
     if (editingVehicleId) {
-        updateVehicle(editingVehicleId, name, icon, fuels);
+        updateVehicle(editingVehicleId, name, icon, fuels, tankSize);
     } else {
-        const v = addVehicle(name, icon, fuels);
+        const v = addVehicle(name, icon, fuels, tankSize);
         if (!v) return;
     }
     closeVehicleForm();
@@ -774,7 +785,8 @@ function renderFavorites() {
                     const majT = formatMajLabel(d);
                     const t = [col.title, majT ? `Maj. ${majT}` : ""].filter(Boolean).join(" · ");
                     const ta = t ? ` title="${esc(t)}"` : '';
-                    tags.push(`<span class="inline-block ${col.bg} ${col.text} text-[11px] font-semibold px-1.5 py-0.5 rounded"${ta}>${c} ${d.prix}€</span>`);
+                    const tankInfo = fullTankHtml(parseFloat(d.prix));
+                    tags.push(`<span class="inline-block ${col.bg} ${col.text} text-[11px] font-semibold px-1.5 py-0.5 rounded"${ta}>${c} ${d.prix}€</span>${tankInfo}`);
                 }
                 if (tags.length) pricesHtml = `<div class="flex flex-wrap gap-1 mt-1.5">${tags.join('')}</div>`;
             }
@@ -808,7 +820,7 @@ function renderFavorites() {
                         const stB = db.stations[best.id];
                         const fd = stB && stB.carburants_disponibles ? stB.carburants_disponibles[fuel] : null;
                         const maj = fd ? formatMajHtml(fd) : "";
-                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div>${maj ? `<div class="text-[8px] text-green-600 font-medium leading-tight" translate="no">${maj}</div>` : ''}<div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
+                        bestCards += `<div onclick="event.stopPropagation(); showStationWithFavoriteOrigin('${best.id}', ${f.lat}, ${f.lon}, '${f.name.replace(/'/g, "\\'")}')" class="bg-green-50 border border-green-200 rounded-lg p-1.5 text-center cursor-pointer hover:shadow-sm transition min-w-0"><div class="text-[10px] font-bold text-green-800">${fuel}</div><div class="text-sm font-black text-green-700">${best.prix.toFixed(3)}€</div>${fullTankHtml(best.prix)}${maj ? `<div class="text-[8px] text-green-600 font-medium leading-tight" translate="no">${maj}</div>` : ''}<div class="text-[9px] text-green-600 truncate">${esc(best.nom)}</div></div>`;
                     }
                 });
                 }
@@ -889,6 +901,14 @@ function formatMajLabel(entry) {
 function formatMajHtml(entry) {
     const s = formatMajLabel(entry);
     return s ? esc(s) : "";
+}
+
+/** Estimation du prix d'un plein complet (si réservoir renseigné). */
+function fullTankHtml(prixNum) {
+    const tank = getActiveTankSize();
+    if (!tank || !Number.isFinite(prixNum)) return '';
+    const total = (prixNum * tank).toFixed(2).replace('.', ',');
+    return `<div class="text-[10px] text-slate-400 font-medium">Plein ≈ ${total}\u202f€</div>`;
 }
 
 /**
@@ -1883,6 +1903,7 @@ function showStation(stationId) {
                         <span class="font-bold text-slate-700 text-lg">${carb}</span>
                         <span class="font-black text-xl sm:text-2xl shrink-0 ${priceColor}">${data.prix} <span class="text-base sm:text-lg ${euroColor}">€</span></span>
                     </div>
+                    ${fullTankHtml(prixActuel)}
                     <div class="flex justify-end items-center mt-2">
                         <span class="text-slate-400 text-xs font-medium" translate="no"><i class="fas fa-clock mr-1"></i>${formatMajHtml(data)}</span>
                     </div>
