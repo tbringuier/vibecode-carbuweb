@@ -1,169 +1,163 @@
-# Carbu'Web
+# Carbu'Web — Guide Claude Code
 
-Application web de comparaison des prix de carburants en France.
-Site statique genere par CI (GitHub Actions), deploye sur GitHub Pages.
+Comparateur de prix carburants en France. Site statique genere toutes les 5 min par CI (GitHub Actions → GitHub Pages). Domaine : `carbuweb.folf.fr`.
 
-Domaine : `carbuweb.folf.fr`
+**Deux parties independantes :**
+- `pipeline/` : Python, telecharge les donnees, construit `build/data.json` et `build/index.html`
+- `templates/` : Source frontend (JS/CSS/HTML), jamais servi directement — copie + minification dans `build/`
 
-## Architecture
+---
 
+## 1. Decider quoi modifier
+
+| Tache | Fichiers a toucher |
+|-------|--------------------|
+| Nouvelle fonctionnalite UI | `templates/js/[module].js` + `templates/index.html` si nouveaux IDs + `templates/css/[vue].css` |
+| Nouvelle vue / onglet | `templates/js/navigation.js` + `templates/index.html` + CSS dedie |
+| Modifier le pipeline de donnees | `pipeline/[phase].py` + `pipeline/config.py` si nouvelles constantes |
+| Changer la structure de data.json | `pipeline/aggregates.py` ou `stations.py` **ET** tous les modules JS qui lisent ce champ |
+| Modifier les styles | `templates/css/[fichier].css` uniquement |
+| Modifier la generation du site | `pipeline/generate.py` + verifier placeholders dans `templates/index.html` |
+| Ajouter un carburant | `pipeline/config.py` (FUELS) **ET** `templates/js/state.js` (FUELS) — les deux **doivent** etre synchronises |
+| Modifier les seuils de fraicheur des prix | `templates/js/freshness.js` |
+| Modifier les seuils de classification prix (cheap/mid/dear) | `templates/js/state.js` (PRICE_EPS, PRICE_NEAR) |
+| Modifier le rayon de recherche proximite | `templates/js/state.js` (LS.RADIUS, defaut) + `templates/js/helpers.js` (nearKm) |
+| Modifier les placeholders HTML | `pipeline/generate.py` (liste exhaustive) + `templates/index.html` |
+
+**Modules JS — responsabilites :**
+
+| Module | Role |
+|--------|------|
+| `state.js` | Etat global, constantes, localStorage |
+| `helpers.js` | E(), norm(), hav(), toast(), fmtKm() |
+| `navigation.js` | Onglets, historique, back, favori header |
+| `settings.js` | Modal parametres, rayon, refresh, syncFooter |
+| `search.js` | Recherche texte + geocodage Nominatim |
+| `geolocation.js` | GPS + liste stations proches + tri |
+| `geo-zones.js` | Recherche par region/departement |
+| `station.js` | Vue detail station |
+| `explore.js` | Classement, Chart.js, tableau regional |
+| `favorites.js` | Favoris adresses + stations, drag-drop |
+| `vehicles.js` | Profils vehicules CRUD |
+| `prices.js` | Classification prix, cache proximite, estimation plein |
+| `freshness.js` | Badges fraicheur, libelles textuels |
+| `map.js` | Leaflet : mkMap, mkIcon, initMap |
+| `drag-drop.js` | TouchDragReorder (favoris + vehicules) |
+
+---
+
+## 2. Mise a jour de ce fichier (obligatoire)
+
+**Ce fichier doit etre mis a jour a chaque modification qui change l'architecture, les conventions ou les flux de donnees.**
+
+Cas qui declenchent une mise a jour obligatoire :
+- Ajout ou suppression d'un module JS → mettre a jour le tableau des modules section 1
+- Ajout d'un nouveau type de tache recurrente → ajouter une ligne dans le tableau "Decider quoi modifier"
+- Nouvelle convention ou regle etablie → section 2
+- Nouveau piege decouvert → section 5
+- Changement de structure de `data.json` → section 3
+- Nouvelle commande utile → section 6
+- Nouveau placeholder HTML → section 2 (liste placeholders) + section 6
+
+**Ne jamais laisser ce fichier desynchronise du code.** Un CLAUDE.md obsolete est pire qu'un CLAUDE.md absent.
+
+---
+
+## 3. Conventions strictes (jamais devier)
+
+
+**Ne jamais modifier `build/`** — genere automatiquement, ecrase au prochain build.
+
+**Pas de styles inline en JS** — tout CSS dans `templates/css/`, jamais `el.style.x` ou attribut `style=` depuis JS.
+
+**Pas de `var`** — uniquement `const` et `let`.
+
+**Synchronisation FUELS obligatoire** — `pipeline/config.py` et `templates/js/state.js` doivent lister exactement les memes carburants dans le meme ordre : `["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]`.
+
+**`innerHTML` → toujours `E()` sur contenu externe** — `E()` est dans `helpers.js`, obligatoire sur tout contenu venant de l'utilisateur, des donnees de l'API ou des noms de stations/villes.
+
+**Pas de framework, pas de bundler, pas de npm** — vanilla JS ES modules uniquement. Pas de React, Vue, Tailwind, TypeScript, Vite, Webpack.
+
+**Placeholders HTML** — format `{{NOM_MAJUSCULES}}` uniquement. Liste complete dans `pipeline/generate.py` (`_resolve_*` fonctions). Ne pas en inventer sans les implementer dans generate.py.
+
+**Ordre CSS fixe** — `pipeline/generate.py` concatene dans cet ordre : variables → base → layout → nav → search → station → explore → favorites → vehicles → components → map. Ne pas changer cet ordre.
+
+**Timestamps toujours Europe/Paris** — `maj_iso` en ISO 8601 avec offset Paris (`+01:00` ou `+02:00`), jamais UTC brut.
+
+**IDs HTML ↔ JS coherents** — tout ID utilise dans JS doit exister dans `templates/index.html`. Exceptions dynamiques connues : `station-map`, `sort-fuel`, `geo-sort`.
+
+---
+
+## 4. Architecture & flux de donnees
+
+**Flux build Python :**
 ```
-main.py                  # Shim → pipeline.main()
-pipeline/                # Package Python (build pipeline)
-  __init__.py            # Expose main()
-  __main__.py            # python -m pipeline
-  config.py              # Constantes, chemins, URLs
-  helpers.py             # Fonctions utilitaires partagees
-  download.py            # Telechargement donnees (quotidien, flux, OSM)
-  dedup.py               # Phase 1 : dedoublonnage
-  stations.py            # Phases 2-3 : creation stations + fusion flux
-  purge.py               # Phase 4 : purge stations sans prix
-  aggregates.py          # Phase 5 : agregats + index
-  generate.py            # Generation site (CSS concat, JS copy, HTML placeholders)
-  cleanup.py             # Nettoyage fichiers anciens
-  main.py                # Orchestration (build_database + main)
-templates/
-  index.html             # Template HTML (~120 lignes)
-  app.js                 # Entry point ES module (imports ./js/*.js)
-  js/                    # Modules JS (15 fichiers)
-    state.js             # Etat global + persistence localStorage
-    helpers.js           # Utilitaires (HTML escape, normalisation, distance)
-    freshness.js         # Badges fraicheur (jours, pills, labels)
-    prices.js            # Classification prix, nearby, tank
-    map.js               # Leaflet (mkMap, mkIcon, initMap)
-    navigation.js        # Onglets, historique, popstate
-    search.js            # Recherche texte + geocodage OSM
-    geolocation.js       # GPS + recherche proximite
-    geo-zones.js         # Recherche par region/departement
-    station.js           # Vue detail station
-    explore.js           # Classement, graphiques, tableau regional
-    favorites.js         # Gestion favoris (stations + lieux)
-    vehicles.js          # Profils vehicules CRUD
-    settings.js          # Parametres, refresh, rayon
-    drag-drop.js         # Classe TouchDragReorder
-  css/                   # Fichiers CSS (11 fichiers, concatenes au build)
-    variables.css        # Custom properties + dark mode
-    base.css             # Reset, typographie
-    layout.css           # Grille, responsive
-    nav.css              # Navigation top/bottom
-    search.css           # Recherche
-    station.css          # Detail station, prix, horaires
-    explore.css          # Palmares, tableaux, graphiques
-    favorites.css        # Favoris
-    vehicles.css         # Vehicules
-    components.css       # Composants transversaux (cards, modals, toast)
-    map.css              # Overrides Leaflet
-  sw.js                  # Service worker (nettoyage legacy)
-  icon.svg               # Icone PWA
-  CNAME                  # Domaine custom
-datasets/                # Fichiers de donnees (telecharges, pas versionnes)
-build/                   # Site genere (pas versionne)
-  data.json              # Base de donnees complete (~11 Mo)
-  index.html             # HTML minifie
-  app.{ts}.js            # Entry point JS (cache-bust timestamp)
-  js/                    # Modules JS minifies
-  styles.{ts}.css        # CSS concatene (cache-bust timestamp)
-.github/workflows/build.yml  # CI/CD : build toutes les 5 min + deploy
+download.py
+  └── dedup.py (phase 1 : dedoublonnage quotidien)
+        └── stations.py (phases 2-3 : creation + fusion flux instantane)
+              └── purge.py (phase 4 : stations sans prix)
+                    └── aggregates.py (phase 5 : agregats + index)
+                          └── generate.py → build/
 ```
 
-## Stack technique
+**Flux runtime JS :**
+```
+app.js (DOMContentLoaded)
+  → fetch data.json → state.db
+  → renderVBar() + renderFavs() + populateRegions() + populateFuels()
+  → syncFooter() + initPopstate()
+  → interval 20 min → refreshData()
+  → interactions utilisateur → modules specialises
+```
 
-- **Backend** : Python 3.14 (pandas, openpyxl, requests)
-- **Frontend** : Vanilla JS (pas de framework, pas de bundler, pas de Tailwind)
-- **Cartes** : Leaflet 1.9.4 (tuiles OpenStreetMap France)
-- **Graphiques** : Chart.js 4.4.8
-- **CSS** : Custom properties uniquement. Dark mode via `prefers-color-scheme`.
-- **Icones** : SVG inline + emojis (aucune dependance externe pour les icones)
-- **Deploiement** : GitHub Actions -> GitHub Pages (branche `pages`)
+**Etat global (`state.js`) :**
+- Tout l'etat passe par `state` — jamais de variable globale dans d'autres modules
+- Lecture : `state.db`, `state.proxSearch`, `state.geoZone`, `state.navStack`
+- Ecriture : via setters (`setFavs()`, `setVehicles()`, `setRadius()`, `setUFuels()`)
+- Persistence localStorage : cles dans `LS` (constante dans state.js)
 
-## Sources de donnees
+**Structure `data.json` (cles racine) :**
+```
+stations          {id → objet station}
+region_index      {nom_region → {nom_norm, stations: [ids]}}
+dept_index        {code_dept → {nom, nom_norm, region, stations: [ids]}}
+cp_index          {code_postal → [ids]}
+recherche_texte   {id → {texte_norm, label_affichage}}
+dashboard         agregats nationaux + regionaux + departementaux (Chart.js)
+meta              timestamps build, stats fusion flux
+stats             prix min par carburant (national/regional/departemental)
+```
 
-1. **Prix quotidiens** : `data.economie.gouv.fr/.../prix-carburants-quotidien/exports/xlsx`
-   - Un fichier Excel avec une ligne par station/carburant (contient des doublons)
-   - Colonnes cles : id, Code postal, ville, adresse, geom, Prix, Carburant, Mise a jour
-2. **Flux instantane** : `data.economie.gouv.fr/.../prix-des-carburants-en-france-flux-instantane-v2/exports/xlsx`
-   - Un fichier Excel avec une ligne par station, une colonne par carburant
-   - Toujours plus recent que le quotidien quand les prix different
-3. **Noms de stations** : OpenStreetMap via Overpass API (`ref:FR:prix-carburants`)
+**Objet station :**
+```json
+{
+  "nom_osm": "Shell",
+  "adresse": "123 Rue Main",
+  "ville": "Paris",
+  "code_postal": "75001",
+  "region": "Ile-de-France",
+  "departement": "75",
+  "lat": 48.85,
+  "lon": 2.35,
+  "horaires": {"automate_24_24": false, "jours": {"Lundi": "08:00-22:00"}},
+  "carburants_disponibles": {
+    "Gazole": {"prix": "1.450", "date_maj": "2026-04-08", "maj_iso": "2026-04-08T12:00:00+02:00"}
+  },
+  "carburants_en_rupture": {"E85": {"debut": "2026-04-01", "motif": "..."}}
+}
+```
 
-## Pipeline de donnees (pipeline/)
+---
 
-Orchestration dans `pipeline/main.py` :
+## 5. Workflow de validation (obligatoire avant tout commit)
 
-1. `cleanup_old_files()` (cleanup.py) : supprime les fichiers dataset des jours precedents
-2. `download_daily_prices()` (download.py) : telecharge l'export quotidien (xlsx ~9 Mo)
-3. `download_flux_prices()` (download.py) : telecharge le flux instantane (xlsx ~2.5 Mo)
-4. `download_osm()` (download.py) : requete Overpass (miroir FR + fallback)
-5. `build_database()` (main.py) :
-   - **Phase 1** (dedup.py) : Dedoublonne le quotidien (garde le plus recent par station+carburant)
-   - **Phase 2** (stations.py) : Cree les stations et injecte les prix quotidiens
-   - **Phase 3** (stations.py) : Fusionne le flux instantane (cree les stations absentes du quotidien)
-   - **Phase 4** (purge.py) : Purge les stations sans aucun prix (supprimees de tous les index)
-   - **Phase 5** (aggregates.py) : Calcule les agregats (moyennes/min nationales/regionales/departementales)
-   - Valide les prix (plage 0.01-10.0 EUR/L, arrondi 3 decimales)
-6. `generate_site()` (generate.py) :
-   - Concatene les CSS en `styles.{ts}.css`
-   - Copie et minifie les modules JS dans `build/js/`
-   - Minifie HTML, cache-bust avec timestamp
-   - Genere data.json unique (pas de chunks)
-   - Remplace les placeholders : `{{BUILD_DATE}}`, `{{STATION_COUNT}}`, `{{APP_JS}}`, `{{STYLES_CSS}}`, etc.
-
-## Carburants
-
-`["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]`
-
-## Design system
-
-- Police systeme (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`)
-- Palette sobre : fond gris tres clair, surface blanche, accent bleu (`#2563eb`)
-- Couleurs semantiques : vert (bon prix), ambre (moyen), rouge (cher/rupture)
-- Dark mode automatique via CSS custom properties
-- Pas de gradients, pas d'ombres lourdes, pas de decorations superflues
-- Mobile-first : bottom nav 3 onglets sur mobile, tabs desktop en haut
-- Accessibilite : skip link, aria-labels, contrast eleve, `prefers-reduced-motion`
-
-## Fonctionnalites frontend (3 onglets)
-
-- **Recherche** : texte (villes, adresses, CP) + geocodage OSM + geolocalisation GPS
-- **Explorer** : classement par carburant/region/departement + stats nationales (Chart.js) + tableau regional triable
-- **Favoris** : stations et lieux avec rayon personnalisable, drag-and-drop, meilleurs prix par lieu
-- **Vehicules** : profils avec emoji, carburants, reservoir, estimation plein
-- **Detail station** : carte, prix colores avec badges fraicheur (7j/15j/1mois), horaires, ruptures, alternatives, bouton favori inline
-- **Refresh auto** : rechargement data.json toutes les 20 min
-- **Onboarding** : carte de bienvenue avec guide des fonctionnalites
-
-## Badges de fraicheur des prix
-
-- Pas de badge : mis a jour depuis moins de 7 jours
-- Badge ambre : mis a jour entre 7 et 14 jours
-- Badge rouge : mis a jour depuis plus de 15 jours
-- Badge rouge "1 mois" : mis a jour depuis plus de 30 jours
-- Libelle textuel en detail station (ex: "Il y a 3 jours", "Hier", etc.)
-
-## Conventions
-
-- Les prix sont en EUR/L, stockes en float arrondi a 3 decimales
-- Les coordonnees sont en format "lat, lon" (WGS84)
-- Tous les horodatages sont en Europe/Paris
-- Les IDs de station sont des chaines numeriques (ex: "78760004")
-- Le texte normalise retire accents, tirets, apostrophes, met en minuscules
-- Les distances affichees sont estimees route (haversine * 1.25)
-
-## CI/CD
-
-- Cron toutes les 5 min (`*/5 * * * *`)
-- Cache OSM journalier
-- Cache venv Python
-- Force push sur branche `pages`
-- Deploy GitHub Pages via `actions/deploy-pages@v5`
-
-## Tests obligatoires apres modification
+Executer dans l'ordre. Stopper et corriger si une etape echoue.
 
 ```bash
-# 1. Validation syntaxe JS (OBLIGATOIRE avant tout commit)
-for f in templates/js/*.js templates/app.js; do node -c "$f"; done
+# Etape 1 — Syntaxe JS (OBLIGATOIRE)
+for f in templates/js/*.js templates/app.js; do node -c "$f" && echo "OK: $f"; done
 
-# 2. Verification concordance IDs HTML<->JS
+# Etape 2 — Coherence IDs HTML<->JS (OBLIGATOIRE)
 python3 << 'EOF'
 import re, glob
 js = open('templates/app.js').read()
@@ -174,18 +168,78 @@ js_ids = set(re.findall(r"getElementById\(['\"]([^'\"]+)['\"]\)", js))
 html_ids = set(re.findall(r'id="([^"]+)"', html))
 dynamic = {'station-map', 'sort-fuel', 'geo-sort'}
 missing = js_ids - html_ids - dynamic
-print(f'Missing: {missing}' if missing else 'IDs OK')
+print(f'ERREUR IDs manquants: {missing}' if missing else 'IDs OK')
 EOF
 
-# 3. Build complet + validation
+# Etape 3 — Build complet + syntaxe JS genere (OBLIGATOIRE)
 python main.py && for f in build/js/*.js; do node -c "$f"; done && node -c build/app.*.js
+
+# Etape 4 — Smoke test local (recommande pour changements UI)
+cd build && python -m http.server 8000
 ```
 
-## Commandes utiles
+---
 
+## 6. Pieges connus & anti-patterns
+
+**JS — zones de vigilance :**
+
+- **`state.chartsInit`** : les charts Chart.js s'initialisent une seule fois (flag dans `explore.js`). Si tu changes la structure de `renderDash()`, verifier que le flag est reset si necessaire.
+- **`nearCache`** dans `prices.js` : cache des stations proches par rayon. Invalider avec `clearNearCache()` si le rayon ou les donnees changent.
+- **`TouchDragReorder`** : s'attache au DOM au moment du rendu des listes. Si tu re-renders la liste des favoris ou vehicules, reconstruire l'instance via `state.favDnD` / `state.vehicleDnD`.
+- **Nominatim (geocodage)** : API externe rate-limited. Ne pas appeler en boucle. La recherche est deja debouncee (400ms) et utilise AbortController.
+- **`window.*`** : toutes les fonctions appelees depuis HTML inline (`onclick="..."`) sont exposees sur `window` dans `app.js`. Toute nouvelle fonction appelee depuis HTML doit etre ajoutee la.
+
+**Python — zones de vigilance :**
+
+- **Correlation flux↔quotidien** dans `stations.py` : utilise 2 niveaux de precision lat/lon (5 et 3 decimales). Ne jamais changer la cle de correlation sans adapter les deux niveaux.
+- **`purge_infinity()`** dans `helpers.py` : appeler avant toute serialisation JSON. Les prix non renseignes sont `float('inf')` en interne — pas serialisable directement.
+- **Validation prix** : 0.01–10.0 EUR/L. Les stations hors plage sont ignorees silencieusement. Ne pas elargir sans raison.
+- **`flux_replaces_daily_entry()`** : le flux instantane remplace le quotidien si son timestamp est egal ou plus recent. Ne pas inverser la logique.
+- **DST** : les comparaisons de timestamps utilisent l'offset Europe/Paris — prendre garde aux transitions heure ete/hiver si on modifie la logique de comparaison.
+
+**CSS/Build — zones de vigilance :**
+
+- **Ordre CSS fixe** : `variables.css` doit etre en premier (custom properties utilisees partout). Changer l'ordre casse le design.
+- **Cache-bust** : `generate.py` nettoie les anciens fichiers timestamps automatiquement. Ne pas supprimer manuellement des fichiers `build/app.*.js` ou `build/styles.*.css`.
+- **Minification JS** : `generate.py` retire les commentaires `//` et lignes vides. Ne pas mettre de code fonctionnel apres `//` sur la meme ligne.
+
+---
+
+## 7. Reference rapide
+
+**Commandes courantes :**
 ```bash
-python main.py                    # Build complet (telecharge si absent)
-python -m pipeline                # Equivalent
+python main.py                       # Build complet (telecharge si absent)
+python -m pipeline                   # Equivalent
 cd build && python -m http.server 8000  # Servir localement
-rm datasets/database-*.json       # Forcer re-telechargement
+rm datasets/prix-carburant-*.xlsx    # Forcer re-telechargement donnees
+rm datasets/database-*.json          # Forcer reconstruction base
 ```
+
+**Sources de donnees :**
+- Prix quotidiens : XLSX ~9 Mo, une ligne par station/carburant (avec doublons)
+- Flux instantane : XLSX ~2.5 Mo, une ligne par station (toujours plus recent)
+- OSM : Overpass API, cache journalier (`datasets/osm_mapping-{TODAY}.json`)
+
+**Design system :**
+- Accent : `#2563eb` (bleu)
+- Semantique : vert (bon prix), ambre (moyen/avertissement), rouge (cher/rupture)
+- Dark mode : `prefers-color-scheme` via custom properties dans `variables.css`
+- Mobile-first : bottom nav sur mobile, tabs en haut sur desktop
+
+**Badges fraicheur :**
+- < 7 jours : aucun badge
+- 7–14 jours : badge ambre
+- 15–29 jours : badge rouge
+- 30+ jours : badge rouge "1 mois"
+
+**Prix :**
+- Unite : EUR/L, float arrondi 3 decimales
+- Cheap : ≤ min_local + 0.0005 EUR
+- Mid : ≤ min_local + 0.030 EUR
+- Dear : au-dela
+
+**CI/CD :**
+- Cron toutes les 5 min, cache OSM journalier, force push branche `pages`
+- Concurrence : les runs precedents sont annules automatiquement
