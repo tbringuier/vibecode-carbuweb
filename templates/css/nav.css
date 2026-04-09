@@ -42,7 +42,7 @@
 }
 
 .nav-tab:hover {
-  background: var(--ab);
+  background: var(--bl);
 }
 
 .nav-tab[aria-selected="true"] {
