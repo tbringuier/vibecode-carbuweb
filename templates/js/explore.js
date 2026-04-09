@@ -1,5 +1,5 @@
 import { state, FUELS, uFuels } from './state.js';
-import { E, notice } from './helpers.js';
+import { E, notice, titleCase } from './helpers.js';
 import { freshPill } from './freshness.js';
 import { mkMap, mkIcon } from './map.js';
 
@@ -44,7 +44,8 @@ export function findCheapest() {
   top.forEach((r, i) => {
     const s = r.station, cls = sort === 'asc' && i < 3 ? 'cheap' : sort === 'desc' && i < 3 ? 'dear' : '';
     const fp = freshPill(s.carburants_disponibles[fuel]);
-    h += `<div class="s-item" onclick="showStation('${r.id}')"><div style="width:1.25rem;text-align:center;font-weight:700;color:var(--t3);align-self:center;flex-shrink:0;font-size:.75rem">${i + 1}</div><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}</div><div class="s-addr">${E(s.adresse)}, ${E(s.code_postal)} ${E(s.ville)}</div></div><div class="ptag ${cls}"><span class="ptag-f">${fuel}</span><span class="ptag-v">${r.prix.toFixed(3)}€</span>${fp}</div></div>`;
+    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
+    h += `<div class="s-item" onclick="showStation('${r.id}')"><div style="width:1.25rem;text-align:center;font-weight:700;color:var(--t3);align-self:center;flex-shrink:0;font-size:.75rem">${i + 1}</div><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="ptag ${cls}"><span class="ptag-f">${fuel}</span><span class="ptag-v">${r.prix.toFixed(3)}€</span>${fp}</div></div>`;
   });
   h += '</div>'; c.innerHTML = h;
 
@@ -54,7 +55,7 @@ export function findCheapest() {
     top.forEach((s, i) => {
       if (!s.station.lat || !s.station.lon) return;
       const ic = sort === 'asc' && i < 3 ? icons.cheap : sort === 'desc' && i < 3 ? icons.dear : icons.def;
-      const pop = `<b>${E(s.station.nom_osm || 'Station')}</b><br>${E(s.station.ville)}<br><b>${s.prix.toFixed(3)}€</b><br><button onclick="showStation('${s.id}')" style="margin-top:.25rem;padding:.1875rem .375rem;background:#2563eb;color:#fff;border:none;border-radius:4px;font-size:.6875rem;font-weight:600;cursor:pointer">Voir</button>`;
+      const pop = `<b>${E(s.station.nom_osm || 'Station')}</b><br>${E(titleCase(s.station.ville))}<br><b>${s.prix.toFixed(3)}€</b><br><button onclick="showStation('${s.id}')" style="margin-top:.25rem;padding:.1875rem .375rem;background:#2563eb;color:#fff;border:none;border-radius:4px;font-size:.6875rem;font-weight:600;cursor:pointer">Voir</button>`;
       L.marker([s.station.lat, s.station.lon], { icon: ic }).bindPopup(pop).addTo(state.exploreMarkers);
     });
     if (top.some(s => s.station.lat && s.station.lon)) {
@@ -87,10 +88,10 @@ export function renderRegTable() {
   for (const [r, data] of regs) {
     const sl = r.replace(/[^a-zA-Z0-9]/g, '_');
     t += `<tr onclick="toggleReg('${sl}')"><td class="td-s" style="font-weight:700">${E(r)}</td><td class="tnum">${data.station_count}</td>`;
-    fs.forEach(f => { const p = data.avg_prices[f]; t += `<td class="tnum">${p > 0 ? p.toFixed(3) + ' €' : '—'}</td>`; }); t += '</tr>';
+    fs.forEach(f => { const p = data.avg_prices[f], na = d.national.avg_prices[f]; let cc = ''; if (p > 0 && na > 0) { if (p < na - 0.01) cc = ' td-cheap'; else if (p > na + 0.01) cc = ' td-dear'; } t += `<td class="tnum${cc}">${p > 0 ? p.toFixed(3) + ' €' : '—'}</td>`; }); t += '</tr>';
     if (d.departemental) Object.entries(d.departemental).filter(([, x]) => x.region === r).sort((a, b) => a[1].nom.localeCompare(b[1].nom)).forEach(([, dp]) => {
       t += `<tr class="tdept dr-${sl} hidden"><td class="td-s" style="padding-left:1.25rem">${E(dp.nom)}</td><td class="tnum">${dp.station_count}</td>`;
-      fs.forEach(f => { const p = dp.avg_prices[f]; t += `<td class="tnum">${p > 0 ? p.toFixed(3) + ' €' : '—'}</td>`; }); t += '</tr>';
+      fs.forEach(f => { const p = dp.avg_prices[f], na = d.national.avg_prices[f]; let cc = ''; if (p > 0 && na > 0) { if (p < na - 0.01) cc = ' td-cheap'; else if (p > na + 0.01) cc = ' td-dear'; } t += `<td class="tnum${cc}">${p > 0 ? p.toFixed(3) + ' €' : '—'}</td>`; }); t += '</tr>';
     });
   }
   t += '</tbody>'; document.getElementById('table-regions').innerHTML = t;

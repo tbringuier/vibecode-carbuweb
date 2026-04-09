@@ -15,6 +15,8 @@ export function freshPill(entry) {
   if (d > 30) return '<span class="fresh-pill old">&gt;1 mois</span>';
   if (d > 14) return `<span class="fresh-pill old">${d}j</span>`;
   if (d > 7) return `<span class="fresh-pill warn">${d}j</span>`;
+  if (d === 0) return '<span class="fresh-pill fresh">Auj.</span>';
+  if (d === 1) return '<span class="fresh-pill fresh">Hier</span>';
   return '';
 }
 export function freshLabel(entry) {

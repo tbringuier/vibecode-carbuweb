@@ -102,6 +102,14 @@
   color: var(--ac);
 }
 
+.table-w tbody tr:nth-child(even):not(.tdept) {
+  background: var(--bl);
+}
+
+.table-w tbody tr:nth-child(even):not(.tdept) .td-s {
+  background: var(--bl);
+}
+
 .tdept {
   background: var(--bl);
 }
@@ -110,6 +118,15 @@
   font-size: .6875rem;
   color: var(--t2);
   padding-left: 1.25rem;
+  border-left: 2px solid var(--ac);
+}
+
+.td-cheap {
+  color: var(--gn);
+}
+
+.td-dear {
+  color: var(--rd);
 }
 
 .th-s {

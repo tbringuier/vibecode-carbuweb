@@ -1,5 +1,5 @@
 import { state, uFuels, favs } from './state.js';
-import { norm, E, notice, hasFuel } from './helpers.js';
+import { norm, E, notice, hasFuel, titleCase } from './helpers.js';
 import { pClass } from './prices.js';
 import { freshPill } from './freshness.js';
 import { favKey, toggleFavAddr } from './favorites.js';
@@ -30,11 +30,13 @@ export async function doSearch() {
   let sHtml = '';
   if (local.length) {
     sHtml += `<div class="sec-l" style="display:flex;justify-content:space-between">Stations <span class="pill">data.gouv</span></div>`;
-    local.forEach(r => { const pCol = searchPrices(r.id, r.station); sHtml += `<div class="s-item" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(r.station.nom_osm) || 'Station'}</div><div class="s-addr">${E(r.station.adresse)}, ${E(r.station.code_postal)} ${E(r.station.ville)}</div></div><div class="s-prices">${pCol}</div></div>`; });
+    local.forEach(r => { const pCol = searchPrices(r.id, r.station), h24 = r.station.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : ''; sHtml += `<div class="s-item" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(r.station.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(r.station.adresse))}, ${E(r.station.code_postal)} ${E(titleCase(r.station.ville))}</div></div><div class="s-prices">${pCol}</div></div>`; });
   }
   try {
     const or = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=fr&limit=4`, { signal: sig });
-    const od = await or.json();
+    const odRaw = await or.json();
+    const seen = new Set();
+    const od = odRaw.filter(p => { const k = p.display_name.split(',')[0].trim() + '|' + (+p.lat).toFixed(3) + '|' + (+p.lon).toFixed(3); if (seen.has(k)) return false; seen.add(k); return true; });
     if (od.length) {
       h += `<div class="sec-l" style="display:flex;justify-content:space-between">Villes & adresses <span class="pill">OSM</span></div>`;
       od.forEach(p => {
@@ -50,6 +52,8 @@ export async function doSearch() {
 }
 export function searchPrices(sid, st) {
   const fs = uFuels.filter(f => st.carburants_disponibles[f]);
-  if (!fs.length) return '<span style="color:var(--t3)">→</span>';
-  return fs.map(f => { const d = st.carburants_disponibles[f], cls = pClass(sid, f, d.prix), fp = freshPill(d); return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${d.prix}€</span>${fp}</div>`; }).join('');
+  const rp = uFuels.filter(f => st.carburants_en_rupture?.[f]).map(f => `<span class="rupt-sm">${f}</span>`).join('');
+  if (!fs.length && !rp) return '<span style="color:var(--t3)">→</span>';
+  const tags = fs.map(f => { const d = st.carburants_disponibles[f], cls = pClass(sid, f, d.prix), fp = freshPill(d); return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${d.prix}€</span>${fp}</div>`; }).join('');
+  return tags + rp;
 }

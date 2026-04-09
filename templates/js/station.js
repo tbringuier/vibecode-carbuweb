@@ -1,5 +1,5 @@
 import { state, favs, uFuels, PRICE_EPS } from './state.js';
-import { E, coord, hav, fmtKm, notice } from './helpers.js';
+import { E, coord, hav, fmtKm, notice, titleCase } from './helpers.js';
 import { nearby, pClass, pickBest, tankHtml, tankInline } from './prices.js';
 import { freshPill, freshLabel, majHtml } from './freshness.js';
 import { initMap } from './map.js';
@@ -19,7 +19,7 @@ export function showStation(sid) {
   const isFav = favs.some(f => f.id === sid);
   let h = `<div id="station-map" class="d-map"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
-      <div style="font-size:.75rem;color:var(--t2)">${E(station.adresse)}, ${E(station.code_postal)} ${E(station.ville)}${station.url_osm ? ` · <a href="${E(station.url_osm)}" target="_blank" rel="noopener">OSM</a>` : ''}${station.lat && station.lon ? ` · <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lon}" target="_blank" rel="noopener">Itinéraire</a>` : ''}</div>
+      <div style="font-size:.75rem;color:var(--t2)">${E(titleCase(station.adresse))}, ${E(station.code_postal)} ${E(titleCase(station.ville))}${station.url_osm ? ` · <a href="${E(station.url_osm)}" target="_blank" rel="noopener">OSM</a>` : ''}${station.lat && station.lon ? ` · <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lon}" target="_blank" rel="noopener">Itinéraire</a>` : ''}</div>
       <button class="btn btn-sm" onclick="toggleFavStation()" style="${isFav ? 'color:#eab308' : ''}">★ ${isFav ? 'Retirer' : 'Favoris'}</button>
     </div>`;
 
@@ -46,7 +46,14 @@ export function showStation(sid) {
     const b = pickBest(nSts, fuel);
     if (b && (b.prix < parseFloat(d.prix) - PRICE_EPS || (Math.abs(b.prix - parseFloat(d.prix)) <= PRICE_EPS && b.dist < 0.5)))
       alts.push({ fuel, prix: b.prix, id: b.id, nom: b.nom, dist: b.dist, isNew: false });
-    h += `<div class="p-card ${cls}"><div class="p-card-f">${fuel}</div><div class="p-card-v">${d.prix}<span class="p-card-u"> €/L</span></div>${tankHtml(parseFloat(d.prix))}<div class="p-card-d">${mj ? `Maj. ${mj}` : ''} ${fp}</div><div style="font-size:.5625rem;color:var(--t3);margin-top:.125rem">${E(fl)}</div></div>`;
+    let cmp = '';
+    const mp = state.db.stats?.min_prices;
+    if (mp) {
+      const nm = mp.national?.[fuel], rm = mp.regional?.[station.region]?.[fuel], p = parseFloat(d.prix);
+      if (Number.isFinite(nm) && Number.isFinite(p)) { const diff = p - nm; cmp = `<div style="font-size:.5rem;color:var(--t3);margin-top:.125rem">Min. nat. ${nm.toFixed(3)}€ (${diff > 0 ? '+' : ''}${diff.toFixed(3)})</div>`; }
+      if (Number.isFinite(rm) && Number.isFinite(p) && rm !== nm) { const diff = p - rm; cmp += `<div style="font-size:.5rem;color:var(--t3)">Min. rég. ${rm.toFixed(3)}€ (${diff > 0 ? '+' : ''}${diff.toFixed(3)})</div>`; }
+    }
+    h += `<div class="p-card ${cls}"><div class="p-card-f">${fuel}</div><div class="p-card-v">${d.prix}<span class="p-card-u"> €/L</span></div>${tankHtml(parseFloat(d.prix))}<div class="p-card-d">${mj ? `Maj. ${mj}` : ''} ${fp}</div><div style="font-size:.5625rem;color:var(--t3);margin-top:.125rem">${E(fl)}</div>${cmp}</div>`;
   });
   if (!hasP) h += `<div style="grid-column:1/-1">${notice('Aucun prix', '')}</div>`;
   h += '</div>';

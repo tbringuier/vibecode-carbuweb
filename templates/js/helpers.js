@@ -10,5 +10,7 @@ export const maxKmFav = f => (f?.radius && Number.isFinite(+f.radius)) ? +f.radi
 export const fmtKm = k => '~' + String((Math.round(k * ROUTE_F * 10) / 10).toFixed(1)).replace('.', ',') + '\u202fkm';
 export const nearKm = () => Math.min(11, Math.max(4, maxKm()));
 export const hasFuel = s => s?.carburants_disponibles && Object.keys(s.carburants_disponibles).some(c => uFuels.includes(c));
+const TC_LOW = new Set(['de','du','le','la','les','des','en','sur','sous','aux','et','ou','a','l','d']);
+export const titleCase = s => { if (!s) return ''; const lo = s.toLowerCase(); if (lo === s) return s; return lo.replace(/\S+/g, (w, i) => (i > 0 && TC_LOW.has(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)); };
 export const notice = (t, b) => `<div class="notice"><b>${t}</b>${b ? `<span>${b}</span>` : ''}</div>`;
 export function toast(m) { const el = document.getElementById('toast'); if (!el) return; el.textContent = m; el.classList.add('on'); clearTimeout(state.toastT); state.toastT = setTimeout(() => el.classList.remove('on'), 2200); }

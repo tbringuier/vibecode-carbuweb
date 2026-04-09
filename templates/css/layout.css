@@ -1,7 +1,7 @@
 /* layout.css — main, container, home view, home layout, fav-tab rules */
 
 main {
-  flex: 1;
+  flex: 1 0 auto;
   padding-bottom: calc(var(--bnavh) + var(--safeb) + .5rem);
 }
 

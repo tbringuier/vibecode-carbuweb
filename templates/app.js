@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     applyV(); renderVBar(); renderVList();
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('home-view').classList.remove('hidden');
-    if (localStorage.getItem(LS.w)) document.getElementById('onboard').classList.add('hidden');
+    if (localStorage.getItem(LS.w) || localStorage.getItem(LS.f) || localStorage.getItem(LS.v)) document.getElementById('onboard').classList.add('hidden');
     populateRegions(); populateFuels(); renderFavs(); syncFooter();
     if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
     if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));

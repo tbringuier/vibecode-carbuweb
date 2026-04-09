@@ -1,5 +1,5 @@
 import { state, uFuels, PRICE_EPS, PRICE_NEAR } from './state.js';
-import { E, hasFuel, notice } from './helpers.js';
+import { E, hasFuel, notice, titleCase } from './helpers.js';
 import { pClass, tankInline } from './prices.js';
 import { freshPill } from './freshness.js';
 import { mkMap, mkIcon, initMap } from './map.js';
@@ -26,7 +26,8 @@ export function searchGeo(type, name, fuel) {
     const s = r.station; let ph = '', mmk = 'station_blue';
     if (sf && s.carburants_disponibles[sf]) { const p = parseFloat(s.carburants_disponibles[sf].prix), d = minP !== null ? p - minP : null; let cls = ''; if (d !== null && d <= PRICE_EPS) { cls = 'cheap'; mmk = 'station_green'; } else if (d !== null && d <= PRICE_NEAR) { cls = 'mid'; mmk = 'station_orange'; } const fp = freshPill(s.carburants_disponibles[sf]); ph = `<div class="ptag ${cls}"><span class="ptag-f">${sf}</span><span class="ptag-v">${s.carburants_disponibles[sf].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[sf].prix))}</div>`; }
     r.mk = mmk;
-    h += `<div class="s-item" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}</div><div class="s-addr">${E(s.adresse)}, ${E(s.code_postal)} ${E(s.ville)}</div></div><div class="s-prices">${ph}</div></div>`;
+    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
+    h += `<div class="s-item" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="s-prices">${ph}</div></div>`;
   });
   h += '</div>';
   document.getElementById('scontent').innerHTML = h; window.scrollTo(0, 0);

@@ -84,6 +84,12 @@
   border: 1px solid var(--rd);
 }
 
+.fresh-pill.fresh {
+  background: var(--gb);
+  color: var(--gn);
+  border: 1px solid var(--gn);
+}
+
 .d-head {
   display: flex;
   align-items: center;
@@ -220,6 +226,18 @@
   border: 1px solid var(--gn);
 }
 
+.b24-sm {
+  display: inline-block;
+  padding: .0625rem .25rem;
+  border-radius: 99px;
+  font-size: .5625rem;
+  font-weight: 700;
+  background: var(--gb);
+  color: var(--gn);
+  vertical-align: middle;
+  margin-left: .25rem;
+}
+
 .rupt {
   display: flex;
   align-items: center;
@@ -230,6 +248,17 @@
   background: var(--rb);
   border: 1px solid var(--rd);
   font-size: .75rem;
+}
+
+.rupt-sm {
+  display: inline-block;
+  padding: .0625rem .25rem;
+  border-radius: 99px;
+  font-size: .5rem;
+  font-weight: 700;
+  background: var(--rb);
+  color: var(--rd);
+  vertical-align: middle;
 }
 
 .best-g {
@@ -250,7 +279,8 @@
 }
 
 .best-c:hover {
-  box-shadow: var(--sh);
+  box-shadow: var(--sh-h);
+  transform: translateY(-1px);
 }
 
 .best-f {
@@ -289,7 +319,8 @@
 }
 
 .alt:hover {
-  box-shadow: var(--sh);
+  box-shadow: var(--sh-h);
+  transform: translateY(-1px);
 }
 
 .alt.better {

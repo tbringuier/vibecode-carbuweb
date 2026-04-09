@@ -20,6 +20,7 @@
   <div class="nav-tabs" role="tablist">
     <button class="nav-tab" role="tab" id="tab-recherche" aria-selected="true" onclick="switchTab('recherche')">Recherche</button>
     <button class="nav-tab" role="tab" id="tab-explorer" aria-selected="false" onclick="switchTab('explorer')">Explorer</button>
+    <button class="nav-tab" role="tab" id="tab-favoris" aria-selected="false" onclick="switchTab('favoris')">Favoris</button>
   </div>
   <div class="nav-right">
     <button class="btn btn-g btn-i" id="btn-fav-header" hidden aria-label="Favoris" onclick="handleHeaderFav()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>
@@ -37,7 +38,8 @@
       <div id="vbar" class="hidden"><div id="vbar-list" class="chips"></div></div>
       <div class="home-lay">
         <aside class="home-aside" id="home-aside">
-          <div id="onboard" class="onboard">
+          <div id="onboard" class="onboard" style="position:relative">
+            <button class="btn btn-g btn-i btn-sm" onclick="dismissOnboard()" aria-label="Fermer" style="position:absolute;top:.375rem;right:.375rem"><svg class="icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
             <h3>Bienvenue sur Carbu'Web</h3>
             <p>Trouvez les meilleurs prix de carburant autour de vous, en temps réel.</p>
             <ul>

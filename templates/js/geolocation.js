@@ -1,5 +1,5 @@
 import { state, radius, uFuels, PRICE_EPS, PRICE_NEAR } from './state.js';
-import { E, hav, maxKm, fmtKm, hasFuel, notice } from './helpers.js';
+import { E, hav, maxKm, fmtKm, hasFuel, notice, titleCase } from './helpers.js';
 import { pClass, pickBest, tankInline } from './prices.js';
 import { freshPill } from './freshness.js';
 import { initMap } from './map.js';
@@ -25,7 +25,7 @@ export function renderList(lat, lon, label, sortFuel) {
   const mk = maxKm(); let sts = [];
   for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !hasFuel(s)) continue; const d = hav(lat, lon, s.lat, s.lon); if (d <= mk) sts.push({ id, station: s, dist: d }); }
   if (sortFuel) { sts = sts.filter(s => s.station.carburants_disponibles[sortFuel]); sts.sort((a, b) => { const pa = parseFloat(a.station.carburants_disponibles[sortFuel].prix), pb = parseFloat(b.station.carburants_disponibles[sortFuel].prix); return Math.abs(pa - pb) > PRICE_EPS ? pa - pb : a.dist - b.dist; }); } else sts.sort((a, b) => a.dist - b.dist);
-  const opts = uFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
+  const opts = `<option value="" ${!sortFuel ? 'selected' : ''}>Distance</option>` + uFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
   let minP = null; if (sortFuel && sts.length) minP = Math.min(...sts.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
   const allR = []; for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !hasFuel(s)) continue; if (hav(lat, lon, s.lat, s.lon) <= mk) allR.push({ id, station: s }); }
   const bw = bestWidget(allR);
@@ -40,7 +40,8 @@ export function renderList(lat, lon, label, sortFuel) {
       const fp = freshPill(s.carburants_disponibles[sortFuel]);
       ph = `<div class="ptag ${cls}"><span class="ptag-f">${sortFuel}</span><span class="ptag-v">${s.carburants_disponibles[sortFuel].prix}€</span>${fp}</div>`;
     } else { ph = uFuels.filter(f => s.carburants_disponibles[f]).map(f => { const cls = pClass(r.id, f, s.carburants_disponibles[f].prix), fp = freshPill(s.carburants_disponibles[f]); return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}</div>`; }).join(''); }
-    h += `<div class="s-item" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}</div><div class="s-addr">${E(s.adresse)}, ${E(s.code_postal)} ${E(s.ville)}</div><div class="tank" style="margin-top:.125rem">${fmtKm(r.dist)}</div></div><div class="s-prices">${ph}</div></div>`;
+    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
+    h += `<div class="s-item" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div><div class="tank" style="margin-top:.125rem">${fmtKm(r.dist)}</div></div><div class="s-prices">${ph}</div></div>`;
     if (s.lat && s.lon) markers.push({ type: mmk, lat: s.lat, lon: s.lon, label: s.nom_osm || 'Station', adresse: `${s.adresse}, ${s.ville}`, id: r.id });
   });
   h += '</div>';
