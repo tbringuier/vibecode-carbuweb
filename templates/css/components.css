@@ -63,7 +63,7 @@
 }
 
 .btn-g:hover {
-  background: var(--ab);
+  background: var(--bl);
 }
 
 .inp {
@@ -321,15 +321,16 @@ footer a {
 
 .onboard {
   padding: .875rem;
-  background: var(--ab);
-  border: 1px solid var(--ac);
+  background: var(--sf);
+  border: 1px solid var(--bd);
+  border-left: 3px solid var(--ac);
   border-radius: var(--rl);
   margin-bottom: .75rem;
 }
 
 .onboard h3 {
   font-size: .9375rem;
-  color: var(--ac);
+  color: var(--tx);
   margin-bottom: .375rem;
 }
 
