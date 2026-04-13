@@ -49,6 +49,10 @@ export function initMap(markers /*, multi */) {
     }
     bounds.push([m.lat, m.lon]);
   });
-  if (bounds.length > 1) state.stationMap.fitBounds(bounds, { padding: [35, 35] });
-  else state.stationMap.setView(bounds[0], 14);
+  if (bounds.length > 1) state.stationMap.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
+  else state.stationMap.setView(bounds[0], 13);
+  // Leaflet needs accurate container size; recompute after layout settles.
+  const m = state.stationMap;
+  requestAnimationFrame(() => m.invalidateSize());
+  setTimeout(() => m.invalidateSize(), 160);
 }

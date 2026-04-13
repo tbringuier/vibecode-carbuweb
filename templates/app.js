@@ -5,7 +5,7 @@ import { E } from './js/helpers.js';
 import { switchTab, goBack, goHome, handleHeaderFav, initPopstate } from './js/navigation.js';
 import { toggleSettings, debouncedSave, resetAll, dismissOnboard, refreshData, syncFooter } from './js/settings.js';
 import { geolocateMe, findNear, applySort } from './js/geolocation.js';
-import { debouncedSearch } from './js/search.js';
+import { debouncedSearch, renderHomeTeaser, jumpToExplorer } from './js/search.js';
 import { searchGeo } from './js/geo-zones.js';
 import { showStation } from './js/station.js';
 import { populateFuels, populateRegions, updateDeptFilter, findCheapest, sortDash, toggleReg, renderExploreMap, renderDash } from './js/explore.js';
@@ -19,7 +19,7 @@ Object.assign(window, {
   populateFuels, populateRegions, updateDeptFilter, findCheapest,
   sortDash, toggleReg, toggleFavAddr, toggleFavStation, removeFav,
   adjFavR, findNearFav, showStationFav, switchV, openVForm,
-  closeVForm, saveVForm, delV
+  closeVForm, saveVForm, delV, jumpToExplorer
 });
 
 initPopstate();
@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('home-view').classList.remove('hidden');
     if (localStorage.getItem(LS.w) || localStorage.getItem(LS.f) || localStorage.getItem(LS.v)) document.getElementById('onboard').classList.add('hidden');
-    populateRegions(); populateFuels(); renderFavs(); syncFooter();
+    populateRegions(); populateFuels(); renderFavs(); renderHomeTeaser(); syncFooter();
     if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
     if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
     state.refreshT = setInterval(refreshData, REFRESH_MS);

@@ -110,3 +110,39 @@
 .fav .best-g {
   margin-top: .375rem;
 }
+
+/* Empty state for favorites aside */
+
+.fav-empty {
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--bd);
+  border-radius: var(--rx);
+  background: var(--sf-2);
+  text-align: center;
+  color: var(--t2);
+}
+
+.fav-empty-icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--t3);
+  margin: 0 auto .5rem;
+  opacity: .7;
+}
+
+.fav-empty-t {
+  font-weight: 700;
+  font-size: .875rem;
+  color: var(--tx);
+  margin-bottom: .25rem;
+}
+
+.fav-empty-d {
+  font-size: .75rem;
+  line-height: 1.5;
+}
+
+/* Hide empty state when there are favorites */
+#fav-box:not(.hidden) ~ .fav-empty {
+  display: none;
+}

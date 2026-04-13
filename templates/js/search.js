@@ -1,10 +1,29 @@
-import { state, uFuels, favs } from './state.js';
+import { state, uFuels, favs, FUELS } from './state.js';
 import { norm, E, notice, hasFuel, titleCase } from './helpers.js';
 import { pClass } from './prices.js';
 import { freshPill } from './freshness.js';
 import { favKey } from './favorites.js';
 
 export function debouncedSearch() { clearTimeout(state.searchTimeout); state.searchTimeout = setTimeout(doSearch, 400); }
+
+export function renderHomeTeaser() {
+  const c = document.getElementById('home-teaser');
+  if (!c || !state.db?.dashboard?.national) return;
+  const avg = state.db.dashboard.national.avg_prices || {};
+  const cards = FUELS
+    .filter(f => typeof avg[f] === 'number' && avg[f] > 0)
+    .map(f => `<button type="button" class="teaser-card" onclick="jumpToExplorer('${f}')"><span class="teaser-card-f">${E(f)}</span><span class="teaser-card-v">${avg[f].toFixed(3)}<span class="teaser-card-u">\u202f€/L</span></span></button>`)
+    .join('');
+  if (!cards) return;
+  c.innerHTML = `<div class="teaser-head"><h2 id="home-teaser-t" class="teaser-title">Prix moyens en France</h2><button type="button" class="btn btn-sm btn-g teaser-more" onclick="switchTab('explorer')">Voir le classement<span aria-hidden="true"> →</span></button></div><div class="teaser-grid">${cards}</div>`;
+  c.classList.remove('hidden');
+}
+
+export function jumpToExplorer(fuel) {
+  window.switchTab?.('explorer');
+  const s = document.getElementById('exp-fuel');
+  if (s && fuel) { s.value = fuel; window.findCheapest?.(); }
+}
 
 export async function doSearch() {
   if (state.searchAC) state.searchAC.abort();

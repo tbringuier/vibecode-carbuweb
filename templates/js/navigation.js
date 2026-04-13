@@ -1,7 +1,7 @@
 import { state, favs } from './state.js';
 import { coord } from './helpers.js';
 import { renderFavs, favKey, toggleFavAddr } from './favorites.js';
-import { renderExploreMap, renderDash } from './explore.js';
+import { renderExploreMap, renderDash, findCheapest } from './explore.js';
 import { findNear } from './geolocation.js';
 import { searchGeo } from './geo-zones.js';
 

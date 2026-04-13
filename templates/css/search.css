@@ -1,4 +1,161 @@
-/* search.css — Search result items, sort bar */
+/* search.css — Hero search, result items, sort bar */
+
+.hero {
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, var(--ab) 0%, var(--sf) 55%);
+  border: 1px solid var(--bd);
+}
+
+@media (min-width: 768px) {
+  .hero {
+    padding: 1.5rem;
+  }
+}
+
+.hero-lbl {
+  display: block;
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--t2);
+  margin-bottom: .625rem;
+}
+
+.hero .sbox {
+  margin-bottom: 0;
+}
+
+.hero .sbox .inp {
+  min-height: 2.875rem;
+  font-size: .9375rem;
+  padding-left: 2.625rem;
+}
+
+.hero .sbox svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  left: .875rem;
+}
+
+.hero-or {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: .75rem 0;
+  color: var(--t3);
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.hero-or::before,
+.hero-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--bd);
+}
+
+.hero-gps {
+  width: 100%;
+  min-height: 2.75rem;
+  font-size: .875rem;
+  gap: .5rem;
+}
+
+.hero-gps svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+#sresults:empty {
+  min-height: 0;
+}
+
+/* Home teaser — national fuel prices below hero */
+
+.home-teaser {
+  margin-top: 1.25rem;
+}
+
+.teaser-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .625rem;
+}
+
+.teaser-title {
+  font-size: .6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--t3);
+  margin: 0;
+}
+
+.teaser-more {
+  white-space: nowrap;
+}
+
+.teaser-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: .5rem;
+}
+
+.teaser-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .1875rem;
+  padding: .75rem .875rem;
+  border-radius: var(--rl);
+  border: 1px solid var(--bd);
+  background: var(--sf);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--dur-1), transform var(--dur-1), box-shadow var(--dur-1);
+}
+
+.teaser-card:hover {
+  border-color: var(--ac);
+  transform: translateY(-1px);
+  box-shadow: var(--sh);
+}
+
+.teaser-card:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+
+.teaser-card-f {
+  font-size: .625rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--t3);
+}
+
+.teaser-card-v {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: var(--tx);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+.teaser-card-u {
+  font-size: .625rem;
+  font-weight: 600;
+  color: var(--t3);
+  margin-left: .125rem;
+}
 
 .s-item {
   display: flex;

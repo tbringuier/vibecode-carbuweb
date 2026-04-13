@@ -16,7 +16,9 @@ Comparateur de prix carburants en France. Site statique genere toutes les 5 min 
 | Nouvelle vue / onglet | `templates/js/navigation.js` + `templates/index.html` + CSS dedie |
 | Modifier le pipeline de donnees | `pipeline/[phase].py` + `pipeline/config.py` si nouvelles constantes |
 | Changer la structure de data.json | `pipeline/aggregates.py` ou `stations.py` **ET** tous les modules JS qui lisent ce champ |
-| Modifier les styles | `templates/css/[fichier].css` uniquement |
+| Modifier les styles | `templates/css/[fichier].css` uniquement — jamais de `style=` inline |
+| Ajouter une classe utilitaire generique | `templates/css/utilities.css` (prefixe `.u-*`) |
+| Mettre a jour le PWA manifest | `templates/manifest.webmanifest` + `pipeline/generate.py` (copie) |
 | Modifier la generation du site | `pipeline/generate.py` + verifier placeholders dans `templates/index.html` |
 | Ajouter un carburant | `pipeline/config.py` (FUELS) **ET** `templates/js/state.js` (FUELS) — les deux **doivent** etre synchronises |
 | Modifier les seuils de fraicheur des prix | `templates/js/freshness.js` |
@@ -68,7 +70,7 @@ Cas qui declenchent une mise a jour obligatoire :
 
 **Ne jamais modifier `build/`** — genere automatiquement, ecrase au prochain build.
 
-**Pas de styles inline en JS** — tout CSS dans `templates/css/`, jamais `el.style.x` ou attribut `style=` depuis JS.
+**Pas de styles inline** — ni dans `templates/index.html`, ni dans les template strings JS (`style="..."`), ni via `el.style.x` (sauf cas exceptionnels documentes comme `drag-drop.js` qui doit positionner dynamiquement le ghost). Tout CSS doit vivre dans `templates/css/`. Pour les besoins ponctuels, utiliser les classes utilitaires de `utilities.css` (`.u-grow`, `.u-mt-05`, etc.) plutot que d'introduire un style inline.
 
 **Pas de `var`** — uniquement `const` et `let`.
 
@@ -78,13 +80,17 @@ Cas qui declenchent une mise a jour obligatoire :
 
 **Pas de framework, pas de bundler, pas de npm** — vanilla JS ES modules uniquement. Pas de React, Vue, Tailwind, TypeScript, Vite, Webpack.
 
-**Placeholders HTML** — format `{{NOM_MAJUSCULES}}` uniquement. Liste complete dans `pipeline/generate.py` (`_resolve_*` fonctions). Ne pas en inventer sans les implementer dans generate.py.
+**Placeholders HTML** — format `{{NOM_MAJUSCULES}}` uniquement. Liste complete actuelle : `{{BUILD_DATE}}`, `{{BUILD_DATETIME_PARIS}}`, `{{BUILD_DATETIME_ISO}}`, `{{STATION_COUNT}}`, `{{FUEL_DATA_UPDATE_FOOTER_HTML}}`, `{{GIT_COMMIT_HTML}}`, `{{APP_JS}}`, `{{ICON_SVG}}`, `{{STYLES_CSS}}`. Ne pas en inventer sans les implementer dans `pipeline/generate.py`.
 
-**Ordre CSS fixe** — `pipeline/generate.py` concatene dans cet ordre : variables → base → layout → nav → search → station → explore → favorites → vehicles → components → map. Ne pas changer cet ordre.
+**Ordre CSS fixe** — `pipeline/generate.py` concatene dans cet ordre : variables → base → layout → nav → search → station → explore → favorites → vehicles → components → map → utilities. `variables.css` doit rester en tete (tokens utilises partout) et `utilities.css` en queue (overrides possibles a specificite egale). Ne pas changer cet ordre.
 
 **Timestamps toujours Europe/Paris** — `maj_iso` en ISO 8601 avec offset Paris (`+01:00` ou `+02:00`), jamais UTC brut.
 
 **IDs HTML ↔ JS coherents** — tout ID utilise dans JS doit exister dans `templates/index.html`. Exceptions dynamiques connues : `station-map`, `sort-fuel`, `geo-sort`.
+
+**Settings modal = `<div role="dialog">`** — pas de balise HTML native `<dialog>`. L'ouverture/fermeture passe par toggle de la classe `.hidden`, le backdrop est un `<div class="dialog-backdrop">`. Le HTML native `<dialog>` force `display:none` en CSS et casse le toggle actuel.
+
+**Toutes les fonctions onclick inline doivent etre exposees sur `window`** — liste maintenue dans `templates/app.js` via `Object.assign(window, {...})`. Toute nouvelle fonction appelee depuis HTML inline (`onclick="..."`) doit etre ajoutee a cette liste, sinon runtime `ReferenceError`.
 
 ---
 
@@ -200,9 +206,11 @@ cd build && python -m http.server 8000
 
 **CSS/Build — zones de vigilance :**
 
-- **Ordre CSS fixe** : `variables.css` doit etre en premier (custom properties utilisees partout). Changer l'ordre casse le design.
+- **Ordre CSS fixe** : `variables.css` doit etre en premier (custom properties utilisees partout), `utilities.css` en dernier pour permettre les overrides a specificite egale. Changer l'ordre casse le design.
 - **Cache-bust** : `generate.py` nettoie les anciens fichiers timestamps automatiquement. Ne pas supprimer manuellement des fichiers `build/app.*.js` ou `build/styles.*.css`.
 - **Minification JS** : `generate.py` retire les commentaires `//` et lignes vides. Ne pas mettre de code fonctionnel apres `//` sur la meme ligne.
+- **Assets statiques copies** : `sw.js`, `CNAME`, `manifest.webmanifest`. Ajouter un nouveau asset non-template ? L'ajouter dans la boucle `for extra in (...)` de `generate.py`.
+- **`color-mix(in oklab, ...)`** : utilise dans le design system 2026. Support navigateurs modernes uniquement (Safari 16.2+, Chrome 111+, Firefox 113+). Ne pas l'utiliser dans des cas critiques hors ces navigateurs.
 
 ---
 

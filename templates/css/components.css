@@ -483,23 +483,30 @@ footer code {
   100% { background-position: -200% 0; }
 }
 
-/* Onboarding card */
+/* Onboarding card — top banner on home, dismissible */
 
 .onboard {
   position: relative;
-  padding: 1.125rem;
-  background: linear-gradient(135deg, var(--ab) 0%, var(--sf) 60%);
+  padding: 1.125rem 2.75rem 1.125rem 1.125rem;
+  background: linear-gradient(135deg, var(--ab) 0%, var(--sf) 55%);
   border: 1px solid var(--bd);
   border-radius: var(--rx);
   margin-bottom: 1rem;
   box-shadow: var(--sh);
 }
 
+@media (min-width: 768px) {
+  .onboard {
+    padding: 1.25rem 3rem 1.25rem 1.375rem;
+  }
+}
+
 .onboard h3 {
   font-size: 1rem;
   color: var(--tx);
-  margin-bottom: .375rem;
+  margin-bottom: .25rem;
   font-weight: 800;
+  letter-spacing: -.01em;
 }
 
 .onboard p {
@@ -513,8 +520,21 @@ footer code {
   font-size: .8125rem;
   color: var(--t2);
   margin: .5rem 0 .875rem;
-  padding-left: 1.25rem;
-  line-height: 1.7;
+  padding-left: 1.125rem;
+  line-height: 1.6;
+  display: grid;
+  gap: .125rem;
+}
+
+@media (min-width: 768px) {
+  .onboard ul {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 1.5rem;
+  }
+}
+
+.onboard li::marker {
+  color: var(--ac);
 }
 
 .onboard li strong {
