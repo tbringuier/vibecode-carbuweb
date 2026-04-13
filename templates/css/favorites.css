@@ -1,28 +1,40 @@
-/* favorites.css — Favorites list items and their children */
+/* favorites.css — Favorites list items + children */
 
 .fav {
-  padding: .625rem;
+  padding: .75rem;
   border: 1px solid var(--bd);
-  border-radius: var(--rl);
+  border-radius: var(--rx);
   background: var(--sf);
-  margin-bottom: .375rem;
+  margin-bottom: .5rem;
   display: flex;
-  gap: .375rem;
+  gap: .5rem;
   align-items: flex-start;
-  transition: box-shadow .15s;
+  transition: box-shadow var(--dur-1), border-color var(--dur-1);
 }
 
 .fav:hover {
-  box-shadow: var(--sh);
+  box-shadow: var(--sh-h);
+  border-color: var(--bd-2);
+}
+
+.fav.is-active {
+  border-color: var(--ac);
+  background: linear-gradient(135deg, var(--ab) 0%, var(--sf) 60%);
 }
 
 .fav-h {
   cursor: grab;
   color: var(--t3);
-  padding: .125rem;
+  padding: .25rem;
   align-self: center;
   flex-shrink: 0;
-  font-size: .75rem;
+  font-size: .875rem;
+  user-select: none;
+  transition: color var(--dur-1);
+}
+
+.fav-h:hover {
+  color: var(--t2);
 }
 
 .fav-b {
@@ -33,26 +45,68 @@
 
 .fav-n {
   font-weight: 700;
-  font-size: .8125rem;
+  font-size: .875rem;
+  color: var(--tx);
+  display: flex;
+  align-items: center;
+  gap: .375rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .fav-s {
-  font-size: .6875rem;
+  font-size: .75rem;
   color: var(--t2);
-  margin-top: .0625rem;
+  margin-top: .125rem;
 }
 
 .fav-p {
   display: flex;
-  gap: .1875rem;
+  gap: .25rem;
   flex-wrap: wrap;
-  margin-top: .25rem;
+  margin-top: .375rem;
 }
 
 .fav-r {
   flex-shrink: 0;
   align-self: center;
+  color: var(--t3);
+}
+
+.fav-r:hover {
+  color: var(--rd);
+  background: var(--rb);
+}
+
+.fav-radius-ctrl {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  margin-top: .375rem;
+}
+
+.fav-radius-ctrl span.tank {
+  font-size: .6875rem;
+}
+
+.v-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  margin-top: .25rem;
+}
+
+.v-pill {
+  font-size: .625rem;
+  padding: .125rem .3125rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  color: var(--t2);
+  background: var(--sf-2);
+  font-weight: 600;
+}
+
+.fav .best-g {
+  margin-top: .375rem;
 }

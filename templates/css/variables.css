@@ -1,49 +1,105 @@
-/* variables.css — CSS custom properties (light + dark theme) */
+/* variables.css — Design tokens (2026) : light + dark + motion */
 
 :root {
-  --bg: #f4f4f5;
-  --sf: #fff;
-  --tx: #18181b;
-  --t2: #52525b;
-  --t3: #a1a1aa;
-  --bd: #e4e4e7;
-  --bl: #f4f4f5;
+  color-scheme: light dark;
+
+  /* Palette — surface & background (zinc) */
+  --bg: #f6f7f9;
+  --sf: #ffffff;
+  --sf-2: #fafbfc;
+  --bl: #f1f2f5;
+  --bd: #e5e7eb;
+  --bd-2: #d1d5db;
+
+  /* Palette — text */
+  --tx: #0f1115;
+  --t2: #4b5563;
+  --t3: #9ca3af;
+
+  /* Accent — indigo/blue */
   --ac: #2563eb;
   --ac2: #1d4ed8;
+  --ac3: #1e40af;
   --ab: #eff6ff;
-  --gn: #16a34a;
-  --gb: #f0fdf4;
-  --am: #d97706;
+
+  /* Semantic — success (green) */
+  --gn: #15803d;
+  --gn2: #16a34a;
+  --gb: #ecfdf5;
+
+  /* Semantic — warning (amber) */
+  --am: #b45309;
+  --am2: #d97706;
   --amb: #fffbeb;
-  --rd: #dc2626;
+
+  /* Semantic — danger (red) */
+  --rd: #b91c1c;
+  --rd2: #dc2626;
   --rb: #fef2f2;
+
+  /* Focus ring */
+  --fr: 0 0 0 3px color-mix(in oklab, var(--ac) 30%, transparent);
+
+  /* Radii */
   --r: 6px;
   --rl: 10px;
-  --sh: 0 1px 3px rgba(0, 0, 0, .06);
-  --sh-h: 0 4px 12px rgba(0, 0, 0, .10);
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --navh: 3.25rem;
-  --bnavh: 3.25rem;
+  --rx: 14px;
+  --rr: 9999px;
+
+  /* Elevation */
+  --sh: 0 1px 2px rgba(15, 17, 21, .05), 0 1px 3px rgba(15, 17, 21, .06);
+  --sh-h: 0 4px 8px rgba(15, 17, 21, .05), 0 10px 20px rgba(15, 17, 21, .08);
+  --sh-l: 0 20px 40px rgba(15, 17, 21, .12);
+
+  /* Typography */
+  --font: "Inter var", "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-num: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Chrome heights */
+  --navh: 3.5rem;
+  --bnavh: 3.5rem;
   --safeb: env(safe-area-inset-bottom, 0px);
+  --safet: env(safe-area-inset-top, 0px);
+
+  /* Motion */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #09090b;
-    --sf: #18181b;
-    --tx: #fafafa;
-    --t2: #a1a1aa;
-    --t3: #71717a;
-    --bd: #27272a;
-    --bl: #18181b;
+    --bg: #0a0b0e;
+    --sf: #15171c;
+    --sf-2: #1a1c22;
+    --bl: #1f2128;
+    --bd: #2a2d35;
+    --bd-2: #3a3d47;
+
+    --tx: #f3f4f6;
+    --t2: #b4b7bf;
+    --t3: #7a7e87;
+
     --ac: #60a5fa;
     --ac2: #93bbfd;
-    --ab: #172554;
-    --gn: #4ade80;
-    --gb: #052e16;
+    --ac3: #c6dafe;
+    --ab: #14204b;
+
+    --gn: #34d399;
+    --gn2: #4ade80;
+    --gb: #09261b;
+
     --am: #fbbf24;
-    --amb: #451a03;
+    --am2: #fcd34d;
+    --amb: #2b1b04;
+
     --rd: #f87171;
-    --rb: #450a0a;
+    --rd2: #fca5a5;
+    --rb: #2b0c0c;
+
+    --sh: 0 1px 2px rgba(0, 0, 0, .4), 0 1px 3px rgba(0, 0, 0, .35);
+    --sh-h: 0 4px 8px rgba(0, 0, 0, .35), 0 10px 20px rgba(0, 0, 0, .45);
+    --sh-l: 0 20px 40px rgba(0, 0, 0, .55);
   }
 }

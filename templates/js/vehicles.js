@@ -27,12 +27,14 @@ export function renderVList() {
   const c = document.getElementById('vlist'); if (!c) return;
   if (!vehicles.length) { c.innerHTML = notice('Aucun véhicule', 'Ajoutez-en un pour filtrer les carburants et estimer le plein.'); if (state.vehicleDnD) { state.vehicleDnD.destroy(); state.vehicleDnD = null; } return; }
   c.innerHTML = vehicles.map((v, i) => {
-    const fs = v.fuels.map(f => `<span style="font-size:.625rem;padding:.0625rem .25rem;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3)">${E(f)}</span>`).join(' ');
-    return `<div data-di="${i}" class="fav" ${activeV === v.id ? 'style="border-color:var(--ac)"' : ''}>
+    const fs = v.fuels.map(f => `<span class="v-pill">${E(f)}</span>`).join('');
+    const tankPill = v.tank ? `<span class="v-pill">${v.tank}\u202fL</span>` : '';
+    const activeCls = activeV === v.id ? ' is-active' : '';
+    return `<div data-di="${i}" class="fav${activeCls}">
       <span class="fav-h" title="Déplacer">⠿</span>
-      <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:.8125rem">${E(v.icon)} ${E(v.name)}</div><div style="display:flex;flex-wrap:wrap;gap:.1875rem;margin-top:.1875rem">${fs}${v.tank ? `<span style="font-size:.625rem;padding:.0625rem .25rem;border:1px solid var(--bd);border-radius:var(--r);color:var(--t3)">${v.tank}L</span>` : ''}</div></div>
-      <button class="btn btn-g btn-i btn-sm" onclick="openVForm('${v.id}')" aria-label="Modifier">✏️</button>
-      <button class="btn btn-g btn-i btn-sm" onclick="delV('${v.id}')" aria-label="Supprimer" style="color:var(--rd)">✕</button>
+      <div class="u-grow"><div class="fav-n">${E(v.icon)} ${E(v.name)}</div><div class="v-pills">${fs}${tankPill}</div></div>
+      <button type="button" class="btn btn-g btn-i btn-sm" onclick="openVForm('${v.id}')" aria-label="Modifier">✏️</button>
+      <button type="button" class="btn btn-g btn-i btn-sm btn-danger" onclick="delV('${v.id}')" aria-label="Supprimer">✕</button>
     </div>`;
   }).join('');
   if (state.vehicleDnD) state.vehicleDnD.destroy(); state.vehicleDnD = null;

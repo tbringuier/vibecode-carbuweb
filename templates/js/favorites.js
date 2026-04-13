@@ -45,7 +45,7 @@ export function renderFavs() {
         }
         if (tags.length) ph = `<div class="fav-p">${tags.join('')}</div>`;
       }
-      h += `<div data-di="${i}" class="fav"><span class="fav-h" title="Déplacer">⠿</span><div class="fav-b" onclick="showStation('${f.id}')"><div class="fav-n">⛽ ${E(f.name)}</div><div class="fav-s">${E(f.adresse)}</div>${ph}</div><button class="btn btn-g btn-i btn-sm fav-r" onclick="event.stopPropagation();removeFav('${f.id}')" aria-label="Retirer">✕</button></div>`;
+      h += `<div data-di="${i}" class="fav"><span class="fav-h" title="Déplacer">⠿</span><div class="fav-b" role="button" tabindex="0" onclick="showStation('${f.id}')"><div class="fav-n">⛽ ${E(f.name)}</div><div class="fav-s">${E(f.adresse)}</div>${ph}</div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="event.stopPropagation();removeFav('${f.id}')" aria-label="Retirer">✕</button></div>`;
     } else {
       const fr = f.radius ? +f.radius : radius;
       let bc = '';
@@ -55,12 +55,18 @@ export function renderFavs() {
           const near = [], mk = maxKmFav(f);
           for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !hasFuel(s)) continue; if (hav(la, lo, s.lat, s.lon) <= mk) near.push({ id, station: s }); }
           const cards = [];
-          uFuels.forEach(fuel => { const b = pickBest(near, fuel); if (b) { const sn = f.name.replace(/'/g, "\\'"); cards.push(`<div class="best-c" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div><div class="best-n">${E(b.nom)}</div></div>`); } });
-          if (cards.length) bc = `<div class="best-g" style="margin-top:.375rem">${cards.join('')}</div>`;
+          uFuels.forEach(fuel => {
+            const b = pickBest(near, fuel);
+            if (b) {
+              const sn = f.name.replace(/'/g, "\\'");
+              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div><div class="best-n">${E(b.nom)}</div></div>`);
+            }
+          });
+          if (cards.length) bc = `<div class="best-g">${cards.join('')}</div>`;
         }
       }
       const si = E(f.id), sn = f.name.replace(/'/g, "\\'");
-      h += `<div data-di="${i}" class="fav"><span class="fav-h" title="Déplacer">⠿</span><div class="fav-b" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${si}')"><div class="fav-n">📍 ${E(f.name)}</div><div class="fav-s">~${fr}\u202fkm</div><div style="display:flex;align-items:center;gap:.25rem;margin-top:.1875rem" onclick="event.stopPropagation()"><button class="btn btn-i btn-sm" onclick="adjFavR('${si}',-5)">−</button><span class="tank">${fr}\u202fkm</span><button class="btn btn-i btn-sm" onclick="adjFavR('${si}',5)">+</button></div>${bc}</div><button class="btn btn-g btn-i btn-sm fav-r" onclick="event.stopPropagation();removeFav('${si}')" aria-label="Retirer">✕</button></div>`;
+      h += `<div data-di="${i}" class="fav"><span class="fav-h" title="Déplacer">⠿</span><div class="fav-b" role="button" tabindex="0" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${si}')"><div class="fav-n">📍 ${E(f.name)}</div><div class="fav-s">~${fr}\u202fkm</div><div class="fav-radius-ctrl" onclick="event.stopPropagation()"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${si}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${si}',5)" aria-label="Augmenter le rayon">+</button></div>${bc}</div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="event.stopPropagation();removeFav('${si}')" aria-label="Retirer">✕</button></div>`;
     }
   }
   list.innerHTML = h;

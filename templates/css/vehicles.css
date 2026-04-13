@@ -1,45 +1,80 @@
-/* vehicles.css — Vehicle profile form components */
+/* vehicles.css — Vehicle profile form, picker, slider */
+
+.v-form {
+  margin-top: .625rem;
+  padding: .875rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rx);
+  background: var(--sf-2);
+}
+
+.v-form-row {
+  margin-bottom: .625rem;
+}
+
+.v-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.v-form-actions {
+  display: flex;
+  gap: .5rem;
+  margin-top: .5rem;
+}
 
 .icon-pk {
   display: flex;
   flex-wrap: wrap;
-  gap: .25rem;
+  gap: .3125rem;
 }
 
 .icon-pk button {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: var(--r);
   border: 2px solid var(--bd);
   background: var(--sf);
   cursor: pointer;
-  font-size: .875rem;
+  font-size: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color .15s;
+  transition: border-color var(--dur-1), transform var(--dur-1), background var(--dur-1);
+}
+
+.icon-pk button:hover {
+  border-color: var(--bd-2);
+  transform: scale(1.05);
 }
 
 .icon-pk button.sel {
   border-color: var(--ac);
   background: var(--ab);
+  transform: scale(1.05);
 }
 
 .fuel-pk {
   display: flex;
   flex-wrap: wrap;
-  gap: .25rem;
+  gap: .3125rem;
 }
 
 .fuel-tg {
-  padding: .25rem .5rem;
+  padding: .3125rem .625rem;
   border-radius: var(--r);
   font-size: .75rem;
   font-weight: 600;
   border: 2px solid var(--bd);
   background: var(--sf);
   cursor: pointer;
-  transition: all .15s;
+  transition: all var(--dur-1);
+  color: var(--t2);
+  user-select: none;
+}
+
+.fuel-tg:hover {
+  border-color: var(--bd-2);
+  color: var(--tx);
 }
 
 .fuel-tg.sel {
@@ -55,18 +90,20 @@
 .rng {
   display: flex;
   align-items: center;
-  gap: .5rem;
+  gap: .75rem;
 }
 
 .rng input[type="range"] {
   flex: 1;
   accent-color: var(--ac);
+  height: 1.5rem;
 }
 
 .rng-v {
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  min-width: 2rem;
+  min-width: 3.5rem;
   text-align: right;
-  font-size: .875rem;
+  font-size: .9375rem;
+  color: var(--tx);
 }

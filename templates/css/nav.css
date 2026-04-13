@@ -1,10 +1,12 @@
-/* nav.css — Top nav, bottom nav, and responsive media queries */
+/* nav.css — Top nav, bottom nav, tabs with animated indicators */
 
 #top-nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--sf);
+  background: color-mix(in oklab, var(--sf) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--bd);
   height: var(--navh);
   display: flex;
@@ -13,10 +15,17 @@
   gap: .5rem;
 }
 
+@media (min-width: 768px) {
+  #top-nav {
+    padding: 0 1.25rem;
+  }
+}
+
 .nav-brand {
   font-weight: 800;
-  font-size: 1rem;
+  font-size: 1.0625rem;
   white-space: nowrap;
+  letter-spacing: -.015em;
 }
 
 .nav-brand span {
@@ -26,28 +35,32 @@
 .nav-tabs {
   display: none;
   gap: .125rem;
-  margin-left: 1.5rem;
+  margin-left: 1.25rem;
+  padding: 3px;
+  background: var(--bl);
+  border-radius: var(--rr);
 }
 
 .nav-tab {
-  padding: .375rem .75rem;
-  border-radius: var(--r);
+  padding: .375rem .875rem;
+  border-radius: var(--rr);
   font-size: .8125rem;
   font-weight: 600;
   color: var(--t2);
-  background: 0 0;
+  background: transparent;
   border: none;
   cursor: pointer;
-  transition: background .15s;
+  transition: color var(--dur-2), background-color var(--dur-2);
 }
 
 .nav-tab:hover {
-  background: var(--bl);
+  color: var(--tx);
 }
 
 .nav-tab[aria-selected="true"] {
-  background: var(--ac);
-  color: #fff;
+  background: var(--sf);
+  color: var(--ac);
+  box-shadow: var(--sh);
 }
 
 .nav-right {
@@ -69,7 +82,9 @@
   left: 0;
   right: 0;
   z-index: 100;
-  background: var(--sf);
+  background: color-mix(in oklab, var(--sf) 92%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-top: 1px solid var(--bd);
   display: flex;
   height: calc(var(--bnavh) + var(--safeb));
@@ -82,24 +97,42 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: .125rem;
+  gap: .1875rem;
   border: none;
-  background: 0 0;
+  background: transparent;
   cursor: pointer;
-  font-size: .5625rem;
+  font-size: .625rem;
   font-weight: 600;
-  color: var(--t3);
-  transition: color .15s;
+  color: var(--t2);
+  transition: color var(--dur-2);
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+#bottom-nav button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 999px 999px;
+  background: var(--ac);
+  transition: transform var(--dur-2) var(--ease);
 }
 
 #bottom-nav button[aria-selected="true"] {
   color: var(--ac);
 }
 
+#bottom-nav button[aria-selected="true"]::before {
+  transform: translateX(-50%) scaleX(1);
+}
+
 #bottom-nav button svg {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 @media (min-width: 768px) {

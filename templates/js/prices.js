@@ -4,7 +4,7 @@ import { hav, nearKm } from './helpers.js';
 export function tankSize() { if (!activeV) return null; const v = vehicles.find(x => x.id === activeV); return v?.tank || null; }
 export function tankStr(p) { const t = tankSize(); if (!t || !Number.isFinite(p)) return null; return (p * t).toFixed(2).replace('.', ','); }
 export function tankHtml(p) { const s = tankStr(p); return s ? `<div class="tank">Plein <b>${s}\u202f€</b></div>` : ''; }
-export function tankInline(p) { const s = tankStr(p); return s ? ` <span class="tank" style="display:inline">→ <b>${s}\u202f€</b></span>` : ''; }
+export function tankInline(p) { const s = tankStr(p); return s ? ` <span class="tank tank-inline">→ <b>${s}\u202f€</b></span>` : ''; }
 
 const nearCache = new Map();
 export function clearNearCache() { nearCache.clear(); }

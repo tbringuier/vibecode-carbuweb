@@ -1,4 +1,4 @@
-/* base.css — Reset, html, body, links, form elements, utilities */
+/* base.css — Reset, html, body, links, form, utilities, reduced-motion, print */
 
 *,
 *::before,
@@ -15,21 +15,39 @@ html {
   color: var(--tx);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-wrap: break-word;
+  scrollbar-gutter: stable;
 }
 
 body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  accent-color: var(--ac);
+}
+
+h1, h2, h3, h4 {
+  letter-spacing: -.01em;
+  line-height: 1.25;
 }
 
 a {
   color: var(--ac);
   text-decoration: none;
+  transition: color var(--dur-1);
 }
 
 a:hover {
   text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+img, svg, video, canvas {
+  max-width: 100%;
+  display: block;
 }
 
 button,
@@ -40,16 +58,93 @@ textarea {
   color: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--fr);
+  border-radius: var(--r);
+}
+
 [hidden],
 .hidden {
   display: none !important;
 }
 
 .sr-only {
-  position: absolute;
+  position: absolute !important;
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   border: 0;
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: fixed;
+  top: -3rem;
+  left: .5rem;
+  z-index: 400;
+  padding: .625rem 1rem;
+  background: var(--ac);
+  color: #fff;
+  font-weight: 700;
+  border-radius: var(--r);
+  box-shadow: var(--sh-h);
+  transition: top var(--dur-2) var(--ease);
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: calc(var(--safet) + .5rem);
+  text-decoration: none;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--ac) 35%, transparent);
+  color: var(--tx);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  #top-nav,
+  #bottom-nav,
+  #settings-modal,
+  .skip-link,
+  footer a,
+  button {
+    display: none !important;
+  }
+
+  .card,
+  .p-card,
+  .alt,
+  .fav {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+  }
 }

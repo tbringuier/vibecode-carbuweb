@@ -127,11 +127,13 @@ def generate_site():
     icon_svg_name = f"icon.{build_ts}.svg"
     styles_css_name = f"styles.{build_ts}.css"
 
-    # CSS — concatenate in order, minify, write
+    # CSS — concatenate in order, minify, write.
+    # Order matters: variables -> base -> layout -> feature CSS -> components -> map -> utilities.
+    # Utilities last so utility classes can override earlier rules when the same specificity applies.
     CSS_ORDER = [
         "variables.css", "base.css", "layout.css", "nav.css",
         "search.css", "station.css", "explore.css", "favorites.css",
-        "vehicles.css", "components.css", "map.css",
+        "vehicles.css", "components.css", "map.css", "utilities.css",
     ]
     css_dir = os.path.join(TEMPLATES_DIR, "css")
     css_parts = []
@@ -198,7 +200,7 @@ def generate_site():
             if basename not in (app_js_name, icon_svg_name, styles_css_name):
                 os.remove(old)
 
-    for extra in ("sw.js", "CNAME"):
+    for extra in ("sw.js", "CNAME", "manifest.webmanifest"):
         src = os.path.join(TEMPLATES_DIR, extra)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(BUILD_DIR, extra))

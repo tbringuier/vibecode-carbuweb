@@ -4,42 +4,63 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Carbu'Web — Prix des carburants en France</title>
-<meta name="description" content="Comparez les prix des carburants en France. Données officielles data.economie.gouv.fr.">
+<meta name="description" content="Comparez les prix des carburants en France. Données officielles data.economie.gouv.fr, mises à jour en continu.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Carbu'Web — Prix des carburants en France">
+<meta property="og:description" content="Comparez les prix des carburants en France. Données officielles mises à jour en continu.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="fr_FR">
 <link rel="icon" href="{{ICON_SVG}}" type="image/svg+xml">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" crossorigin=""></script>
+<link rel="apple-touch-icon" href="{{ICON_SVG}}">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://tile.openstreetmap.fr" crossorigin>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" crossorigin defer></script>
 <link rel="stylesheet" href="{{STYLES_CSS}}">
 </head>
 <body>
-<a href="#mc" class="sr-only" style="position:absolute;top:-100%;left:0;background:var(--ac);color:#fff;padding:.5rem 1rem;z-index:9999" onfocus="this.style.top='0'" onblur="this.style.top='-100%'">Aller au contenu</a>
-<nav id="top-nav">
+<a href="#mc" class="skip-link">Aller au contenu principal</a>
+
+<nav id="top-nav" aria-label="Navigation principale">
   <span class="nav-brand">Carbu<span>'Web</span></span>
-  <div class="nav-tabs" role="tablist">
-    <button class="nav-tab" role="tab" id="tab-recherche" aria-selected="true" onclick="switchTab('recherche')">Recherche</button>
-    <button class="nav-tab" role="tab" id="tab-explorer" aria-selected="false" onclick="switchTab('explorer')">Explorer</button>
-    <button class="nav-tab" role="tab" id="tab-favoris" aria-selected="false" onclick="switchTab('favoris')">Favoris</button>
+  <div class="nav-tabs" role="tablist" aria-label="Onglets">
+    <button class="nav-tab" type="button" role="tab" id="tab-recherche" aria-selected="true" aria-controls="pane-recherche" onclick="switchTab('recherche')">Recherche</button>
+    <button class="nav-tab" type="button" role="tab" id="tab-explorer" aria-selected="false" aria-controls="pane-explorer" onclick="switchTab('explorer')">Explorer</button>
+    <button class="nav-tab" type="button" role="tab" id="tab-favoris" aria-selected="false" aria-controls="fav-box" onclick="switchTab('favoris')">Favoris</button>
   </div>
   <div class="nav-right">
-    <button class="btn btn-g btn-i" id="btn-fav-header" hidden aria-label="Favoris" onclick="handleHeaderFav()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>
-    <button class="btn btn-g btn-i" id="btn-settings" aria-label="Paramètres" onclick="toggleSettings()"><svg class="icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg></button>
+    <button class="btn btn-g btn-i" type="button" id="btn-fav-header" hidden aria-label="Ajouter ce lieu aux favoris" onclick="handleHeaderFav()">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+    </button>
+    <button class="btn btn-g btn-i" type="button" id="btn-settings" aria-label="Paramètres" aria-haspopup="dialog" onclick="toggleSettings()">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
+    </button>
   </div>
 </nav>
+
 <main id="mc">
-  <div id="loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 1rem;text-align:center">
-    <div class="spinner"></div>
-    <p style="margin-top:.75rem;font-weight:600;font-size:.8125rem">Chargement…</p>
-    <p style="font-size:.6875rem;color:var(--t3);margin-top:.125rem">data.economie.gouv.fr</p>
+  <div id="loading" class="loading-ctr" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="primary">Chargement des données…</p>
+    <p class="secondary">Source&nbsp;: data.economie.gouv.fr</p>
   </div>
+
   <div id="home-view" class="hidden">
     <div class="ct">
-      <div id="vbar" class="hidden"><div id="vbar-list" class="chips"></div></div>
+      <div id="vbar" class="hidden" aria-label="Profils véhicules">
+        <div id="vbar-list" class="chips" role="radiogroup" aria-label="Véhicule actif"></div>
+      </div>
       <div class="home-lay">
-        <aside class="home-aside" id="home-aside">
-          <div id="onboard" class="onboard" style="position:relative">
-            <button class="btn btn-g btn-i btn-sm" onclick="dismissOnboard()" aria-label="Fermer" style="position:absolute;top:.375rem;right:.375rem"><svg class="icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+        <aside class="home-aside" id="home-aside" aria-label="Favoris">
+          <div id="onboard" class="onboard" role="complementary">
+            <button class="btn btn-g btn-i btn-sm onboard-close" type="button" onclick="dismissOnboard()" aria-label="Masquer le guide d'accueil">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
             <h3>Bienvenue sur Carbu'Web</h3>
             <p>Trouvez les meilleurs prix de carburant autour de vous, en temps réel.</p>
             <ul>
@@ -48,87 +69,149 @@
               <li><strong>Favoris</strong> — Sauvegardez vos lieux et stations</li>
               <li><strong>Paramètres</strong> — Ajoutez vos véhicules pour estimer le plein</li>
             </ul>
-            <button class="btn btn-sm" onclick="dismissOnboard()">C'est compris</button>
+            <button class="btn btn-p btn-sm" type="button" onclick="dismissOnboard()">C'est compris</button>
           </div>
-          <div id="fav-box" class="hidden"><div class="sec-l">Favoris</div><div id="fav-list"></div></div>
+          <div id="fav-box" class="hidden">
+            <div class="sec-l">Favoris</div>
+            <div id="fav-list"></div>
+          </div>
         </aside>
+
         <div class="home-main" id="home-main">
-          <div id="pane-recherche">
+          <section id="pane-recherche" role="tabpanel" aria-labelledby="tab-recherche">
             <div class="sbox">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-              <input type="search" id="sinput" class="inp" placeholder="Ville, adresse, code postal…" autocomplete="off" oninput="debouncedSearch()" aria-label="Rechercher">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              <input type="search" id="sinput" class="inp" placeholder="Ville, adresse, code postal…" autocomplete="off" oninput="debouncedSearch()" aria-label="Rechercher une ville, une adresse ou un code postal">
             </div>
-            <button class="btn btn-sm" onclick="geolocateMe()" style="margin-bottom:.75rem"><svg class="icon" style="width:.875rem;height:.875rem" viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg> Ma position</button>
-            <div id="sresults"></div>
-          </div>
-          <div id="pane-explorer" class="hidden">
-            <h2 style="font-size:1rem;margin-bottom:.625rem">Explorer</h2>
+            <button class="btn btn-sm u-mb-075" type="button" onclick="geolocateMe()">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+              Ma position
+            </button>
+            <div id="sresults" aria-live="polite"></div>
+          </section>
+
+          <section id="pane-explorer" class="hidden" role="tabpanel" aria-labelledby="tab-explorer">
             <div class="explore-row">
               <div class="field"><label class="lbl" for="exp-fuel">Carburant</label><select id="exp-fuel" class="inp" onchange="findCheapest()"></select></div>
               <div class="field"><label class="lbl" for="exp-sort">Ordre</label><select id="exp-sort" class="inp" onchange="findCheapest()"><option value="asc">Moins cher</option><option value="desc">Plus cher</option></select></div>
               <div class="field"><label class="lbl" for="exp-region">Région</label><select id="exp-region" class="inp" onchange="updateDeptFilter()"><option value="">France entière</option></select></div>
               <div class="field"><label class="lbl" for="exp-dept">Département</label><select id="exp-dept" class="inp" onchange="findCheapest()"><option value="">Tous</option></select></div>
             </div>
-            <div id="palmares-map" class="hidden"></div>
-            <div id="palmares-results"></div>
-            <div style="margin-top:1.25rem">
-              <h3 style="font-size:.875rem;margin-bottom:.5rem">Statistiques nationales</h3>
+            <div id="palmares-map" class="hidden" aria-label="Carte des stations classées"></div>
+            <div id="palmares-results" aria-live="polite"></div>
+            <div class="explore-stats">
+              <h3>Statistiques nationales</h3>
               <div class="chart-r">
-                <div class="card"><div class="sec-l" style="margin-top:0">Prix moyens (€/L)</div><div class="chart-w"><canvas id="chart-prices"></canvas></div></div>
-                <div class="card"><div class="sec-l" style="margin-top:0">Disponibilité</div><div class="chart-w"><canvas id="chart-fuels"></canvas></div></div>
+                <div class="card"><div class="card-hdr">Prix moyens (€/L)</div><div class="chart-w"><canvas id="chart-prices" aria-label="Graphique des prix moyens par carburant"></canvas></div></div>
+                <div class="card"><div class="card-hdr">Disponibilité</div><div class="chart-w"><canvas id="chart-fuels" aria-label="Répartition de la disponibilité par carburant"></canvas></div></div>
               </div>
               <div class="sec-l">Détail par région</div>
-              <div class="table-w"><table id="table-regions"></table></div>
+              <div class="table-w"><table id="table-regions" aria-label="Prix moyens par région"></table></div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>
   </div>
+
   <div id="station-view" class="hidden">
     <div class="ct">
       <div class="d-head">
-        <button class="btn btn-g btn-i" onclick="goBack()" aria-label="Retour"><svg class="icon" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+        <button class="btn btn-g btn-i" type="button" onclick="goBack()" aria-label="Retour">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
         <h1 id="stitle">Station</h1>
       </div>
       <div id="scontent"></div>
     </div>
   </div>
 </main>
-<div id="settings-modal" class="hidden">
-  <div class="modal-bg" onclick="toggleSettings()">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
-        <h2 style="margin:0;font-size:1rem">Paramètres</h2>
-        <button class="btn btn-g btn-i" onclick="toggleSettings()" aria-label="Fermer"><svg class="icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+
+<div id="settings-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="dialog-backdrop" onclick="toggleSettings()">
+    <div class="dialog" onclick="event.stopPropagation()">
+      <div class="dialog-head">
+        <h2 id="settings-title">Paramètres</h2>
+        <button class="btn btn-g btn-i" type="button" onclick="toggleSettings()" aria-label="Fermer">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
       </div>
-      <div class="m-sec">
+
+      <section class="m-sec">
         <h3>Véhicules</h3>
         <div id="vlist"></div>
-        <button type="button" class="btn btn-sm" id="v-add-btn" onclick="openVForm()" style="margin-top:.375rem">+ Ajouter</button>
-        <div id="vform" class="hidden" style="margin-top:.5rem;padding:.625rem;border:1px solid var(--bd);border-radius:var(--rl)">
-          <div style="margin-bottom:.5rem"><label class="lbl" for="v-name">Nom</label><input type="text" id="v-name" class="inp" placeholder="Ma voiture" maxlength="30"><p id="v-name-err" class="err hidden">Saisissez un nom.</p></div>
-          <div style="margin-bottom:.5rem"><label class="lbl">Icône</label><div id="v-icons" class="icon-pk"></div></div>
-          <div style="margin-bottom:.5rem" id="v-fuels-wrap"><label class="lbl">Carburants</label><div id="v-fuels" class="fuel-pk"></div><p id="v-fuels-err" class="err hidden">Sélectionnez au moins un carburant.</p></div>
-          <div style="margin-bottom:.5rem"><label class="lbl" for="v-tank">Réservoir (L, optionnel)</label><input type="number" id="v-tank" class="inp" placeholder="55" min="1" max="999"><p id="v-tank-err" class="err hidden">Entre 1 et 999.</p></div>
-          <div style="display:flex;gap:.375rem"><button type="button" class="btn btn-p btn-sm" onclick="saveVForm()">OK</button><button type="button" class="btn btn-sm" onclick="closeVForm()">Annuler</button></div>
+        <button type="button" class="btn btn-sm u-mt-05" id="v-add-btn" onclick="openVForm()">+ Ajouter un véhicule</button>
+        <div id="vform" class="v-form hidden">
+          <div class="v-form-row">
+            <label class="lbl" for="v-name">Nom</label>
+            <input type="text" id="v-name" class="inp" placeholder="Ma voiture" maxlength="30">
+            <p id="v-name-err" class="err hidden">Saisissez un nom.</p>
+          </div>
+          <div class="v-form-row">
+            <label class="lbl" for="v-icons">Icône</label>
+            <div id="v-icons" class="icon-pk" role="radiogroup" aria-label="Icône du véhicule"></div>
+          </div>
+          <div class="v-form-row" id="v-fuels-wrap">
+            <label class="lbl">Carburants</label>
+            <div id="v-fuels" class="fuel-pk" role="group" aria-label="Carburants compatibles"></div>
+            <p id="v-fuels-err" class="err hidden">Sélectionnez au moins un carburant.</p>
+          </div>
+          <div class="v-form-row">
+            <label class="lbl" for="v-tank">Réservoir (L, optionnel)</label>
+            <input type="number" id="v-tank" class="inp" placeholder="55" min="1" max="999" inputmode="numeric">
+            <p id="v-tank-err" class="err hidden">Entre 1 et 999.</p>
+          </div>
+          <div class="v-form-actions">
+            <button type="button" class="btn btn-p btn-sm" onclick="saveVForm()">Enregistrer</button>
+            <button type="button" class="btn btn-sm" onclick="closeVForm()">Annuler</button>
+          </div>
         </div>
-      </div>
-      <div class="m-sec"><h3>Rayon de recherche</h3><div class="rng"><input type="range" id="rslider" min="1" max="50" step="1"><span class="rng-v"><span id="rval">10</span> km</span></div></div>
-      <div class="m-sec"><button class="btn btn-sm" onclick="resetAll()" style="color:var(--rd)">Réinitialiser</button></div>
+      </section>
+
+      <section class="m-sec">
+        <h3>Rayon de recherche</h3>
+        <div class="rng">
+          <input type="range" id="rslider" min="1" max="50" step="1" aria-label="Rayon de recherche">
+          <span class="rng-v"><span id="rval">10</span>&nbsp;km</span>
+        </div>
+      </section>
+
+      <section class="m-sec">
+        <button class="btn btn-sm btn-danger" type="button" onclick="resetAll()">Réinitialiser toutes les préférences</button>
+      </section>
     </div>
   </div>
 </div>
+
 <div id="toast" role="status" aria-live="polite"></div>
-<nav id="bottom-nav">
-  <button id="bn-recherche" aria-selected="true" onclick="switchTab('recherche')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Recherche</button>
-  <button id="bn-explorer" aria-selected="false" onclick="switchTab('explorer')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>Explorer</button>
-  <button id="bn-favoris" aria-selected="false" onclick="switchTab('favoris')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Favoris</button>
+
+<nav id="bottom-nav" aria-label="Navigation mobile">
+  <button id="bn-recherche" type="button" aria-selected="true" onclick="switchTab('recherche')">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    Recherche
+  </button>
+  <button id="bn-explorer" type="button" aria-selected="false" onclick="switchTab('explorer')">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
+    Explorer
+  </button>
+  <button id="bn-favoris" type="button" aria-selected="false" onclick="switchTab('favoris')">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+    Favoris
+  </button>
 </nav>
+
 <footer>
-  <p>Carbu'Web — <span id="ft-count">{{STATION_COUNT}}</span> stations · <a href="https://data.economie.gouv.fr" target="_blank" rel="noopener">data.economie.gouv.fr</a> · <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a></p>
+  <p>Carbu'Web · <span id="ft-count">{{STATION_COUNT}}</span> stations · <a href="https://data.economie.gouv.fr" target="_blank" rel="noopener">data.economie.gouv.fr</a> · <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a></p>
   <p>{{FUEL_DATA_UPDATE_FOOTER_HTML}} · Build <time datetime="{{BUILD_DATETIME_ISO}}">{{BUILD_DATETIME_PARIS}}</time> · {{GIT_COMMIT_HTML}}</p>
 </footer>
+
+<noscript>
+  <div class="error-block notice">
+    <b>JavaScript désactivé</b>
+    <span>Ce site est une application interactive qui nécessite JavaScript pour fonctionner. Veuillez l'activer puis recharger la page.</span>
+  </div>
+</noscript>
+
 <script type="module" src="{{APP_JS}}"></script>
 </body>
 </html>

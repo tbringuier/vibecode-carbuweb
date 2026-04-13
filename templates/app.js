@@ -39,6 +39,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
     state.refreshT = setInterval(refreshData, REFRESH_MS);
   } catch (e) {
-    document.getElementById('loading').innerHTML = `<div class="notice" style="max-width:20rem;margin:2rem auto"><b>Impossible de charger les données</b><span>${E(e.message)}</span><br><button class="btn btn-p btn-sm" onclick="location.reload()" style="margin-top:.5rem">Recharger</button></div>`;
+    document.getElementById('loading').innerHTML = `<div class="error-block notice"><b>Impossible de charger les données</b><span>${E(e.message || 'Erreur réseau')}</span><button type="button" class="btn btn-p btn-sm" onclick="location.reload()">Recharger</button></div>`;
   }
 });

@@ -1,20 +1,64 @@
-/* map.css — Leaflet popup overrides, reduced motion */
+/* map.css — Leaflet popup overrides, map placeholder */
 
 .leaflet-popup-content-wrapper {
-  border-radius: var(--r) !important;
+  border-radius: var(--rl) !important;
+  box-shadow: var(--sh-h) !important;
+  background: var(--sf) !important;
+  color: var(--tx) !important;
 }
 
 .leaflet-popup-content {
   font-family: var(--font) !important;
   font-size: .75rem !important;
-  margin: .5rem !important;
+  margin: .5rem .625rem !important;
+  line-height: 1.45 !important;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: .01ms !important;
-    transition-duration: .01ms !important;
-  }
+.leaflet-popup-content b {
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.leaflet-popup-content .pop-body {
+  min-width: 7.5rem;
+}
+
+.leaflet-popup-content .pop-meta {
+  font-size: .6875rem;
+  color: var(--t2);
+  display: inline-block;
+  margin-top: .0625rem;
+}
+
+.leaflet-popup-tip {
+  background: var(--sf) !important;
+}
+
+.leaflet-container {
+  font-family: var(--font);
+  background: var(--bl);
+}
+
+.leaflet-control-zoom a {
+  background: var(--sf) !important;
+  color: var(--tx) !important;
+  border-color: var(--bd) !important;
+}
+
+.leaflet-control-attribution {
+  background: color-mix(in oklab, var(--sf) 85%, transparent) !important;
+  color: var(--t2) !important;
+  font-size: .625rem !important;
+  padding: 0 .3125rem !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--ac) !important;
+}
+
+.map-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

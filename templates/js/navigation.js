@@ -1,11 +1,9 @@
-import { state, favs, radius, uFuels } from './state.js';
-import { coord, E } from './helpers.js';
-import { renderFavs } from './favorites.js';
+import { state, favs } from './state.js';
+import { coord } from './helpers.js';
+import { renderFavs, favKey, toggleFavAddr } from './favorites.js';
 import { renderExploreMap, renderDash } from './explore.js';
 import { findNear } from './geolocation.js';
 import { searchGeo } from './geo-zones.js';
-import { favKey } from './favorites.js';
-import { toggleFavAddr } from './favorites.js';
 
 export function switchTab(tab) {
   const sv = document.getElementById('station-view');
@@ -19,7 +17,9 @@ export function switchTab(tab) {
   ['recherche', 'explorer', 'favoris'].forEach(t => document.getElementById(`bn-${t}`)?.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
   if (tab === 'explorer') { renderExploreMap(); renderDash(); }
 }
+
 export function pushNav(s) { if (state.isRestoring) return; state.navStack.push(s); history.pushState({ idx: state.navStack.length }, ''); }
+
 export function goHome() {
   state.navStack = []; state.proxSearch = null; state.detailAnchor = null; state.geoZone = null;
   document.getElementById('station-view').classList.add('hidden');
@@ -28,16 +28,20 @@ export function goHome() {
   document.getElementById('btn-fav-header').hidden = true;
   renderFavs();
 }
+
 export function goBack() { if (state.navStack.length) history.back(); else goHome(); }
 
 export function initPopstate() {
   window.addEventListener('popstate', () => {
     if (!state.navStack.length) { goHome(); return; }
     const p = state.navStack.pop(); state.isRestoring = true;
-    if (p.type === 'prox') findNear(p.lat, p.lon, p.label);
-    else if (p.type === 'geo') searchGeo(p.gType, p.name);
-    else goHome();
-    state.isRestoring = false;
+    try {
+      if (p.type === 'prox') findNear(p.lat, p.lon, p.label);
+      else if (p.type === 'geo') searchGeo(p.gType, p.name);
+      else goHome();
+    } finally {
+      state.isRestoring = false;
+    }
   });
 }
 
@@ -46,6 +50,10 @@ export function handleHeaderFav() {
   const a = coord(state.proxSearch.lat), o = coord(state.proxSearch.lon);
   if (Number.isFinite(a) && Number.isFinite(o)) toggleFavAddr(a, o, state.proxSearch.label || 'Lieu');
 }
+
+const STAR_SVG_FILLED = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+const STAR_SVG_EMPTY = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+
 export function syncHeaderFav() {
   const btn = document.getElementById('btn-fav-header');
   if (!btn) return;
@@ -57,7 +65,9 @@ export function syncHeaderFav() {
     if (Number.isFinite(a) && Number.isFinite(o)) {
       btn.hidden = false;
       const k = favKey(a, o), is = k && favs.some(f => f.type === 'address' && favKey(f.lat, f.lon) === k);
-      btn.innerHTML = `<svg class="icon" viewBox="0 0 24 24"${is ? ' style="color:#eab308"' : ''}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"${is ? '' : ' fill="none" stroke="currentColor" stroke-width="1.5"'}/></svg>`;
+      btn.innerHTML = is ? STAR_SVG_FILLED : STAR_SVG_EMPTY;
+      btn.classList.toggle('btn-star-on', !!is);
+      btn.setAttribute('aria-label', is ? 'Retirer ce lieu des favoris' : 'Ajouter ce lieu aux favoris');
       return;
     }
   }

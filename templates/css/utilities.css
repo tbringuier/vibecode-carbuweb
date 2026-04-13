@@ -1,0 +1,67 @@
+/* utilities.css — Minimal utility classes used by HTML/JS templates.
+   Goal: eliminate inline styles from markup while keeping authoring terse. */
+
+/* Flex / layout */
+
+.u-flex { display: flex; }
+.u-flex-col { display: flex; flex-direction: column; }
+.u-flex-wrap { flex-wrap: wrap; }
+.u-items-center { align-items: center; }
+.u-items-end { align-items: flex-end; }
+.u-justify-between { justify-content: space-between; }
+.u-gap-025 { gap: .25rem; }
+.u-gap-05 { gap: .5rem; }
+.u-gap-075 { gap: .75rem; }
+.u-grow { flex: 1; min-width: 0; }
+.u-shrink-0 { flex-shrink: 0; }
+
+/* Spacing */
+
+.u-mt-025 { margin-top: .25rem; }
+.u-mt-05 { margin-top: .5rem; }
+.u-mt-075 { margin-top: .75rem; }
+.u-mt-1 { margin-top: 1rem; }
+.u-mt-125 { margin-top: 1.25rem; }
+.u-mb-05 { margin-bottom: .5rem; }
+.u-mb-075 { margin-bottom: .75rem; }
+.u-mb-1 { margin-bottom: 1rem; }
+
+/* Typography */
+
+.u-text-muted { color: var(--t2); }
+.u-text-faint { color: var(--t3); }
+.u-text-xs { font-size: .6875rem; }
+.u-text-sm { font-size: .75rem; }
+.u-text-base { font-size: .875rem; }
+.u-bold { font-weight: 700; }
+.u-semibold { font-weight: 600; }
+.u-tabular { font-variant-numeric: tabular-nums; }
+.u-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.u-center { text-align: center; }
+
+/* Display helpers */
+
+.u-block { display: block; }
+.u-inline-block { display: inline-block; }
+.u-rel { position: relative; }
+
+/* Explore section wrapper */
+
+.explore-stats {
+  margin-top: 1.25rem;
+}
+
+.explore-stats h3 {
+  font-size: .9375rem;
+  font-weight: 700;
+  margin-bottom: .625rem;
+}
+
+.card-hdr {
+  font-size: .625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--t3);
+  margin-bottom: .5rem;
+}
