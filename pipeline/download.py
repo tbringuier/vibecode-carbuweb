@@ -86,7 +86,7 @@ def download_osm():
         sid = tags.get("ref:FR:prix-carburants")
         if sid:
             mapping[sid] = {
-                "nom": tags.get("name", tags.get("brand", "Nom de station-service Inconnu")),
+                "nom": tags.get("name", tags.get("brand")) or None,
                 "url": f"https://www.openstreetmap.org/{el['type']}/{el['id']}",
             }
     with open(OSM_FILE, "w", encoding="utf-8") as f:

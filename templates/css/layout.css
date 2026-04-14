@@ -78,6 +78,11 @@ main {
   }
 }
 
+#home-view.fav-tab .home-lay {
+  grid-template-columns: 1fr;
+  grid-template-areas: "aside";
+}
+
 #home-view.fav-tab .home-main {
   display: none;
 }
@@ -86,7 +91,6 @@ main {
   display: block;
   position: static;
   max-height: none;
-  width: 100%;
   overflow: visible;
   padding-right: 0;
 }

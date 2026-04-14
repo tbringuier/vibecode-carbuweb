@@ -1,5 +1,5 @@
 import { state, FUELS } from './state.js';
-import { E, notice, titleCase } from './helpers.js';
+import { E, notice, titleCase, stationName } from './helpers.js';
 import { freshPill } from './freshness.js';
 import { mkMap, mkIcon } from './map.js';
 
@@ -49,7 +49,7 @@ export function findCheapest() {
     const cls = sort === 'asc' && i < 3 ? 'cheap' : sort === 'desc' && i < 3 ? 'dear' : '';
     const fp = freshPill(s.carburants_disponibles[fuel]);
     const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
-    h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-rank">${i + 1}</div><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="ptag ${cls}"><span class="ptag-f">${fuel}</span><span class="ptag-v">${r.prix.toFixed(3)}€</span>${fp}</div></div>`;
+    h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-rank">${i + 1}</div><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="ptag ${cls}"><span class="ptag-f">${fuel}</span><span class="ptag-v">${r.prix.toFixed(3)}€</span>${fp}</div></div>`;
   });
   h += '</div>';
   c.innerHTML = h;
@@ -60,7 +60,7 @@ export function findCheapest() {
     top.forEach((s, i) => {
       if (!s.station.lat || !s.station.lon) return;
       const ic = sort === 'asc' && i < 3 ? icons.cheap : sort === 'desc' && i < 3 ? icons.dear : icons.def;
-      const pop = `<b>${E(s.station.nom_osm || 'Station')}</b><br>${E(titleCase(s.station.ville))}<br><b>${s.prix.toFixed(3)}\u202f€</b><br><button type="button" class="pop-btn" onclick="showStation('${s.id}')">Voir</button>`;
+      const pop = `<b>${E(stationName(s.station))}</b><br>${E(titleCase(s.station.ville))}<br><b>${s.prix.toFixed(3)}\u202f€</b><br><button type="button" class="pop-btn" onclick="showStation('${s.id}')">Voir</button>`;
       L.marker([s.station.lat, s.station.lon], { icon: ic }).bindPopup(pop).addTo(state.exploreMarkers);
     });
     if (top.some(s => s.station.lat && s.station.lon)) {

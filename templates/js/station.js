@@ -1,5 +1,5 @@
 import { state, favs, uFuels, PRICE_EPS } from './state.js';
-import { E, coord, hav, fmtKm, notice, titleCase } from './helpers.js';
+import { E, coord, hav, fmtKm, notice, titleCase, stationName } from './helpers.js';
 import { nearby, pClass, pickBest, tankHtml } from './prices.js';
 import { freshPill, freshLabel, majHtml } from './freshness.js';
 import { initMap } from './map.js';
@@ -10,11 +10,11 @@ export function showStation(sid) {
   if (!document.getElementById('home-view').classList.contains('hidden')) pushNav({ type: 'home' });
   document.getElementById('home-view').classList.add('hidden');
   const sv = document.getElementById('station-view'); sv.classList.remove('hidden'); sv.setAttribute('data-sid', sid);
-  document.getElementById('stitle').textContent = station.nom_osm || 'Station';
+  document.getElementById('stitle').textContent = stationName(station);
   document.getElementById('btn-fav-header').hidden = true;
 
   const mm = [];
-  if (station.lat && station.lon) mm.push({ type: 'station_blue', lat: station.lat, lon: station.lon, label: station.nom_osm || 'Station', id: sid });
+  if (station.lat && station.lon) mm.push({ type: 'station_blue', lat: station.lat, lon: station.lon, label: stationName(station), id: sid });
   const origin = getOrigin();
   if (origin) mm.push({ type: 'search_point', lat: origin.lat, lon: origin.lon, label: origin.label });
 

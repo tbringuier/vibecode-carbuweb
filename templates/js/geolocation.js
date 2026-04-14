@@ -1,5 +1,5 @@
 import { state, radius, uFuels, PRICE_EPS, PRICE_NEAR } from './state.js';
-import { E, hav, maxKm, fmtKm, hasFuel, notice, titleCase } from './helpers.js';
+import { E, hav, maxKm, fmtKm, hasFuel, notice, titleCase, stationName } from './helpers.js';
 import { pClass, pickBest, tankInline } from './prices.js';
 import { freshPill } from './freshness.js';
 import { initMap } from './map.js';
@@ -88,8 +88,8 @@ export function renderList(lat, lon, label, sortFuel) {
       }).join('');
     }
     const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
-    h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div><div class="tank u-mt-025">${fmtKm(r.dist)}</div></div><div class="s-prices">${ph}</div></div>`;
-    if (s.lat && s.lon) markers.push({ type: mmk, lat: s.lat, lon: s.lon, label: s.nom_osm || 'Station', adresse: `${s.adresse}, ${s.ville}`, id: r.id });
+    h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div><div class="tank u-mt-025">${fmtKm(r.dist)}</div></div><div class="s-prices">${ph}</div></div>`;
+    if (s.lat && s.lon) markers.push({ type: mmk, lat: s.lat, lon: s.lon, label: stationName(s), adresse: `${s.adresse}, ${s.ville}`, id: r.id });
   });
   h += '</div>';
   document.getElementById('scontent').innerHTML = h;

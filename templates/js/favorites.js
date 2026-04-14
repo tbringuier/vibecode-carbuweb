@@ -1,5 +1,5 @@
 import { state, radius, uFuels, favs, setFavs, saveFavs } from './state.js';
-import { E, coord, hav, maxKm, maxKmFav, hasFuel, notice, toast } from './helpers.js';
+import { E, coord, hav, maxKm, maxKmFav, hasFuel, notice, toast, stationName } from './helpers.js';
 import { pClass, pickBest } from './prices.js';
 import { freshPill } from './freshness.js';
 import { TouchDragReorder } from './drag-drop.js';
@@ -18,7 +18,7 @@ export function toggleFavAddr(lat, lon, name) {
 export function toggleFavStation() {
   const sid = document.getElementById('station-view').getAttribute('data-sid');
   const s = state.db.stations[sid], i = favs.findIndex(f => f.id === sid);
-  if (i > -1) favs.splice(i, 1); else favs.push({ id: sid, type: 'station', name: s.nom_osm || 'Station', adresse: `${s.adresse}, ${s.ville}` });
+  if (i > -1) favs.splice(i, 1); else favs.push({ id: sid, type: 'station', name: stationName(s), adresse: `${s.adresse}, ${s.ville}` });
   saveFavs(); renderFavs(); toast(i > -1 ? 'Station retirée' : 'Station ajoutée');
   showStation(sid);
 }

@@ -157,6 +157,24 @@
   margin-left: .125rem;
 }
 
+/* Search result groups */
+
+.s-group {
+  background: var(--sf);
+  border: 1px solid var(--bd);
+  border-radius: var(--rx);
+  overflow: hidden;
+  margin-bottom: .75rem;
+  box-shadow: var(--sh);
+}
+
+.s-group .sec-l {
+  margin: 0;
+  padding: .5rem .875rem;
+  background: var(--sf-2);
+  border-bottom: 1px solid var(--bd);
+}
+
 .s-item {
   display: flex;
   align-items: center;
@@ -254,7 +272,7 @@
   font-size: .75rem;
   color: var(--t2);
   padding: .5rem 0;
-  align-self: center;
+  align-self: flex-end;
   font-weight: 600;
   white-space: nowrap;
 }

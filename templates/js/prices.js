@@ -1,5 +1,5 @@
 import { state, activeV, vehicles, PRICE_EPS, PRICE_NEAR } from './state.js';
-import { hav, nearKm } from './helpers.js';
+import { hav, nearKm, stationName } from './helpers.js';
 
 export function tankSize() { if (!activeV) return null; const v = vehicles.find(x => x.id === activeV); return v?.tank || null; }
 export function tankStr(p) { const t = tankSize(); if (!t || !Number.isFinite(p)) return null; return (p * t).toFixed(2).replace('.', ','); }
@@ -34,7 +34,7 @@ export function pickBest(cands, fuel) {
     const p = parseFloat(r.prix); if (!Number.isFinite(p)) continue;
     const d = Number.isFinite(e.dist) ? e.dist : 0;
     if (!b || (p - b.prix < -PRICE_EPS) || (Math.abs(p - b.prix) <= PRICE_EPS && d < b.dist))
-      b = { prix: p, id: e.id, nom: e.station.nom_osm || e.station.ville, dist: d };
+      b = { prix: p, id: e.id, nom: stationName(e.station), dist: d };
   }
   return b;
 }

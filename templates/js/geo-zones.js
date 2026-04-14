@@ -1,5 +1,5 @@
 import { state, uFuels, PRICE_EPS, PRICE_NEAR } from './state.js';
-import { E, hasFuel, notice, titleCase } from './helpers.js';
+import { E, hasFuel, notice, titleCase, stationName } from './helpers.js';
 import { pClass, tankInline } from './prices.js';
 import { freshPill } from './freshness.js';
 import { initMap } from './map.js';
@@ -57,13 +57,13 @@ export function searchGeo(type, name, fuel) {
     }
     r.mk = mmk;
     const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
-    h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(s.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="s-prices">${ph}</div></div>`;
+    h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="s-prices">${ph}</div></div>`;
   });
   h += '</div>';
   document.getElementById('scontent').innerHTML = h;
   window.scrollTo(0, 0);
   const src = sts.length ? sts : all;
-  const mm = src.filter(s => s.station.lat && s.station.lon).map(s => ({ type: s.mk || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: s.station.nom_osm || 'Station', adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id }));
+  const mm = src.filter(s => s.station.lat && s.station.lon).map(s => ({ type: s.mk || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: stationName(s.station), adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id }));
   setTimeout(() => initMap(mm, true), 80);
   syncHeaderFav();
 }

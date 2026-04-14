@@ -1,5 +1,5 @@
 import { state, uFuels, favs, FUELS } from './state.js';
-import { norm, E, notice, hasFuel, titleCase } from './helpers.js';
+import { norm, E, notice, hasFuel, titleCase, stationName } from './helpers.js';
 import { pClass } from './prices.js';
 import { freshPill } from './freshness.js';
 import { favKey } from './favorites.js';
@@ -50,16 +50,18 @@ export async function doSearch() {
       if (r.nom_norm.includes(n)) regs.push({ nom: r.nom, count: r.stations.length });
   }
   if (regs.length) {
-    h += '<div class="sec-l">Régions</div>';
+    h += '<div class="s-group"><div class="sec-l">Régions</div>';
     regs.forEach(g => {
       h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('region','${g.nom.replace(/'/g, "\\'")}')"><div class="s-info"><div class="s-name">${E(g.nom)}</div><div class="s-addr">${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
     });
+    h += '</div>';
   }
   if (depts.length) {
-    h += '<div class="sec-l">Départements</div>';
+    h += '<div class="s-group"><div class="sec-l">Départements</div>';
     depts.forEach(g => {
       h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('dept','${g.nom.replace(/'/g, "\\'")}')"><div class="s-info"><div class="s-name">${E(g.nom)} (${E(g.code)})</div><div class="s-addr">${E(g.region)} · ${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
     });
+    h += '</div>';
   }
   const local = [];
   if (!isCode && state.db.cp_index[n]) {
@@ -72,12 +74,13 @@ export async function doSearch() {
   }
   let sHtml = '';
   if (local.length) {
-    sHtml += '<div class="sec-l">Stations <span class="pill">data.gouv</span></div>';
+    sHtml += '<div class="s-group"><div class="sec-l">Stations <span class="pill">data.gouv</span></div>';
     local.forEach(r => {
       const pCol = searchPrices(r.id, r.station);
       const h24 = r.station.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
-      sHtml += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(r.station.nom_osm) || 'Station'}${h24}</div><div class="s-addr">${E(titleCase(r.station.adresse))}, ${E(r.station.code_postal)} ${E(titleCase(r.station.ville))}</div></div><div class="s-prices">${pCol}</div></div>`;
+      sHtml += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(r.station))}${h24}</div><div class="s-addr">${E(titleCase(r.station.adresse))}, ${E(r.station.code_postal)} ${E(titleCase(r.station.ville))}</div></div><div class="s-prices">${pCol}</div></div>`;
     });
+    sHtml += '</div>';
   }
   try {
     const or = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=fr&limit=4`, { signal: sig });
@@ -91,7 +94,7 @@ export async function doSearch() {
         return true;
       });
       if (od.length) {
-        h += '<div class="sec-l">Villes & adresses <span class="pill">OSM</span></div>';
+        h += '<div class="s-group"><div class="sec-l">Villes & adresses <span class="pill">OSM</span></div>';
         od.forEach(p => {
           const nm = p.display_name.split(',')[0];
           const desc = p.display_name.split(',').slice(1, -2).join(',').trim();
@@ -100,6 +103,7 @@ export async function doSearch() {
           const safeName = nm.replace(/'/g, "\\'");
           h += `<div class="s-item"><div class="s-info" role="button" tabindex="0" onclick="findNear(${p.lat},${p.lon},'${safeName}')"><div class="s-name">${E(nm)}</div><div class="s-addr">${E(desc)}</div></div><button class="btn btn-g btn-i btn-sm${is ? ' btn-star-on' : ''}" type="button" onclick="event.stopPropagation();toggleFavAddr(${p.lat},${p.lon},'${safeName}')" aria-label="${is ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${is ? '★' : '☆'}</button></div>`;
         });
+        h += '</div>';
       }
     }
   } catch (e) { if (e.name !== 'AbortError') console.error('OSM', e); }
