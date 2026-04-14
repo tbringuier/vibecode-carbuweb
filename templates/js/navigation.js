@@ -15,7 +15,7 @@ export function switchTab(tab) {
     if (p) { if (t === tab) p.classList.remove('hidden'); else p.classList.add('hidden'); }
   });
   ['recherche', 'explorer', 'favoris'].forEach(t => document.getElementById(`bn-${t}`)?.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
-  if (tab === 'explorer') { renderExploreMap(); renderDash(); }
+  if (tab === 'explorer') { renderExploreMap(); findCheapest(); renderDash(); }
 }
 
 export function pushNav(s) { if (state.isRestoring) return; state.navStack.push(s); history.pushState({ idx: state.navStack.length }, ''); }
@@ -48,7 +48,7 @@ export function initPopstate() {
 export function handleHeaderFav() {
   if (!state.proxSearch) return;
   const a = coord(state.proxSearch.lat), o = coord(state.proxSearch.lon);
-  if (Number.isFinite(a) && Number.isFinite(o)) toggleFavAddr(a, o, state.proxSearch.label || 'Lieu');
+  if (Number.isFinite(a) && Number.isFinite(o)) { toggleFavAddr(a, o, state.proxSearch.label || 'Lieu'); syncHeaderFav(); }
 }
 
 const STAR_SVG_FILLED = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
