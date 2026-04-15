@@ -1,7 +1,7 @@
-import { state, radius, uFuels, favs, setFavs, saveFavs } from './state.js';
+import { state, radius, uFuels, favs, setFavs, saveFavs, maxAge } from './state.js';
 import { E, coord, hav, maxKm, maxKmFav, hasFuel, notice, toast, stationName } from './helpers.js';
 import { pClass, pickBest } from './prices.js';
-import { freshPill } from './freshness.js';
+import { freshPill, isExpired } from './freshness.js';
 import { TouchDragReorder } from './drag-drop.js';
 import { showStation } from './station.js';
 import { findNear } from './geolocation.js';
@@ -40,6 +40,7 @@ export function renderFavs() {
         const tags = [];
         for (const [c, d] of Object.entries(st.carburants_disponibles)) {
           if (!uFuels.includes(c)) continue;
+          if (isExpired(d, maxAge)) continue;
           const cls = pClass(f.id, c, d.prix), fp = freshPill(d);
           tags.push(`<div class="ptag ${cls}"><span class="ptag-f">${c}</span><span class="ptag-v">${d.prix}€</span>${fp}</div>`);
         }

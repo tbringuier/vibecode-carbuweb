@@ -3,7 +3,7 @@ import os
 
 import pandas as pd
 
-from .config import EXCEL_RT_FILE, ALL_FUELS, RT_FUEL_COLUMNS, VALID_PRICE_MIN, VALID_PRICE_MAX
+from .config import EXCEL_RT_FILE, ALL_FUELS, RT_FUEL_COLUMNS, VALID_PRICE_MIN, VALID_PRICE_MAX, FUEL_PRICE_RANGES
 from .helpers import (
     normalize_text,
     parse_geom_lat_lon,
@@ -36,6 +36,7 @@ def register_station(db, osm, sid, region, dept, city, cp, addr, lat, lon, horai
         "horaires": parse_hours(horaires_raw),
         "carburants_disponibles": {},
         "carburants_en_rupture": {},
+        "carburants_filtres": {},
     }
     db["geo_tree"].setdefault(region, {}).setdefault(dept, {}).setdefault(city, [])
     if sid not in db["geo_tree"][region][dept][city]:
@@ -167,7 +168,8 @@ def merge_flux_instantane(db, osm=None):
             has_any_price = False
             for fuel, price_col, time_col in RT_FUEL_COLUMNS:
                 p = _parse_rt_price_cell(row.get(price_col))
-                if p is not None and VALID_PRICE_MIN <= p <= VALID_PRICE_MAX:
+                lo, hi = FUEL_PRICE_RANGES.get(fuel, (VALID_PRICE_MIN, VALID_PRICE_MAX))
+                if p is not None and lo <= p <= hi:
                     has_any_price = True
                     break
             if not has_any_price:
@@ -194,7 +196,8 @@ def merge_flux_instantane(db, osm=None):
             price = _parse_rt_price_cell(row.get(price_col))
             if price is None:
                 continue
-            if not (VALID_PRICE_MIN <= price <= VALID_PRICE_MAX):
+            lo, hi = FUEL_PRICE_RANGES.get(fuel, (VALID_PRICE_MIN, VALID_PRICE_MAX))
+            if not (lo <= price <= hi):
                 continue
             price = round(price, 3)
             maj_iso, flux_date = flux_maj_iso_and_date(row.get(time_col))

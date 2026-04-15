@@ -4,7 +4,8 @@
       "Bash(python main.py)",
       "Read(//c/Users/Tristan/AppData/Local/Temp/claude/C--Users-Tristan-Documents-GitHub-vibecode-carbuweb/f7a75d0f-fc18-49d1-82a8-9b091f0b5bf9/tasks/**)",
       "Bash(ls -la build/*.js build/*.css)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(python -c ':*)"
     ]
   }
 }

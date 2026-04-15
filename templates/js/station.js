@@ -1,7 +1,7 @@
-import { state, favs, uFuels, PRICE_EPS } from './state.js';
+import { state, favs, uFuels, PRICE_EPS, maxAge } from './state.js';
 import { E, coord, hav, fmtKm, notice, titleCase, stationName } from './helpers.js';
 import { nearby, pClass, pickBest, tankHtml } from './prices.js';
-import { freshPill, freshLabel, majHtml } from './freshness.js';
+import { freshPill, freshLabel, majHtml, isExpired } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav } from './navigation.js';
 
@@ -42,6 +42,14 @@ export function showStation(sid) {
   uFuels.forEach(fuel => {
     const d = station.carburants_disponibles[fuel];
     if (!d) {
+      const b = pickBest(nSts, fuel);
+      if (b) alts.push({ fuel, prix: b.prix, id: b.id, nom: b.nom, dist: b.dist, isNew: true });
+      return;
+    }
+    if (isExpired(d, maxAge)) {
+      const fl = freshLabel(d);
+      const mj = majHtml(d);
+      h += `<div class="p-card stale"><div class="p-card-f">${fuel}</div><div class="p-card-v">${d.prix}<span class="p-card-u"> €/L</span></div><div class="p-card-d">${mj ? `Maj. ${mj}` : ''}</div><div class="p-card-fl">${E(fl)}</div><div class="p-card-stale-notice">Masqué (ancienneté &gt; ${maxAge}j)</div></div>`;
       const b = pickBest(nSts, fuel);
       if (b) alts.push({ fuel, prix: b.prix, id: b.id, nom: b.nom, dist: b.dist, isNew: true });
       return;

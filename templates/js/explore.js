@@ -1,6 +1,6 @@
-import { state, FUELS } from './state.js';
+import { state, FUELS, maxAge } from './state.js';
 import { E, notice, titleCase, stationName } from './helpers.js';
-import { freshPill } from './freshness.js';
+import { freshPill, isExpired } from './freshness.js';
 import { mkMap, mkIcon } from './map.js';
 
 const L = window.L;
@@ -34,10 +34,11 @@ export function findCheapest() {
   const dept = document.getElementById('exp-dept').value;
   const sts = [];
   for (const [id, s] of Object.entries(state.db.stations)) {
-    if (!s.carburants_disponibles[fuel]) continue;
+    const e = s.carburants_disponibles[fuel];
+    if (!e || isExpired(e, maxAge)) continue;
     if (rg && s.region !== rg) continue;
     if (dept && s.departement !== dept) continue;
-    sts.push({ id, station: s, prix: parseFloat(s.carburants_disponibles[fuel].prix) });
+    sts.push({ id, station: s, prix: parseFloat(e.prix) });
   }
   sts.sort((a, b) => sort === 'asc' ? a.prix - b.prix : b.prix - a.prix);
   const top = sts.slice(0, 50);

@@ -45,6 +45,24 @@ ALL_FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]
 VALID_PRICE_MIN = 0.01
 VALID_PRICE_MAX = 10.0
 
+# Plages de prix réalistes par carburant (€/L), dérivées des prix réels observés
+# en France 2025-2026 avec marge de sécurité confortable. Un prix hors de cette
+# plage est considéré comme aberrant et déplacé dans `carburants_filtres`.
+FUEL_PRICE_RANGES = {
+    "Gazole": (0.80, 3.50),
+    "SP95":   (0.80, 3.50),
+    "E10":    (0.80, 3.50),
+    "SP98":   (0.80, 3.50),
+    "E85":    (0.35, 2.50),
+    "GPLc":   (0.30, 3.00),
+}
+
+# Seuil absolu d'ancienneté côté pipeline : un prix mis à jour il y a plus de
+# ce nombre de jours est considéré comme "donnée fantôme" et filtré
+# définitivement. Le filtrage fin (14j / 30j / 60j) est géré côté frontend
+# pour permettre un toggle utilisateur instantané.
+PRICE_ABSURD_AGE_DAYS = 365
+
 # Colonnes flux instantané (export XLSX data.gouv, libellés FR)
 RT_FUEL_COLUMNS = (
     ("Gazole", "Prix Gazole", "Prix Gazole mis à jour le"),

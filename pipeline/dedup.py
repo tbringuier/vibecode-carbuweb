@@ -1,6 +1,8 @@
 import logging
 
-from .config import VALID_PRICE_MIN, VALID_PRICE_MAX
+from collections import Counter
+
+from .config import VALID_PRICE_MIN, VALID_PRICE_MAX, FUEL_PRICE_RANGES
 from .helpers import parse_geom_lat_lon, daily_maj_date_and_iso, _parse_iso_datetime, _dt_naive_utc
 
 log = logging.getLogger("carbuweb")
@@ -15,6 +17,7 @@ def deduplicate_daily(df):
     best_daily = {}  # (sid, fuel) -> {prix, maj_raw, maj_iso, date_raw}
     ruptures = {}    # (sid, fuel) -> {debut, motif}
     station_rows = {}  # sid -> first row data for station creation
+    rejected = Counter()  # fuel -> nb prix rejetés (hors plage)
 
     for _, row in df.iterrows():
         sid = str(row["id"])
@@ -38,7 +41,11 @@ def deduplicate_daily(df):
                 price = float(row["Prix"])
             except (ValueError, TypeError):
                 price = None
-            if price is not None and VALID_PRICE_MIN <= price <= VALID_PRICE_MAX:
+            lo, hi = FUEL_PRICE_RANGES.get(fuel, (VALID_PRICE_MIN, VALID_PRICE_MAX))
+            if price is not None and not (lo <= price <= hi):
+                rejected[fuel] += 1
+                price = None
+            if price is not None:
                 key = (sid, fuel)
                 entry = {"prix": round(price, 3), "date_raw": date_raw, "maj_iso": maj_iso}
                 existing = best_daily.get(key)
@@ -69,5 +76,8 @@ def deduplicate_daily(df):
         "Quotidien : %d lignes → %d stations, %d prix dédoublonnés, %d ruptures.",
         len(df), len(station_rows), len(best_daily), len(ruptures),
     )
+    if rejected:
+        detail = ", ".join(f"{f}: {n}" for f, n in sorted(rejected.items()))
+        log.info("Quotidien : %d prix rejetés (hors plage carburant) — %s", sum(rejected.values()), detail)
 
     return best_daily, ruptures, station_rows

@@ -9,6 +9,7 @@ export function switchTab(tab) {
   const sv = document.getElementById('station-view');
   if (sv && !sv.classList.contains('hidden')) goHome();
   document.getElementById('home-view')?.classList.toggle('fav-tab', tab === 'favoris');
+  document.getElementById('home-view')?.classList.toggle('explorer-tab', tab === 'explorer');
   ['recherche', 'explorer', 'favoris'].forEach(t => {
     document.getElementById(`tab-${t}`)?.setAttribute('aria-selected', t === tab ? 'true' : 'false');
     const p = document.getElementById(`pane-${t}`);

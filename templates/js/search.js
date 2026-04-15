@@ -1,7 +1,7 @@
-import { state, uFuels, favs, FUELS } from './state.js';
+import { state, uFuels, favs, FUELS, maxAge } from './state.js';
 import { norm, E, notice, hasFuel, titleCase, stationName } from './helpers.js';
 import { pClass } from './prices.js';
-import { freshPill } from './freshness.js';
+import { freshPill, isExpired } from './freshness.js';
 import { favKey } from './favorites.js';
 
 export function debouncedSearch() { clearTimeout(state.searchTimeout); state.searchTimeout = setTimeout(doSearch, 400); }
@@ -113,14 +113,12 @@ export async function doSearch() {
 }
 
 export function searchPrices(sid, st) {
-  const fs = uFuels.filter(f => st.carburants_disponibles[f]);
-  const rp = uFuels.filter(f => st.carburants_en_rupture?.[f]).map(f => `<span class="rupt-sm">${f}</span>`).join('');
-  if (!fs.length && !rp) return '<span class="s-arrow">→</span>';
-  const tags = fs.map(f => {
+  const fs = uFuels.filter(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
+  if (!fs.length) return '<span class="s-arrow">→</span>';
+  return fs.map(f => {
     const d = st.carburants_disponibles[f];
     const cls = pClass(sid, f, d.prix);
     const fp = freshPill(d);
     return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${d.prix}€</span>${fp}</div>`;
   }).join('');
-  return tags + rp;
 }

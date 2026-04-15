@@ -1,7 +1,7 @@
-import { state, radius, uFuels, PRICE_EPS, PRICE_NEAR } from './state.js';
+import { state, radius, uFuels, PRICE_EPS, PRICE_NEAR, maxAge } from './state.js';
 import { E, hav, maxKm, fmtKm, hasFuel, notice, titleCase, stationName } from './helpers.js';
 import { pClass, pickBest, tankInline } from './prices.js';
-import { freshPill } from './freshness.js';
+import { freshPill, isExpired } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav, syncHeaderFav } from './navigation.js';
 import { withR } from './settings.js';
@@ -39,14 +39,15 @@ export function applySort(fuel) {
 export function renderList(lat, lon, label, sortFuel) {
   document.getElementById('stitle').textContent = label || 'Résultats';
   const mk = maxKm();
+  const isActive = (s) => uFuels.some(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge));
   let sts = [];
   for (const [id, s] of Object.entries(state.db.stations)) {
-    if (!s.lat || !s.lon || !hasFuel(s)) continue;
+    if (!s.lat || !s.lon || !isActive(s)) continue;
     const d = hav(lat, lon, s.lat, s.lon);
     if (d <= mk) sts.push({ id, station: s, dist: d });
   }
   if (sortFuel) {
-    sts = sts.filter(s => s.station.carburants_disponibles[sortFuel]);
+    sts = sts.filter(s => s.station.carburants_disponibles[sortFuel] && !isExpired(s.station.carburants_disponibles[sortFuel], maxAge));
     sts.sort((a, b) => {
       const pa = parseFloat(a.station.carburants_disponibles[sortFuel].prix);
       const pb = parseFloat(b.station.carburants_disponibles[sortFuel].prix);
@@ -61,7 +62,7 @@ export function renderList(lat, lon, label, sortFuel) {
   if (sortFuel && sts.length) minP = Math.min(...sts.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
   const allR = [];
   for (const [id, s] of Object.entries(state.db.stations)) {
-    if (!s.lat || !s.lon || !hasFuel(s)) continue;
+    if (!s.lat || !s.lon || !isActive(s)) continue;
     if (hav(lat, lon, s.lat, s.lon) <= mk) allR.push({ id, station: s });
   }
   const bw = bestWidget(allR);
@@ -81,7 +82,7 @@ export function renderList(lat, lon, label, sortFuel) {
       const fp = freshPill(s.carburants_disponibles[sortFuel]);
       ph = `<div class="ptag ${cls}"><span class="ptag-f">${sortFuel}</span><span class="ptag-v">${s.carburants_disponibles[sortFuel].prix}€</span>${fp}</div>`;
     } else {
-      ph = uFuels.filter(f => s.carburants_disponibles[f]).map(f => {
+      ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => {
         const cls = pClass(r.id, f, s.carburants_disponibles[f].prix);
         const fp = freshPill(s.carburants_disponibles[f]);
         return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}</div>`;

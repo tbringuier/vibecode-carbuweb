@@ -1,4 +1,4 @@
-import { state, LS, radius, setRadius, uFuels } from './state.js';
+import { state, LS, radius, setRadius, uFuels, maxAge, setMaxAge, MAX_AGE_OPTIONS } from './state.js';
 import { E, fmtInt } from './helpers.js';
 import { clearNearCache } from './prices.js';
 import { renderVBar, renderVList } from './vehicles.js';
@@ -13,6 +13,7 @@ export function toggleSettings() { document.getElementById('settings-modal').cla
 export function debouncedSave() { clearTimeout(state.saveT); state.saveT = setTimeout(() => { setRadius(+document.getElementById('rslider').value); localStorage.setItem(LS.r, radius); refreshAll(); }, 300); }
 export function resetAll() { Object.values(LS).forEach(k => localStorage.removeItem(k)); location.reload(); }
 export function dismissOnboard() { document.getElementById('onboard').classList.add('hidden'); localStorage.setItem(LS.w, '1'); }
+export function changeMaxAge(val) { const v = parseInt(val, 10); setMaxAge(MAX_AGE_OPTIONS.includes(v) ? v : 14); localStorage.setItem(LS.ma, String(maxAge)); refreshAll(); }
 
 export function refreshActive(o) {
   const reset = o?.reset;

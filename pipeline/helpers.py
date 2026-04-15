@@ -136,6 +136,26 @@ def _entry_price_datetime(entry: dict) -> datetime | None:
     return None
 
 
+def check_price_validity(fuel: str, price: float, entry: dict, fuel_ranges: dict, absurd_age_days: int) -> str | None:
+    """Décide si une entrée prix est aberrante. Retourne la raison si filtrée, None si valide.
+
+    Raisons possibles :
+    - "hors_plage" : prix en dehors de la plage réaliste du carburant
+    - "anciennete_absurde" : prix mis à jour il y a plus de `absurd_age_days` jours
+    """
+    lo, hi = fuel_ranges.get(fuel, (0.01, 10.0))
+    if not (lo <= price <= hi):
+        return "hors_plage"
+    dt = _entry_price_datetime(entry)
+    if dt is not None:
+        from datetime import timezone
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        entry_utc = _dt_naive_utc(dt)
+        if (now_utc - entry_utc).days > absurd_age_days:
+            return "anciennete_absurde"
+    return None
+
+
 def compute_latest_fuel_price_update_meta(db: dict) -> dict:
     """Date/heure la plus récente parmi tous les prix affichés (quotidien + flux fusionné)."""
     best_utc = None

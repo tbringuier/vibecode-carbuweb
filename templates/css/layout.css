@@ -95,6 +95,12 @@ main {
   padding-right: 0;
 }
 
+/* Onglet Explorer : sidebar reste visible mais le contenu favoris est masqué. */
+#home-view.explorer-tab #fav-box,
+#home-view.explorer-tab #fav-empty {
+  display: none;
+}
+
 .d-head {
   display: flex;
   align-items: center;

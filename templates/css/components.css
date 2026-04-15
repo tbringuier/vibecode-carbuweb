@@ -310,6 +310,53 @@ select.inp {
   font-weight: 700;
 }
 
+.m-sec-desc {
+  font-size: .75rem;
+  color: var(--t2);
+  margin-bottom: .5rem;
+}
+
+.age-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+}
+
+.age-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: .3125rem;
+  padding: .4375rem .75rem;
+  border: 1px solid var(--bd);
+  border-radius: 99px;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--t2);
+  background: var(--sf);
+  cursor: pointer;
+  transition: border-color var(--dur-1), background var(--dur-1), color var(--dur-1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.age-opt:hover {
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.age-opt:has(input:checked) {
+  background: var(--ac);
+  color: #fff;
+  border-color: var(--ac);
+}
+
+.age-opt input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
 /* Toast */
 
 #toast {

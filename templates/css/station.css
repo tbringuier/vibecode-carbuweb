@@ -440,3 +440,19 @@
   margin-top: .25rem;
   font-weight: 600;
 }
+
+/* Carte prix grisée pour entrées masquées (anciennes) */
+.p-card.stale {
+  opacity: .55;
+  border-style: dashed;
+  background: var(--sf-2);
+}
+
+.p-card-stale-notice {
+  font-size: .625rem;
+  color: var(--am);
+  margin-top: .375rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}

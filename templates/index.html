@@ -189,6 +189,17 @@
       </section>
 
       <section class="m-sec">
+        <h3>Ancienneté des prix</h3>
+        <p class="m-sec-desc">Masquer les prix mis à jour il y a plus de :</p>
+        <div class="age-opts" id="age-opts" role="radiogroup" aria-label="Ancienneté maximale des prix">
+          <label class="age-opt"><input type="radio" name="maxAge" value="14" onchange="changeMaxAge(14)"> 14 jours</label>
+          <label class="age-opt"><input type="radio" name="maxAge" value="30" onchange="changeMaxAge(30)"> 30 jours</label>
+          <label class="age-opt"><input type="radio" name="maxAge" value="60" onchange="changeMaxAge(60)"> 60 jours</label>
+          <label class="age-opt"><input type="radio" name="maxAge" value="0" onchange="changeMaxAge(0)"> Tous</label>
+        </div>
+      </section>
+
+      <section class="m-sec">
         <button class="btn btn-sm btn-danger" type="button" onclick="resetAll()">Réinitialiser toutes les préférences</button>
       </section>
     </div>

@@ -1,9 +1,9 @@
 // Carbu'Web — app.js (2026) — ES module entry point
 
-import { state, LS, REFRESH_MS, radius } from './js/state.js';
+import { state, LS, REFRESH_MS, radius, maxAge } from './js/state.js';
 import { E } from './js/helpers.js';
 import { switchTab, goBack, goHome, handleHeaderFav, initPopstate } from './js/navigation.js';
-import { toggleSettings, debouncedSave, resetAll, dismissOnboard, refreshData, syncFooter } from './js/settings.js';
+import { toggleSettings, debouncedSave, resetAll, dismissOnboard, refreshData, syncFooter, changeMaxAge } from './js/settings.js';
 import { geolocateMe, findNear, applySort } from './js/geolocation.js';
 import { debouncedSearch, renderHomeTeaser, jumpToExplorer } from './js/search.js';
 import { searchGeo } from './js/geo-zones.js';
@@ -19,7 +19,7 @@ Object.assign(window, {
   populateFuels, populateRegions, updateDeptFilter, findCheapest,
   sortDash, toggleReg, toggleFavAddr, toggleFavStation, removeFav,
   adjFavR, findNearFav, showStationFav, switchV, openVForm,
-  closeVForm, saveVForm, delV, jumpToExplorer
+  closeVForm, saveVForm, delV, jumpToExplorer, changeMaxAge
 });
 
 initPopstate();
@@ -28,6 +28,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById('rslider').value = radius;
   document.getElementById('rval').innerText = radius;
   document.getElementById('rslider').addEventListener('input', e => { document.getElementById('rval').innerText = e.target.value; debouncedSave(); });
+  const ageR = document.querySelector(`input[name="maxAge"][value="${maxAge}"]`);
+  if (ageR) ageR.checked = true;
   try {
     state.db = await (await fetch(`data.json?_=${Date.now()}`, { cache: 'no-store' })).json();
     applyV(); renderVBar(); renderVList();

@@ -8,11 +8,11 @@ import pandas as pd
 
 from .aggregates import build_search_indexes, recompute_price_aggregates
 from .cleanup import cleanup_old_files
-from .config import ALL_FUELS, DB_FILE, EXCEL_FILE, OSM_FILE, TODAY
+from .config import ALL_FUELS, DB_FILE, EXCEL_FILE, OSM_FILE, TODAY, FUEL_PRICE_RANGES, PRICE_ABSURD_AGE_DAYS
 from .dedup import deduplicate_daily
 from .download import download_daily_prices, download_flux_prices, download_osm
 from .generate import generate_site
-from .helpers import compute_latest_fuel_price_update_meta
+from .helpers import compute_latest_fuel_price_update_meta, check_price_validity
 from .purge import purge_priceless_stations
 from .stations import inject_daily_prices, merge_flux_instantane, register_station
 
@@ -61,6 +61,28 @@ def build_database():
 
     # ---- Phase 3 : Fusionner le flux instantané ----
     merge_flux_instantane(db, osm)
+
+    # ---- Phase 3b : Filtrage qualité (prix aberrants + données fantômes) ----
+    filter_stats = {}  # raison -> {fuel -> count}
+    for sid, st in db["stations"].items():
+        to_filter = []
+        for fuel, entry in st["carburants_disponibles"].items():
+            try:
+                price_val = float(entry["prix"])
+            except (TypeError, ValueError):
+                continue
+            reason = check_price_validity(fuel, price_val, entry, FUEL_PRICE_RANGES, PRICE_ABSURD_AGE_DAYS)
+            if reason:
+                to_filter.append((fuel, entry, reason))
+        for fuel, entry, reason in to_filter:
+            st.setdefault("carburants_filtres", {})[fuel] = {**entry, "raison": reason}
+            del st["carburants_disponibles"][fuel]
+            filter_stats.setdefault(reason, {}).setdefault(fuel, 0)
+            filter_stats[reason][fuel] += 1
+    for reason, fuels in filter_stats.items():
+        total = sum(fuels.values())
+        detail = ", ".join(f"{f}: {n}" for f, n in sorted(fuels.items()))
+        log.info("Filtrage qualité [%s] : %d prix filtrés (%s)", reason, total, detail)
 
     # ---- Phase 4 : Purger les stations sans prix ----
     purge_priceless_stations(db)

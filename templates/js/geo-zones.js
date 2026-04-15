@@ -1,7 +1,7 @@
-import { state, uFuels, PRICE_EPS, PRICE_NEAR } from './state.js';
+import { state, uFuels, PRICE_EPS, PRICE_NEAR, maxAge } from './state.js';
 import { E, hasFuel, notice, titleCase, stationName } from './helpers.js';
 import { pClass, tankInline } from './prices.js';
-import { freshPill } from './freshness.js';
+import { freshPill, isExpired } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav, syncHeaderFav } from './navigation.js';
 import { bestWidget } from './geolocation.js';
@@ -21,11 +21,12 @@ export function searchGeo(type, name, fuel) {
   state.detailAnchor = null;
   state.proxSearch = null;
   state.geoZone = { type, name, stationIds: sids };
-  const all = sids.map(id => ({ id, station: state.db.stations[id] })).filter(s => s.station && hasFuel(s.station));
+  const isActive = (st) => uFuels.some(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
+  const all = sids.map(id => ({ id, station: state.db.stations[id] })).filter(s => s.station && isActive(s.station));
   let sf = fuel || uFuels[0] || '';
   let sts = [...all];
   if (sf) {
-    sts = sts.filter(s => s.station.carburants_disponibles[sf]);
+    sts = sts.filter(s => s.station.carburants_disponibles[sf] && !isExpired(s.station.carburants_disponibles[sf], maxAge));
     sts.sort((a, b) => parseFloat(a.station.carburants_disponibles[sf].prix) - parseFloat(b.station.carburants_disponibles[sf].prix));
   }
   const zl = type === 'region' ? name : `${name} (dép.)`;
@@ -49,7 +50,7 @@ export function searchGeo(type, name, fuel) {
       const fp = freshPill(s.carburants_disponibles[sf]);
       ph = `<div class="ptag ${cls}"><span class="ptag-f">${sf}</span><span class="ptag-v">${s.carburants_disponibles[sf].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[sf].prix))}</div>`;
     } else {
-      ph = uFuels.filter(f => s.carburants_disponibles[f]).map(f => {
+      ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => {
         const cls = pClass(r.id, f, s.carburants_disponibles[f].prix);
         const fp = freshPill(s.carburants_disponibles[f]);
         return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}</div>`;

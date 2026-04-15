@@ -9,6 +9,12 @@ export function freshDays(entry) {
   if (isNaN(d.getTime())) return null;
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
+export function isExpired(entry, maxAgeDays) {
+  if (!maxAgeDays || maxAgeDays <= 0) return false;
+  const d = freshDays(entry);
+  if (d === null) return true;
+  return d > maxAgeDays;
+}
 export function freshPill(entry) {
   const d = freshDays(entry);
   if (d === null) return '<span class="fresh-pill old">?</span>';
