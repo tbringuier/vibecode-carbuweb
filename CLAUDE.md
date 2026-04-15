@@ -163,7 +163,10 @@ Executer dans l'ordre. Stopper et corriger si une etape echoue.
 # Etape 1 — Syntaxe JS (OBLIGATOIRE)
 for f in templates/js/*.js templates/app.js; do node -c "$f" && echo "OK: $f"; done
 
-# Etape 2 — Coherence IDs HTML<->JS (OBLIGATOIRE)
+# Etape 2 — Tests pipeline (OBLIGATOIRE)
+python3 -m unittest tests.test_pipeline_freshness -v
+
+# Etape 3 — Coherence IDs HTML<->JS (OBLIGATOIRE)
 python3 << 'EOF'
 import re, glob
 js = open('templates/app.js').read()
@@ -177,10 +180,10 @@ missing = js_ids - html_ids - dynamic
 print(f'ERREUR IDs manquants: {missing}' if missing else 'IDs OK')
 EOF
 
-# Etape 3 — Build complet + syntaxe JS genere (OBLIGATOIRE)
+# Etape 4 — Build complet + syntaxe JS genere (OBLIGATOIRE)
 python main.py && for f in build/js/*.js; do node -c "$f"; done && node -c build/app.*.js
 
-# Etape 4 — Smoke test local (recommande pour changements UI)
+# Etape 5 — Smoke test local (recommande pour changements UI)
 cd build && python -m http.server 8000
 ```
 
@@ -199,9 +202,11 @@ cd build && python -m http.server 8000
 **Python — zones de vigilance :**
 
 - **Correlation flux↔quotidien** dans `stations.py` : utilise 2 niveaux de precision lat/lon (5 et 3 decimales). Ne jamais changer la cle de correlation sans adapter les deux niveaux.
+- **`parse_price_cell()`** dans `helpers.py` : parseur canonique pour les prix quotidiens et le flux instantane. Ne pas reintroduire de `float(...)` direct sur une cellule Excel brute.
 - **`purge_infinity()`** dans `helpers.py` : appeler avant toute serialisation JSON. Les prix non renseignes sont `float('inf')` en interne — pas serialisable directement.
 - **Validation prix** : 0.01–10.0 EUR/L. Les stations hors plage sont ignorees silencieusement. Ne pas elargir sans raison.
-- **`flux_replaces_daily_entry()`** : le flux instantane remplace le quotidien si son timestamp est egal ou plus recent. Ne pas inverser la logique.
+- **`price_entry_should_replace()`** dans `helpers.py` : comparateur unique de fraicheur. Une entree avec horodatage complet prime sur une date seule le meme jour ; a egalite stricte, le flux peut primer si `prefer_incoming_on_tie=True`.
+- **`flux_replaces_daily_entry()`** : wrapper de compatibilite pour le cas flux-vs-quotidien. Garder la regle "le flux fait foi a egalite de timestamp".
 - **DST** : les comparaisons de timestamps utilisent l'offset Europe/Paris — prendre garde aux transitions heure ete/hiver si on modifie la logique de comparaison.
 
 **CSS/Build — zones de vigilance :**
@@ -218,17 +223,17 @@ cd build && python -m http.server 8000
 
 **Commandes courantes :**
 ```bash
-python main.py                       # Build complet (telecharge si absent)
+python main.py                       # Build complet (retelecharge quotidien + flux, reconstruit la base)
 python -m pipeline                   # Equivalent
 cd build && python -m http.server 8000  # Servir localement
 rm datasets/prix-carburant-*.xlsx    # Forcer re-telechargement donnees
-rm datasets/database-*.json          # Forcer reconstruction base
+rm datasets/osm_mapping-*.json       # Forcer reconstruction mapping OSM local
 ```
 
 **Sources de donnees :**
 - Prix quotidiens : XLSX ~9 Mo, une ligne par station/carburant (avec doublons)
 - Flux instantane : XLSX ~2.5 Mo, une ligne par station (toujours plus recent)
-- OSM : Overpass API, cache journalier (`datasets/osm_mapping-{TODAY}.json`)
+- OSM : Overpass API, cache local journalier si `datasets/osm_mapping-{TODAY}.json` existe deja
 
 **Design system :**
 - Accent : `#2563eb` (bleu)
@@ -249,5 +254,5 @@ rm datasets/database-*.json          # Forcer reconstruction base
 - Dear : au-dela
 
 **CI/CD :**
-- Cron toutes les 5 min, cache OSM journalier, force push branche `pages`
+- Cron toutes les 5 min, cache OSM journalier uniquement (pas de cache GitHub Actions sur les exports carburants), force push branche `pages`
 - Concurrence : les runs precedents sont annules automatiquement

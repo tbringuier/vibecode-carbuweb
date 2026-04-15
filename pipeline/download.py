@@ -15,7 +15,7 @@ from .config import (
     HTTP_USER_AGENT,
     TODAY,
 )
-from .helpers import fetch
+from .helpers import build_download_url, fetch
 
 log = logging.getLogger("carbuweb")
 
@@ -23,7 +23,7 @@ log = logging.getLogger("carbuweb")
 def download_daily_prices():
     """Télécharge l'export quotidien data.gouv (toujours, pour données à jour)."""
     log.info("Téléchargement prix quotidiens (%s) ...", TODAY)
-    resp = fetch(EXCEL_URL, stream=True, timeout=180, retries=10)
+    resp = fetch(build_download_url(EXCEL_URL), stream=True, timeout=180, retries=10)
     with open(EXCEL_FILE, "wb") as f:
         for chunk in resp.iter_content(chunk_size=8192):
             f.write(chunk)
@@ -33,7 +33,7 @@ def download_daily_prices():
 def download_flux_prices():
     """Toujours retélécharger le flux instantané (ne pas réutiliser un fichier figé)."""
     log.info("Téléchargement flux instantané (%s) ...", TODAY)
-    resp = fetch(EXCEL_RT_URL, stream=True, timeout=180, retries=10)
+    resp = fetch(build_download_url(EXCEL_RT_URL), stream=True, timeout=180, retries=10)
     with open(EXCEL_RT_FILE, "wb") as f:
         for chunk in resp.iter_content(chunk_size=8192):
             f.write(chunk)

@@ -1,5 +1,5 @@
 import { state, radius, uFuels, favs, setFavs, saveFavs, maxAge } from './state.js';
-import { E, coord, hav, maxKm, maxKmFav, hasFuel, notice, toast, stationName } from './helpers.js';
+import { E, coord, hav, maxKmFav, hasFuel, toast, stationName } from './helpers.js';
 import { pClass, pickBest } from './prices.js';
 import { freshPill, isExpired } from './freshness.js';
 import { TouchDragReorder } from './drag-drop.js';
@@ -31,11 +31,17 @@ export function renderFavs() {
   setFavs(favs.filter(f => f.type !== 'station' || (state.db && state.db.stations[f.id]))); saveFavs();
   if (!favs.length) { box.classList.add('hidden'); if (state.favDnD) { state.favDnD.destroy(); state.favDnD = null; } return; }
   box.classList.remove('hidden');
+  const stationView = document.getElementById('station-view');
+  const activeStationId = stationView && !stationView.classList.contains('hidden') ? stationView.getAttribute('data-sid') : '';
+  const activeAddressId = state.proxSearch ? favKey(state.proxSearch.lat, state.proxSearch.lon) : '';
   let h = '';
   for (let i = 0; i < favs.length; i++) {
     const f = favs[i];
     if (f.type === 'station') {
-      const st = state.db?.stations[f.id]; let ph = '';
+      const st = state.db?.stations[f.id];
+      const activeCls = activeStationId === f.id ? ' is-active' : '';
+      const fid = String(f.id).replace(/'/g, "\\'");
+      let section = '<div class="fav-note">Aucun prix visible avec les filtres actuels.</div>';
       if (st?.carburants_disponibles) {
         const tags = [];
         for (const [c, d] of Object.entries(st.carburants_disponibles)) {
@@ -44,12 +50,14 @@ export function renderFavs() {
           const cls = pClass(f.id, c, d.prix), fp = freshPill(d);
           tags.push(`<div class="ptag ${cls}"><span class="ptag-f">${c}</span><span class="ptag-v">${d.prix}€</span>${fp}</div>`);
         }
-        if (tags.length) ph = `<div class="fav-p">${tags.join('')}</div>`;
+        if (tags.length) section = `<div class="fav-section"><div class="fav-section-title">Prix suivis</div><div class="fav-p">${tags.join('')}</div></div>`;
       }
-      h += `<div data-di="${i}" class="fav"><span class="fav-h" title="Déplacer">⠿</span><div class="fav-b" role="button" tabindex="0" onclick="showStation('${f.id}')"><div class="fav-n">⛽ ${E(f.name)}</div><div class="fav-s">${E(f.adresse)}</div>${ph}</div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="event.stopPropagation();removeFav('${f.id}')" aria-label="Retirer">✕</button></div>`;
+      h += `<article data-di="${i}" class="fav fav-station${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Station</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer la station des favoris">✕</button></div><button type="button" class="fav-main" onclick="showStation('${fid}')"><div class="fav-n">⛽ ${E(f.name)}</div><div class="fav-s">${E(f.adresse)}</div><div class="fav-cta">${activeCls ? 'Station ouverte actuellement' : 'Voir le détail de la station'}</div></button>${section}</div></article>`;
     } else {
       const fr = f.radius ? +f.radius : radius;
-      let bc = '';
+      const activeCls = activeAddressId === f.id ? ' is-active' : '';
+      const fid = String(f.id).replace(/'/g, "\\'");
+      let section = `<div class="fav-note">Aucune station compatible n'a été trouvée dans ${fr}\u202fkm.</div>`;
       if (state.db && f.lat && f.lon) {
         const la = coord(f.lat), lo = coord(f.lon);
         if (Number.isFinite(la) && Number.isFinite(lo)) {
@@ -63,11 +71,11 @@ export function renderFavs() {
               cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div><div class="best-n">${E(b.nom)}</div></div>`);
             }
           });
-          if (cards.length) bc = `<div class="best-g">${cards.join('')}</div>`;
+          if (cards.length) section = `<div class="fav-section"><div class="fav-section-title">Meilleurs prix dans ${fr}\u202fkm</div><div class="best-g">${cards.join('')}</div></div>`;
         }
       }
-      const si = E(f.id), sn = f.name.replace(/'/g, "\\'");
-      h += `<div data-di="${i}" class="fav"><span class="fav-h" title="Déplacer">⠿</span><div class="fav-b" role="button" tabindex="0" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${si}')"><div class="fav-n">📍 ${E(f.name)}</div><div class="fav-s">~${fr}\u202fkm</div><div class="fav-radius-ctrl" onclick="event.stopPropagation()"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${si}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${si}',5)" aria-label="Augmenter le rayon">+</button></div>${bc}</div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="event.stopPropagation();removeFav('${si}')" aria-label="Retirer">✕</button></div>`;
+      const sn = f.name.replace(/'/g, "\\'");
+      h += `<article data-di="${i}" class="fav fav-address${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Lieu</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer le lieu des favoris">✕</button></div><button type="button" class="fav-main" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${fid}')"><div class="fav-n">📍 ${E(f.name)}</div><div class="fav-s">${activeCls ? 'Recherche en cours autour de ce lieu' : 'Ouvrir les stations proches de ce lieu'}</div><div class="fav-cta">${activeCls ? 'Lieu actif dans la recherche' : 'Lancer la recherche autour'}</div></button><div class="fav-toolbar"><div class="fav-radius"><span class="fav-radius-lbl">Rayon favori</span><span class="fav-radius-val">${fr}\u202fkm</span></div><div class="fav-radius-ctrl"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',5)" aria-label="Augmenter le rayon">+</button></div></div>${section}</div></article>`;
     }
   }
   list.innerHTML = h;

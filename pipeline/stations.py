@@ -8,9 +8,10 @@ from .helpers import (
     normalize_text,
     parse_geom_lat_lon,
     parse_hours,
+    parse_price_cell,
+    price_entry_should_replace,
     station_address_correlation_key,
     flux_maj_iso_and_date,
-    flux_replaces_daily_entry,
 )
 
 log = logging.getLogger("carbuweb")
@@ -54,7 +55,7 @@ def register_station(db, osm, sid, region, dept, city, cp, addr, lat, lon, horai
 def inject_daily_prices(db, best_daily, ruptures):
     """Injecte les prix quotidiens dédoublonnés dans les stations."""
     for (sid, fuel), entry in best_daily.items():
-        carb = {"prix": entry["prix"], "date_maj": entry["date_raw"]}
+        carb = {"prix": entry["prix"], "date_maj": entry["date_maj"]}
         if entry["maj_iso"]:
             carb["maj_iso"] = entry["maj_iso"]
         db["stations"][sid]["carburants_disponibles"][fuel] = carb
@@ -117,19 +118,6 @@ def _correlate_flux_row_to_station_id(row, db, geom5, geom3):
     k3 = (round(lat, 3), round(lon, 3))
     return disambiguate(geom3.get(k3, []))
 
-
-def _parse_rt_price_cell(val):
-    if val is None or (isinstance(val, float) and pd.isna(val)):
-        return None
-    s = str(val).strip().replace(",", ".")
-    if not s or s.lower() == "nan":
-        return None
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
 def merge_flux_instantane(db, osm=None):
     """Enrichit les prix depuis le flux instantané.
 
@@ -167,7 +155,7 @@ def merge_flux_instantane(db, osm=None):
             # Extraire les prix du flux pour cette ligne
             has_any_price = False
             for fuel, price_col, time_col in RT_FUEL_COLUMNS:
-                p = _parse_rt_price_cell(row.get(price_col))
+                p = parse_price_cell(row.get(price_col))
                 lo, hi = FUEL_PRICE_RANGES.get(fuel, (VALID_PRICE_MIN, VALID_PRICE_MAX))
                 if p is not None and lo <= p <= hi:
                     has_any_price = True
@@ -193,7 +181,7 @@ def merge_flux_instantane(db, osm=None):
         merged_rows += 1
 
         for fuel, price_col, time_col in RT_FUEL_COLUMNS:
-            price = _parse_rt_price_cell(row.get(price_col))
+            price = parse_price_cell(row.get(price_col))
             if price is None:
                 continue
             lo, hi = FUEL_PRICE_RANGES.get(fuel, (VALID_PRICE_MIN, VALID_PRICE_MAX))
@@ -201,16 +189,13 @@ def merge_flux_instantane(db, osm=None):
                 continue
             price = round(price, 3)
             maj_iso, flux_date = flux_maj_iso_and_date(row.get(time_col))
-            if not maj_iso or not flux_date:
+            if not flux_date:
                 continue
             existing = st["carburants_disponibles"].get(fuel)
-            if not flux_replaces_daily_entry(existing, maj_iso):
+            incoming = {"prix": price, "date_maj": flux_date, "maj_iso": maj_iso}
+            if not price_entry_should_replace(existing, incoming, prefer_incoming_on_tie=True):
                 continue
-            st["carburants_disponibles"][fuel] = {
-                "prix": price,
-                "date_maj": flux_date,
-                "maj_iso": maj_iso,
-            }
+            st["carburants_disponibles"][fuel] = incoming
             st["carburants_en_rupture"].pop(fuel, None)
 
     db.setdefault("meta", {})["flux_instantane"] = {

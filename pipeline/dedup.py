@@ -3,7 +3,7 @@ import logging
 from collections import Counter
 
 from .config import VALID_PRICE_MIN, VALID_PRICE_MAX, FUEL_PRICE_RANGES
-from .helpers import parse_geom_lat_lon, daily_maj_date_and_iso, _parse_iso_datetime, _dt_naive_utc
+from .helpers import parse_geom_lat_lon, daily_maj_date_and_iso, parse_price_cell, price_entry_should_replace
 
 log = logging.getLogger("carbuweb")
 
@@ -14,7 +14,7 @@ def deduplicate_daily(df):
     Le fichier contient des doublons (même station+carburant, même prix/date).
     On garde la ligne la plus récente pour chaque (station, carburant).
     """
-    best_daily = {}  # (sid, fuel) -> {prix, maj_raw, maj_iso, date_raw}
+    best_daily = {}  # (sid, fuel) -> {prix, maj_iso, date_maj}
     ruptures = {}    # (sid, fuel) -> {debut, motif}
     station_rows = {}  # sid -> first row data for station creation
     rejected = Counter()  # fuel -> nb prix rejetés (hors plage)
@@ -36,32 +36,18 @@ def deduplicate_daily(df):
 
         fuel = row["Carburant"]
         if fuel:
-            maj_iso, date_raw = daily_maj_date_and_iso(row["Mise à jour des prix"])
-            try:
-                price = float(row["Prix"])
-            except (ValueError, TypeError):
-                price = None
+            maj_iso, date_maj = daily_maj_date_and_iso(row["Mise à jour des prix"])
+            price = parse_price_cell(row["Prix"])
             lo, hi = FUEL_PRICE_RANGES.get(fuel, (VALID_PRICE_MIN, VALID_PRICE_MAX))
             if price is not None and not (lo <= price <= hi):
                 rejected[fuel] += 1
                 price = None
             if price is not None:
                 key = (sid, fuel)
-                entry = {"prix": round(price, 3), "date_raw": date_raw, "maj_iso": maj_iso}
+                entry = {"prix": round(price, 3), "date_maj": date_maj, "maj_iso": maj_iso}
                 existing = best_daily.get(key)
-                if existing is None:
+                if existing is None or price_entry_should_replace(existing, entry):
                     best_daily[key] = entry
-                else:
-                    # Garder le plus récent
-                    new_dt = _parse_iso_datetime(maj_iso) if maj_iso else None
-                    old_dt = _parse_iso_datetime(existing["maj_iso"]) if existing.get("maj_iso") else None
-                    if new_dt and old_dt:
-                        if _dt_naive_utc(new_dt) > _dt_naive_utc(old_dt):
-                            best_daily[key] = entry
-                    elif new_dt and not old_dt:
-                        best_daily[key] = entry
-                    elif date_raw and existing.get("date_raw") and date_raw > existing["date_raw"]:
-                        best_daily[key] = entry
 
         rupt = row["Carburant en rupture"]
         if rupt:

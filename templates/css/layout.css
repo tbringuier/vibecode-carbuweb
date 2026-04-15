@@ -48,34 +48,7 @@ main {
 .home-aside {
   grid-area: aside;
   display: none;
-}
-
-@media (min-width: 960px) {
-  .home-lay {
-    grid-template-columns: minmax(0, 1fr) 20rem;
-    grid-template-areas: "main aside";
-    gap: 1.5rem;
-    align-items: start;
-  }
-
-  .home-aside {
-    display: block;
-    position: sticky;
-    top: calc(var(--navh) + 1rem);
-    max-height: calc(100dvh - var(--navh) - 2rem);
-    overflow-y: auto;
-    padding-right: .25rem;
-    scrollbar-gutter: stable;
-  }
-
-  .home-aside::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .home-aside::-webkit-scrollbar-thumb {
-    background: var(--bd);
-    border-radius: 99px;
-  }
+  min-width: 0;
 }
 
 #home-view.fav-tab .home-lay {
@@ -93,9 +66,11 @@ main {
   max-height: none;
   overflow: visible;
   padding-right: 0;
+  width: min(100%, 52rem);
+  margin: 0 auto;
 }
 
-/* Onglet Explorer : sidebar reste visible mais le contenu favoris est masqué. */
+/* Favoris explicitement masqués hors onglet dédié. */
 #home-view.explorer-tab #fav-box,
 #home-view.explorer-tab #fav-empty {
   display: none;

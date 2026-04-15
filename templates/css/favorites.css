@@ -1,76 +1,88 @@
-/* favorites.css — Favorites list items + children */
+/* favorites.css — Dedicated favorites cards */
+
+#fav-box .sec-l {
+  margin-bottom: .75rem;
+}
 
 .fav {
-  padding: .75rem;
-  border: 1px solid var(--bd);
-  border-radius: var(--rx);
-  background: var(--sf);
-  margin-bottom: .5rem;
-  display: flex;
-  gap: .5rem;
-  align-items: center;
-  transition: box-shadow var(--dur-1), border-color var(--dur-1);
+  margin-bottom: .875rem;
 }
 
-.fav:hover {
+.fav-card {
+  border: 1px solid var(--bd);
+  border-radius: calc(var(--rx) + .125rem);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sf) 92%, var(--ab) 8%) 0%, var(--sf) 100%);
+  box-shadow: var(--sh);
+  padding: .875rem;
+  transition: box-shadow var(--dur-2), border-color var(--dur-2), transform var(--dur-2);
+}
+
+.fav:hover .fav-card {
   box-shadow: var(--sh-h);
   border-color: var(--bd-2);
+  transform: translateY(-1px);
 }
 
-.fav.is-active {
-  border-color: var(--ac);
-  background: linear-gradient(135deg, var(--ab) 0%, var(--sf) 60%);
+.fav.is-active .fav-card {
+  border-color: color-mix(in oklab, var(--ac) 40%, var(--bd));
+  background: linear-gradient(180deg, color-mix(in oklab, var(--ab) 48%, var(--sf) 52%) 0%, var(--sf) 100%);
+}
+
+.fav-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .75rem;
+}
+
+.fav-rail {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-width: 0;
 }
 
 .fav-h {
   cursor: grab;
   color: var(--t3);
-  padding: .25rem;
-  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--bd);
+  background: var(--sf);
   flex-shrink: 0;
   font-size: .875rem;
   user-select: none;
-  transition: color var(--dur-1);
+  transition: color var(--dur-1), border-color var(--dur-1), background var(--dur-1);
 }
 
 .fav-h:hover {
   color: var(--t2);
+  border-color: var(--bd-2);
+  background: var(--sf-2);
 }
 
-.fav-b {
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-}
-
-.fav-n {
-  font-weight: 700;
-  font-size: .875rem;
-  color: var(--tx);
-  display: flex;
+.fav-kind {
+  display: inline-flex;
   align-items: center;
-  gap: .375rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.fav-s {
-  font-size: .75rem;
+  padding: .25rem .5625rem;
+  border-radius: 999px;
+  border: 1px solid var(--bd);
+  background: var(--bl);
   color: var(--t2);
-  margin-top: .125rem;
-}
-
-.fav-p {
-  display: flex;
-  gap: .25rem;
-  flex-wrap: wrap;
-  margin-top: .375rem;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 .fav-r {
   flex-shrink: 0;
-  align-self: center;
+  align-self: flex-start;
   color: var(--t3);
 }
 
@@ -79,15 +91,153 @@
   background: var(--rb);
 }
 
-.fav-radius-ctrl {
+.fav-main {
+  width: 100%;
+  display: block;
+  text-align: left;
+  appearance: none;
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  background: color-mix(in oklab, var(--sf) 76%, var(--ab) 24%);
+  padding: .8125rem .875rem;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-1), background var(--dur-1), box-shadow var(--dur-1);
+}
+
+.fav-main:hover {
+  border-color: color-mix(in oklab, var(--ac) 36%, var(--bd));
+  background: color-mix(in oklab, var(--sf) 62%, var(--ab) 38%);
+}
+
+.fav-main:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+
+.fav-n {
+  font-weight: 800;
+  font-size: .9375rem;
+  line-height: 1.3;
+  color: var(--tx);
   display: flex;
   align-items: center;
+  gap: .4375rem;
+}
+
+.fav-s {
+  font-size: .8125rem;
+  color: var(--t2);
+  margin-top: .3125rem;
+  line-height: 1.45;
+}
+
+.fav-cta {
+  margin-top: .625rem;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--ac);
+}
+
+.fav-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--bl);
+}
+
+.fav-radius {
+  display: flex;
+  flex-direction: column;
+  gap: .125rem;
+}
+
+.fav-radius-lbl {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+
+.fav-radius-val {
+  font-size: .9375rem;
+  font-weight: 800;
+  color: var(--tx);
+  font-variant-numeric: tabular-nums;
+}
+
+.fav-radius-ctrl {
+  display: inline-flex;
+  align-items: center;
   gap: .375rem;
-  margin-top: .375rem;
+  padding: .25rem;
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  background: var(--sf);
 }
 
 .fav-radius-ctrl span.tank {
+  min-width: 5rem;
+  justify-content: center;
+  font-size: .75rem;
+  color: var(--tx);
+  font-weight: 700;
+}
+
+.fav-section {
+  margin-top: .875rem;
+}
+
+.fav-section-title {
   font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--t3);
+  margin-bottom: .5rem;
+}
+
+.fav-p {
+  display: flex;
+  gap: .375rem;
+  flex-wrap: wrap;
+}
+
+.fav .ptag {
+  min-width: 4.5rem;
+}
+
+.fav .best-g {
+  margin-top: 0;
+  margin-bottom: 0;
+  grid-template-columns: repeat(auto-fit, minmax(8.25rem, 1fr));
+  gap: .625rem;
+}
+
+.fav .best-c {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sf) 74%, var(--gb) 26%) 0%, var(--sf) 100%);
+  border-color: var(--bd);
+}
+
+.fav .best-c:hover {
+  border-color: var(--gn2);
+}
+
+.fav-note {
+  margin-top: .875rem;
+  padding: .6875rem .75rem;
+  border: 1px dashed var(--bd);
+  border-radius: var(--r);
+  background: var(--sf-2);
+  color: var(--t2);
+  font-size: .75rem;
+  line-height: 1.5;
 }
 
 .v-pills {
@@ -107,17 +257,29 @@
   font-weight: 600;
 }
 
-.fav .best-g {
-  margin-top: .375rem;
+@media (max-width: 479px) {
+  .fav-toolbar {
+    align-items: stretch;
+  }
+
+  .fav-radius-ctrl {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .fav-radius-ctrl span.tank {
+    min-width: 0;
+    flex: 1;
+  }
 }
 
-/* Empty state for favorites aside */
+/* Empty state for favorites */
 
 .fav-empty {
-  padding: 1.5rem 1rem;
+  padding: 1.75rem 1rem;
   border: 1px dashed var(--bd);
   border-radius: var(--rx);
-  background: var(--sf-2);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sf-2) 84%, var(--ab) 16%) 0%, var(--sf-2) 100%);
   text-align: center;
   color: var(--t2);
 }

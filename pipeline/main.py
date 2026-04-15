@@ -108,15 +108,11 @@ def main():
         log.info("Date imposée par environnement (CI) : CARBUWEB_BUILD_DATE=%s", TODAY)
 
     cleanup_old_files()
-
-    if not os.path.exists(DB_FILE):
-        download_daily_prices()
-        download_flux_prices()
-        if not os.path.exists(OSM_FILE):
-            download_osm()
-        build_database()
-    else:
-        log.info("Existing database found, skipping download.")
+    download_daily_prices()
+    download_flux_prices()
+    if not os.path.exists(OSM_FILE):
+        download_osm()
+    build_database()
 
     generate_site()
     log.info("Build complete.")

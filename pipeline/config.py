@@ -88,3 +88,10 @@ HTTP_USER_AGENT = (
     "CarbuWeb-build/1.0 (+https://github.com/tbringuier/vibecode-carburant; "
     "dataset enrichment ref:FR:prix-carburants)"
 )
+
+DOWNLOAD_CACHE_BUSTER_PARAM = "_cb"
+
+HTTP_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, max-age=0",
+    "Pragma": "no-cache",
+}

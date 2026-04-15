@@ -4,13 +4,19 @@ import logging
 import re
 import time
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
 
-from .config import ALL_FUELS
+from .config import (
+    ALL_FUELS,
+    DOWNLOAD_CACHE_BUSTER_PARAM,
+    HTTP_NO_CACHE_HEADERS,
+    HTTP_USER_AGENT,
+)
 
 log = logging.getLogger("carbuweb")
 
@@ -23,14 +29,31 @@ def normalize_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
+def build_download_url(url: str) -> str:
+    """Ajoute un paramètre unique pour forcer un export frais côté source."""
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != DOWNLOAD_CACHE_BUSTER_PARAM]
+    query.append((DOWNLOAD_CACHE_BUSTER_PARAM, str(time.time_ns())))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _request_headers(extra_headers: dict | None = None) -> dict:
+    headers = dict(HTTP_NO_CACHE_HEADERS)
+    headers["User-Agent"] = HTTP_USER_AGENT
+    if extra_headers:
+        headers.update(extra_headers)
+    return headers
+
+
 def fetch(url, *, method="get", data=None, stream=False, timeout=300, retries=10):
     """HTTP request with exponential back-off."""
+    headers = _request_headers()
     for attempt in range(1, retries + 1):
         try:
             resp = (
-                requests.get(url, stream=stream, timeout=timeout)
+                requests.get(url, stream=stream, timeout=timeout, headers=headers)
                 if method == "get"
-                else requests.post(url, data=data, timeout=timeout)
+                else requests.post(url, data=data, timeout=timeout, headers=headers)
             )
             resp.raise_for_status()
             return resp
@@ -40,6 +63,29 @@ def fetch(url, *, method="get", data=None, stream=False, timeout=300, retries=10
                 time.sleep(min(5 * attempt, 30))
             else:
                 raise
+
+
+def parse_price_cell(val):
+    """Normalise un prix quotidien/flux en float ou None."""
+    if val is None:
+        return None
+    try:
+        if pd.isna(val):
+            return None
+    except TypeError:
+        pass
+    if isinstance(val, str):
+        s = val.strip().replace("\u202f", "").replace(" ", "").replace(",", ".")
+        if not s or s.lower() == "nan":
+            return None
+        try:
+            return float(s)
+        except ValueError:
+            return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
 
 
 def purge_infinity(d):
@@ -122,18 +168,81 @@ def _dt_naive_utc(d: datetime) -> datetime:
     return d.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
+def _entry_date_value(entry: dict) -> date | None:
+    for key in ("date_maj", "date_raw"):
+        dm = (entry.get(key) or "").strip()
+        if len(dm) >= 10 and dm[4] == "-" and dm[7] == "-":
+            try:
+                return datetime.strptime(dm[:10], "%Y-%m-%d").date()
+            except ValueError:
+                continue
+    return None
+
+
 def _entry_price_datetime(entry: dict) -> datetime | None:
     """Instant représentatif pour comparer deux sources (quotidien vs flux)."""
     iso = entry.get("maj_iso")
     if iso:
         return _parse_iso_datetime(iso)
-    dm = (entry.get("date_maj") or "").strip()
-    if len(dm) >= 10 and dm[4] == "-" and dm[7] == "-":
-        try:
-            return datetime.strptime(dm[:10], "%Y-%m-%d")
-        except ValueError:
-            pass
+    day = _entry_date_value(entry)
+    if day is not None:
+        return datetime.combine(day, datetime.min.time())
     return None
+
+
+def price_entry_should_replace(existing: dict | None, incoming: dict | None, *, prefer_incoming_on_tie: bool = False) -> bool:
+    """Décide si `incoming` doit remplacer `existing`.
+
+    Règles :
+    - horodatage complet plus récent > plus ancien
+    - à date identique, une entrée avec heure précise prime sur une entrée date-only
+    - à stricte égalité, `prefer_incoming_on_tie=True` permet de faire primer le flux
+    """
+    if not incoming:
+        return False
+    if not existing:
+        return True
+
+    in_dt = _entry_price_datetime(incoming)
+    ex_dt = _entry_price_datetime(existing)
+    in_day = _entry_date_value(incoming)
+    ex_day = _entry_date_value(existing)
+    in_has_iso = bool(incoming.get("maj_iso") and in_dt is not None)
+    ex_has_iso = bool(existing.get("maj_iso") and ex_dt is not None)
+
+    if in_dt is None:
+        return False
+    if ex_dt is None:
+        return True
+
+    in_cmp = _dt_naive_utc(in_dt)
+    ex_cmp = _dt_naive_utc(ex_dt)
+
+    if in_has_iso and ex_has_iso:
+        if in_cmp > ex_cmp:
+            return True
+        if in_cmp < ex_cmp:
+            return False
+        return prefer_incoming_on_tie
+
+    if in_has_iso and not ex_has_iso:
+        if in_day and ex_day and in_day != ex_day:
+            return in_day > ex_day
+        return True
+
+    if not in_has_iso and ex_has_iso:
+        if in_day and ex_day and in_day != ex_day:
+            return in_day > ex_day
+        return False
+
+    if in_day and ex_day:
+        if in_day > ex_day:
+            return True
+        if in_day < ex_day:
+            return False
+        return prefer_incoming_on_tie
+
+    return prefer_incoming_on_tie
 
 
 def check_price_validity(fuel: str, price: float, entry: dict, fuel_ranges: dict, absurd_age_days: int) -> str | None:
@@ -230,28 +339,14 @@ def flux_maj_iso_and_date(raw) -> tuple[str | None, str]:
             return None, ""
         rest = s[10:].strip()
         if not rest:
-            d = s[:10]
-            try:
-                noon = datetime.strptime(d, "%Y-%m-%d").replace(
-                    hour=12, tzinfo=ZoneInfo("Europe/Paris")
-                )
-                return noon.isoformat(timespec="seconds"), d
-            except ValueError:
-                return f"{d}T12:00:00", d
+            return None, s[:10]
     return None, ""
 
 
 def flux_replaces_daily_entry(existing: dict | None, flux_maj_iso: str) -> bool:
     """Le flux prime s'il est au moins aussi récent que le prix quotidien déjà chargé."""
-    if not existing:
-        return True
-    ex_dt = _entry_price_datetime(existing)
-    fl_dt = _parse_iso_datetime(flux_maj_iso)
-    if fl_dt is None:
-        return False
-    if ex_dt is None:
-        return True
-    return _dt_naive_utc(fl_dt) >= _dt_naive_utc(ex_dt)
+    incoming = {"maj_iso": flux_maj_iso, "date_maj": flux_maj_iso[:10] if flux_maj_iso else ""}
+    return price_entry_should_replace(existing, incoming, prefer_incoming_on_tie=True)
 
 
 def daily_maj_date_and_iso(cell):
