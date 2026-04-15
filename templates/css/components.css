@@ -437,6 +437,7 @@ footer code {
   opacity: .9;
   box-shadow: var(--sh-l);
   border-radius: var(--rx);
+  transform: translateZ(0);
 }
 
 .dnd-placeholder {

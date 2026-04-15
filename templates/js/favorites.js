@@ -1,6 +1,6 @@
 import { state, radius, uFuels, favs, setFavs, saveFavs, maxAge } from './state.js';
 import { E, coord, hav, maxKmFav, hasFuel, toast, stationName } from './helpers.js';
-import { pClass, pickBest } from './prices.js';
+import { pClass, pickBest, tankInline } from './prices.js';
 import { freshPill, isExpired } from './freshness.js';
 import { TouchDragReorder } from './drag-drop.js';
 import { showStation } from './station.js';
@@ -48,7 +48,7 @@ export function renderFavs() {
           if (!uFuels.includes(c)) continue;
           if (isExpired(d, maxAge)) continue;
           const cls = pClass(f.id, c, d.prix), fp = freshPill(d);
-          tags.push(`<div class="ptag ${cls}"><span class="ptag-f">${c}</span><span class="ptag-v">${d.prix}€</span>${fp}</div>`);
+          tags.push(`<div class="ptag ${cls}"><span class="ptag-f">${c}</span><span class="ptag-v">${d.prix}€</span>${fp}${tankInline(parseFloat(d.prix))}</div>`);
         }
         if (tags.length) section = `<div class="fav-section"><div class="fav-section-title">Prix suivis</div><div class="fav-p">${tags.join('')}</div></div>`;
       }
@@ -68,14 +68,14 @@ export function renderFavs() {
             const b = pickBest(near, fuel);
             if (b) {
               const sn = f.name.replace(/'/g, "\\'");
-              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div><div class="best-n">${E(b.nom)}</div></div>`);
+              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div></div>`);
             }
           });
           if (cards.length) section = `<div class="fav-section"><div class="fav-section-title">Meilleurs prix dans ${fr}\u202fkm</div><div class="best-g">${cards.join('')}</div></div>`;
         }
       }
       const sn = f.name.replace(/'/g, "\\'");
-      h += `<article data-di="${i}" class="fav fav-address${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Lieu</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer le lieu des favoris">✕</button></div><button type="button" class="fav-main" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${fid}')"><div class="fav-n">📍 ${E(f.name)}</div><div class="fav-s">${activeCls ? 'Recherche en cours autour de ce lieu' : 'Ouvrir les stations proches de ce lieu'}</div><div class="fav-cta">${activeCls ? 'Lieu actif dans la recherche' : 'Lancer la recherche autour'}</div></button><div class="fav-toolbar"><div class="fav-radius"><span class="fav-radius-lbl">Rayon favori</span><span class="fav-radius-val">${fr}\u202fkm</span></div><div class="fav-radius-ctrl"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',5)" aria-label="Augmenter le rayon">+</button></div></div>${section}</div></article>`;
+      h += `<article data-di="${i}" class="fav fav-address${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Lieu</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer le lieu des favoris">✕</button></div><button type="button" class="fav-main" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${fid}')"><div class="fav-n">📍 ${E(f.name)}</div><div class="fav-s">${activeCls ? 'Recherche en cours autour de ce lieu' : 'Ouvrir les stations proches de ce lieu'}</div><div class="fav-cta">${activeCls ? 'Lieu actif dans la recherche' : 'Lancer la recherche autour'}</div></button><div class="fav-toolbar"><div class="fav-radius-ctrl"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',5)" aria-label="Augmenter le rayon">+</button></div></div>${section}</div></article>`;
     }
   }
   list.innerHTML = h;

@@ -80,12 +80,12 @@ export function renderList(lat, lon, label, sortFuel) {
       if (d !== null && d <= PRICE_EPS) { cls = 'cheap'; mmk = 'station_green'; }
       else if (d !== null && d <= PRICE_NEAR) { cls = 'mid'; mmk = 'station_orange'; }
       const fp = freshPill(s.carburants_disponibles[sortFuel]);
-      ph = `<div class="ptag ${cls}"><span class="ptag-f">${sortFuel}</span><span class="ptag-v">${s.carburants_disponibles[sortFuel].prix}€</span>${fp}</div>`;
+      ph = `<div class="ptag ${cls}"><span class="ptag-f">${sortFuel}</span><span class="ptag-v">${s.carburants_disponibles[sortFuel].prix}€</span>${fp}${tankInline(p)}</div>`;
     } else {
       ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => {
         const cls = pClass(r.id, f, s.carburants_disponibles[f].prix);
         const fp = freshPill(s.carburants_disponibles[f]);
-        return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}</div>`;
+        return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[f].prix))}</div>`;
       }).join('');
     }
     const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';

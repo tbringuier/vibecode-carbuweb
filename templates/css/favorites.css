@@ -57,6 +57,7 @@
   flex-shrink: 0;
   font-size: .875rem;
   user-select: none;
+  touch-action: none;
   transition: color var(--dur-1), border-color var(--dur-1), background var(--dur-1);
 }
 
@@ -143,33 +144,12 @@
 .fav-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: .75rem;
   flex-wrap: wrap;
   margin-top: .75rem;
   padding-top: .75rem;
   border-top: 1px solid var(--bl);
-}
-
-.fav-radius {
-  display: flex;
-  flex-direction: column;
-  gap: .125rem;
-}
-
-.fav-radius-lbl {
-  font-size: .6875rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--t3);
-}
-
-.fav-radius-val {
-  font-size: .9375rem;
-  font-weight: 800;
-  color: var(--tx);
-  font-variant-numeric: tabular-nums;
 }
 
 .fav-radius-ctrl {

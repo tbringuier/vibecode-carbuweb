@@ -1,6 +1,6 @@
 import { state, uFuels, favs, FUELS, maxAge } from './state.js';
 import { norm, E, notice, hasFuel, titleCase, stationName } from './helpers.js';
-import { pClass } from './prices.js';
+import { pClass, tankInline } from './prices.js';
 import { freshPill, isExpired } from './freshness.js';
 import { favKey } from './favorites.js';
 
@@ -15,7 +15,7 @@ export function renderHomeTeaser() {
     .map(f => `<button type="button" class="teaser-card" onclick="jumpToExplorer('${f}')"><span class="teaser-card-f">${E(f)}</span><span class="teaser-card-v">${avg[f].toFixed(3)}<span class="teaser-card-u">\u202f€/L</span></span></button>`)
     .join('');
   if (!cards) return;
-  c.innerHTML = `<div class="teaser-head"><h2 id="home-teaser-t" class="teaser-title">Prix moyens en France</h2><button type="button" class="btn btn-sm btn-g teaser-more" onclick="switchTab('explorer')">Voir le classement<span aria-hidden="true"> →</span></button></div><div class="teaser-grid">${cards}</div>`;
+  c.innerHTML = `<div class="teaser-head"><h2 id="home-teaser-t" class="teaser-title">Prix moyens en France</h2></div><div class="teaser-grid">${cards}</div>`;
   c.classList.remove('hidden');
 }
 
@@ -119,6 +119,6 @@ export function searchPrices(sid, st) {
     const d = st.carburants_disponibles[f];
     const cls = pClass(sid, f, d.prix);
     const fp = freshPill(d);
-    return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${d.prix}€</span>${fp}</div>`;
+    return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${d.prix}€</span>${fp}${tankInline(parseFloat(d.prix))}</div>`;
   }).join('');
 }

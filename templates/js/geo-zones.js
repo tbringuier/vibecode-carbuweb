@@ -53,7 +53,7 @@ export function searchGeo(type, name, fuel) {
       ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => {
         const cls = pClass(r.id, f, s.carburants_disponibles[f].prix);
         const fp = freshPill(s.carburants_disponibles[f]);
-        return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}</div>`;
+        return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[f].prix))}</div>`;
       }).join('');
     }
     r.mk = mmk;
