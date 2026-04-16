@@ -11,6 +11,10 @@ export function geolocateMe() {
     document.getElementById('sresults').innerHTML = notice('Géolocalisation non supportée', 'Votre navigateur ne permet pas d\'obtenir votre position.');
     return;
   }
+  if (state.geoReady) {
+    findNear(state.geoReady.lat, state.geoReady.lon, 'Votre position');
+    return;
+  }
   document.getElementById('sresults').innerHTML = '<div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Localisation en cours…</p></div>';
   navigator.geolocation.getCurrentPosition(
     p => findNear(p.coords.latitude, p.coords.longitude, 'Votre position'),
@@ -67,7 +71,7 @@ export function renderList(lat, lon, label, sortFuel) {
   }
   const bw = bestWidget(allR);
   const bwHtml = bw ? `<div class="best-band">${bw}</div>` : '';
-  let h = `<div id="station-map" class="d-map"></div>${bwHtml}<div class="sort-bar"><div class="field"><label class="lbl" for="sort-fuel">Trier par</label><select id="sort-fuel" class="inp" onchange="applySort(this.value)">${opts}</select></div><div class="count">${sts.length} station${sts.length > 1 ? 's' : ''} · ~${radius}\u202fkm</div></div><div class="card card-list">`;
+  let h = `<div id="station-map" class="d-map"></div>${bwHtml}<div class="sort-bar"><div class="field"><label class="lbl" for="sort-fuel">Trier par</label><select id="sort-fuel" class="inp" onchange="applySort(this.value)">${opts}</select></div><div class="count">${sts.length} station${sts.length > 1 ? 's' : ''}</div></div><div class="card card-list">`;
   if (!sts.length) h += notice('Aucune station trouvée', sortFuel ? `Aucune station ne propose ${sortFuel} dans ce rayon.` : 'Élargissez le rayon depuis les paramètres.');
   const markers = [{ type: 'search_point', lat, lon, label }];
   sts.forEach(r => {
@@ -89,7 +93,7 @@ export function renderList(lat, lon, label, sortFuel) {
         return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[f].prix))}</div>`;
       }).join('');
     }
-    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
+    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
     h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div><div class="tank u-mt-025">${fmtKm(r.dist)}</div></div><div class="s-prices">${ph}</div></div>`;
     if (s.lat && s.lon) markers.push({ type: mmk, lat: s.lat, lon: s.lon, label: stationName(s), adresse: `${s.adresse}, ${s.ville}`, id: r.id });
   });

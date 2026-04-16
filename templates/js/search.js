@@ -77,7 +77,7 @@ export async function doSearch() {
     sHtml += '<div class="s-group"><div class="sec-l">Stations <span class="pill">data.gouv</span></div>';
     local.forEach(r => {
       const pCol = searchPrices(r.id, r.station);
-      const h24 = r.station.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
+      const h24 = r.station.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
       sHtml += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(r.station))}${h24}</div><div class="s-addr">${E(titleCase(r.station.adresse))}, ${E(r.station.code_postal)} ${E(titleCase(r.station.ville))}</div></div><div class="s-prices">${pCol}</div></div>`;
     });
     sHtml += '</div>';

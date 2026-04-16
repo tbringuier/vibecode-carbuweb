@@ -104,7 +104,7 @@
 
 .teaser-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: .5rem;
 }
 
@@ -123,10 +123,12 @@
   transition: border-color var(--dur-1), transform var(--dur-1), box-shadow var(--dur-1);
 }
 
-.teaser-card:hover {
-  border-color: var(--ac);
-  transform: translateY(-1px);
-  box-shadow: var(--sh);
+@media (hover: hover) {
+  .teaser-card:hover {
+    border-color: var(--ac);
+    transform: translateY(-1px);
+    box-shadow: var(--sh);
+  }
 }
 
 .teaser-card:focus-visible {
@@ -190,8 +192,10 @@
   border-bottom: none;
 }
 
-.s-item:hover {
-  background: var(--ab);
+@media (hover: hover) {
+  .s-item:hover {
+    background: var(--ab);
+  }
 }
 
 .s-item:focus-visible {
@@ -275,4 +279,5 @@
   align-self: flex-end;
   font-weight: 600;
   white-space: nowrap;
+  margin-left: auto;
 }

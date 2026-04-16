@@ -100,7 +100,7 @@ export function showStation(sid) {
   const hasH = station.horaires.automate_24_24 || Object.values(station.horaires.jours).some(v => v !== 'Horaires indisponibles');
   if (hasH) {
     h += '<div class="sec-l">Horaires</div>';
-    if (station.horaires.automate_24_24) h += '<div class="b24">Automate 24h/24 · 7j/7</div>';
+    if (station.horaires.automate_24_24) h += '<div class="b24">Ouvert 24h/24 · 7j/7</div>';
     else {
       h += '<ul class="hours-list">';
       for (const [j, hr] of Object.entries(station.horaires.jours)) {

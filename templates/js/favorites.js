@@ -1,5 +1,5 @@
 import { state, radius, uFuels, favs, setFavs, saveFavs, maxAge } from './state.js';
-import { E, coord, hav, maxKmFav, hasFuel, toast, stationName } from './helpers.js';
+import { E, coord, hav, fmtKm, maxKmFav, toast, stationName } from './helpers.js';
 import { pClass, pickBest, tankInline } from './prices.js';
 import { freshPill, isExpired } from './freshness.js';
 import { TouchDragReorder } from './drag-drop.js';
@@ -70,13 +70,13 @@ export function renderFavs() {
         const la = coord(f.lat), lo = coord(f.lon);
         if (Number.isFinite(la) && Number.isFinite(lo)) {
           const near = [], mk = maxKmFav(f);
-          for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !hasFuel(s)) continue; const dist = hav(la, lo, s.lat, s.lon); if (dist <= mk) near.push({ id, station: s, dist }); }
+          for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !uFuels.some(fu => s.carburants_disponibles[fu] && !isExpired(s.carburants_disponibles[fu], maxAge))) continue; const dist = hav(la, lo, s.lat, s.lon); if (dist <= mk) near.push({ id, station: s, dist }); }
           const cards = [];
           uFuels.forEach(fuel => {
             const b = pickBest(near, fuel);
             if (b) {
               const sn = f.name.replace(/'/g, "\\'");
-              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div></div>`);
+              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div><div class="best-d">${fmtKm(b.dist)}</div></div>`);
             }
           });
           if (cards.length) section = `<div class="fav-section"><div class="fav-section-title">Meilleurs prix dans ${fr}\u202fkm</div><div class="best-g">${cards.join('')}</div></div>`;

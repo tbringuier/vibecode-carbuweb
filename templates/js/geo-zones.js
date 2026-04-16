@@ -22,7 +22,7 @@ export function searchGeo(type, name, fuel) {
   state.proxSearch = null;
   state.geoZone = { type, name, stationIds: sids };
   const isActive = (st) => uFuels.some(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
-  const all = sids.map(id => ({ id, station: state.db.stations[id] })).filter(s => s.station && isActive(s.station));
+  const all = sids.map(id => ({ id, station: state.db.stations[id], dist: 0 })).filter(s => s.station && isActive(s.station));
   let sf = fuel || uFuels[0] || '';
   let sts = [...all];
   if (sf) {
@@ -57,7 +57,7 @@ export function searchGeo(type, name, fuel) {
       }).join('');
     }
     r.mk = mmk;
-    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">24h</span>' : '';
+    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
     h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="s-prices">${ph}</div></div>`;
   });
   h += '</div>';

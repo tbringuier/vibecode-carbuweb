@@ -35,8 +35,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     applyV(); renderVBar(); renderVList();
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('home-view').classList.remove('hidden');
-    if (localStorage.getItem(LS.w) || localStorage.getItem(LS.f) || localStorage.getItem(LS.v)) document.getElementById('onboard').classList.add('hidden');
+    if (localStorage.getItem(LS.w)) {
+      document.getElementById('onboard').classList.add('hidden');
+    } else {
+      localStorage.setItem(LS.w, '1');
+    }
     populateRegions(); populateFuels(); renderFavs(); renderHomeTeaser(); syncFooter();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        p => { state.geoReady = { lat: p.coords.latitude, lon: p.coords.longitude }; },
+        () => {},
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+      );
+    }
     if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
     if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
     state.refreshT = setInterval(refreshData, REFRESH_MS);

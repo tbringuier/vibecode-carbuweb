@@ -17,10 +17,12 @@
   transition: box-shadow var(--dur-2), border-color var(--dur-2), transform var(--dur-2);
 }
 
-.fav:hover .fav-card {
-  box-shadow: var(--sh-h);
-  border-color: var(--bd-2);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .fav:hover .fav-card {
+    box-shadow: var(--sh-h);
+    border-color: var(--bd-2);
+    transform: translateY(-1px);
+  }
 }
 
 .fav.is-active .fav-card {
