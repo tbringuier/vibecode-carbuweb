@@ -330,6 +330,27 @@
   margin-bottom: 1rem;
 }
 
+.best-band {
+  padding: .75rem 0;
+}
+
+.best-band .sec-l {
+  text-align: center;
+}
+
+.best-band .best-g {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .5rem;
+  margin-bottom: 0;
+}
+
+.best-band .best-c {
+  min-width: 6.25rem;
+  flex: 0 1 auto;
+}
+
 .best-c {
   text-align: center;
   padding: .5rem .5rem .625rem;

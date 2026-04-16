@@ -2,7 +2,7 @@
 
 import { state, LS, REFRESH_MS, radius, maxAge } from './js/state.js';
 import { E } from './js/helpers.js';
-import { switchTab, goBack, goHome, handleHeaderFav, initPopstate } from './js/navigation.js';
+import { switchTab, goBack, goHome, handleHeaderFav, initPopstate, syncHeaderFav } from './js/navigation.js';
 import { toggleSettings, debouncedSave, resetAll, dismissOnboard, refreshData, syncFooter, changeMaxAge } from './js/settings.js';
 import { geolocateMe, findNear, applySort } from './js/geolocation.js';
 import { debouncedSearch, renderHomeTeaser, jumpToExplorer } from './js/search.js';
@@ -19,7 +19,7 @@ Object.assign(window, {
   populateFuels, populateRegions, updateDeptFilter, findCheapest,
   sortDash, toggleReg, toggleFavAddr, toggleFavStation, removeFav,
   adjFavR, findNearFav, showStationFav, switchV, openVForm,
-  closeVForm, saveVForm, delV, jumpToExplorer, changeMaxAge
+  closeVForm, saveVForm, delV, jumpToExplorer, changeMaxAge, syncHeaderFav
 });
 
 initPopstate();

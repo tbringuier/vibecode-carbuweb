@@ -596,6 +596,32 @@ footer code {
   right: .5rem;
 }
 
+.onboard-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem .875rem;
+  margin: .5rem 0 .875rem;
+}
+
+.ol-item {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  font-size: .75rem;
+  color: var(--t2);
+}
+
+.ol-dot {
+  width: .625rem;
+  height: .625rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ol-green { background: var(--gn); }
+.ol-amber { background: var(--am); }
+.ol-red   { background: var(--rd); }
+
 /* Loading overlay */
 
 .loading-ctr {

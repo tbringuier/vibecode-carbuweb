@@ -63,10 +63,11 @@ export function renderList(lat, lon, label, sortFuel) {
   const allR = [];
   for (const [id, s] of Object.entries(state.db.stations)) {
     if (!s.lat || !s.lon || !isActive(s)) continue;
-    if (hav(lat, lon, s.lat, s.lon) <= mk) allR.push({ id, station: s });
+    const d = hav(lat, lon, s.lat, s.lon); if (d <= mk) allR.push({ id, station: s, dist: d });
   }
   const bw = bestWidget(allR);
-  let h = `<div id="station-map" class="d-map"></div>${bw}<div class="sort-bar"><div class="field"><label class="lbl" for="sort-fuel">Trier par</label><select id="sort-fuel" class="inp" onchange="applySort(this.value)">${opts}</select></div><div class="count">${sts.length} station${sts.length > 1 ? 's' : ''} · ~${radius}\u202fkm</div></div><div class="card card-list">`;
+  const bwHtml = bw ? `<div class="best-band">${bw}</div>` : '';
+  let h = `<div id="station-map" class="d-map"></div>${bwHtml}<div class="sort-bar"><div class="field"><label class="lbl" for="sort-fuel">Trier par</label><select id="sort-fuel" class="inp" onchange="applySort(this.value)">${opts}</select></div><div class="count">${sts.length} station${sts.length > 1 ? 's' : ''} · ~${radius}\u202fkm</div></div><div class="card card-list">`;
   if (!sts.length) h += notice('Aucune station trouvée', sortFuel ? `Aucune station ne propose ${sortFuel} dans ce rayon.` : 'Élargissez le rayon depuis les paramètres.');
   const markers = [{ type: 'search_point', lat, lon, label }];
   sts.forEach(r => {

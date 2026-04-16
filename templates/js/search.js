@@ -101,7 +101,7 @@ export async function doSearch() {
           const k = favKey(p.lat, p.lon);
           const is = k && favs.some(f => f.type === 'address' && favKey(f.lat, f.lon) === k);
           const safeName = nm.replace(/'/g, "\\'");
-          h += `<div class="s-item"><div class="s-info" role="button" tabindex="0" onclick="findNear(${p.lat},${p.lon},'${safeName}')"><div class="s-name">${E(nm)}</div><div class="s-addr">${E(desc)}</div></div><button class="btn btn-g btn-i btn-sm${is ? ' btn-star-on' : ''}" type="button" onclick="event.stopPropagation();toggleFavAddr(${p.lat},${p.lon},'${safeName}')" aria-label="${is ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${is ? '★' : '☆'}</button></div>`;
+          h += `<div class="s-item"><div class="s-info" role="button" tabindex="0" onclick="findNear(${p.lat},${p.lon},'${safeName}')"><div class="s-name">${E(nm)}</div><div class="s-addr">${E(desc)}</div></div><button class="btn btn-g btn-i btn-sm${is ? ' btn-star-on' : ''}" type="button" data-favkey="${k}" onclick="event.stopPropagation();toggleFavAddr(${p.lat},${p.lon},'${safeName}')" aria-label="${is ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${is ? '★' : '☆'}</button></div>`;
         });
         h += '</div>';
       }

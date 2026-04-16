@@ -13,7 +13,15 @@ export function toggleFavAddr(lat, lon, name) {
   const a = coord(lat), o = coord(lon); if (!Number.isFinite(a) || !Number.isFinite(o)) return;
   const k = favKey(a, o), i = favs.findIndex(f => f.type === 'address' && favKey(f.lat, f.lon) === k);
   if (i > -1) favs.splice(i, 1); else favs.push({ id: k, type: 'address', name, lat: a, lon: o });
-  saveFavs(); renderFavs(); toast(i > -1 ? 'Lieu retiré' : 'Lieu ajouté aux favoris');
+  saveFavs(); renderFavs();
+  const is = i === -1;
+  document.querySelectorAll(`[data-favkey="${k}"]`).forEach(btn => {
+    btn.classList.toggle('btn-star-on', is);
+    btn.textContent = is ? '★' : '☆';
+    btn.setAttribute('aria-label', is ? 'Retirer des favoris' : 'Ajouter aux favoris');
+  });
+  window.syncHeaderFav?.();
+  toast(i > -1 ? 'Lieu retiré' : 'Lieu ajouté aux favoris');
 }
 export function toggleFavStation() {
   const sid = document.getElementById('station-view').getAttribute('data-sid');
@@ -52,7 +60,7 @@ export function renderFavs() {
         }
         if (tags.length) section = `<div class="fav-section"><div class="fav-section-title">Prix suivis</div><div class="fav-p">${tags.join('')}</div></div>`;
       }
-      h += `<article data-di="${i}" class="fav fav-station${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Station</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer la station des favoris">✕</button></div><button type="button" class="fav-main" onclick="showStation('${fid}')"><div class="fav-n">⛽ ${E(f.name)}</div><div class="fav-s">${E(f.adresse)}</div><div class="fav-cta">${activeCls ? 'Station ouverte actuellement' : 'Voir le détail de la station'}</div></button>${section}</div></article>`;
+      h += `<article data-di="${i}" class="fav fav-station${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Station</span><span class="fav-name-inline">⛽ ${E(f.name)}</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer la station des favoris">✕</button></div><button type="button" class="fav-main" onclick="showStation('${fid}')"><div class="fav-s">${E(f.adresse)}</div><div class="fav-cta">${activeCls ? 'Station ouverte actuellement' : 'Voir le détail de la station'}</div></button>${section}</div></article>`;
     } else {
       const fr = f.radius ? +f.radius : radius;
       const activeCls = activeAddressId === f.id ? ' is-active' : '';
@@ -62,7 +70,7 @@ export function renderFavs() {
         const la = coord(f.lat), lo = coord(f.lon);
         if (Number.isFinite(la) && Number.isFinite(lo)) {
           const near = [], mk = maxKmFav(f);
-          for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !hasFuel(s)) continue; if (hav(la, lo, s.lat, s.lon) <= mk) near.push({ id, station: s }); }
+          for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !hasFuel(s)) continue; const dist = hav(la, lo, s.lat, s.lon); if (dist <= mk) near.push({ id, station: s, dist }); }
           const cards = [];
           uFuels.forEach(fuel => {
             const b = pickBest(near, fuel);
@@ -75,7 +83,7 @@ export function renderFavs() {
         }
       }
       const sn = f.name.replace(/'/g, "\\'");
-      h += `<article data-di="${i}" class="fav fav-address${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Lieu</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer le lieu des favoris">✕</button></div><button type="button" class="fav-main" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${fid}')"><div class="fav-n">📍 ${E(f.name)}</div><div class="fav-s">${activeCls ? 'Recherche en cours autour de ce lieu' : 'Ouvrir les stations proches de ce lieu'}</div><div class="fav-cta">${activeCls ? 'Lieu actif dans la recherche' : 'Lancer la recherche autour'}</div></button><div class="fav-toolbar"><div class="fav-radius-ctrl"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',5)" aria-label="Augmenter le rayon">+</button></div></div>${section}</div></article>`;
+      h += `<article data-di="${i}" class="fav fav-address${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Lieu</span><span class="fav-name-inline">📍 ${E(f.name)}</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer le lieu des favoris">✕</button></div><div class="fav-toolbar"><div class="fav-radius-ctrl"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',5)" aria-label="Augmenter le rayon">+</button></div><button type="button" class="btn btn-p btn-sm fav-see" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${fid}')">${activeCls ? 'Recherche active' : 'Lancer la recherche'}</button></div>${section}</div></article>`;
     }
   }
   list.innerHTML = h;
