@@ -51,8 +51,8 @@ jobs:
       - name: Installer les dépendances
         run: |
           python -m venv .venv
-          .venv/bin/pip install -q -U pip wheel
-          .venv/bin/pip install -q --no-compile -r requirements.txt
+          .venv/bin/pip install -U pip wheel
+          .venv/bin/pip install --no-compile -r requirements.txt
 
       - name: Build
         run: .venv/bin/python main.py
