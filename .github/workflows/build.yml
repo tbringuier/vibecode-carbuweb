@@ -50,10 +50,7 @@ jobs:
 
       - name: Installer les dépendances
         run: |
-          set -euo pipefail
-          if [ ! -x .venv/bin/python ]; then
-            python -m venv .venv
-          fi
+          python -m venv .venv
           .venv/bin/pip install -q -U pip wheel
           .venv/bin/pip install -q --no-compile -r requirements.txt
 
