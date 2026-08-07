@@ -1,4 +1,5 @@
 import { E } from './helpers.js';
+import { uFuels, maxAge } from './state.js';
 
 export function freshDays(entry) {
   if (!entry) return null;
@@ -15,6 +16,7 @@ export function isExpired(entry, maxAgeDays) {
   if (d === null) return true;
   return d > maxAgeDays;
 }
+export const hasActiveFuel = st => !!st?.carburants_disponibles && uFuels.some(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
 export function freshPill(entry) {
   const d = freshDays(entry);
   if (d === null) return '<span class="fresh-pill old">?</span>';
@@ -29,8 +31,6 @@ export function freshLabel(entry) {
   const d = freshDays(entry);
   if (d === null) return 'Date inconnue';
   if (d > 30) return 'Plus d\'un mois';
-  if (d > 14) return `Il y a ${d} jours`;
-  if (d > 7) return `Il y a ${d} jours`;
   if (d > 1) return `Il y a ${d} jours`;
   if (d === 1) return 'Hier';
   return 'Aujourd\'hui';

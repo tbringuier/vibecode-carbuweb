@@ -1,7 +1,7 @@
 import { state, uFuels, favs, FUELS, maxAge } from './state.js';
-import { norm, E, notice, hasFuel, titleCase, stationName } from './helpers.js';
+import { norm, E, jsStr, notice, titleCase, stationName } from './helpers.js';
 import { pClass, tankInline } from './prices.js';
-import { freshPill, isExpired } from './freshness.js';
+import { freshPill, isExpired, hasActiveFuel } from './freshness.js';
 import { favKey } from './favorites.js';
 
 export function debouncedSearch() { clearTimeout(state.searchTimeout); state.searchTimeout = setTimeout(doSearch, 400); }
@@ -12,7 +12,7 @@ export function renderHomeTeaser() {
   const avg = state.db.dashboard.national.avg_prices || {};
   const cards = FUELS
     .filter(f => typeof avg[f] === 'number' && avg[f] > 0)
-    .map(f => `<button type="button" class="teaser-card" onclick="jumpToExplorer('${f}')"><span class="teaser-card-f">${E(f)}</span><span class="teaser-card-v">${avg[f].toFixed(3)}<span class="teaser-card-u">\u202f€/L</span></span></button>`)
+    .map(f => `<button type="button" class="teaser-card" onclick="jumpToExplorer('${f}')"><span class="teaser-card-f">${E(f)}</span><span class="teaser-card-v">${avg[f].toFixed(3)}<span class="teaser-card-u"> €/L</span></span></button>`)
     .join('');
   if (!cards) return;
   c.innerHTML = `<div class="teaser-head"><h2 id="home-teaser-t" class="teaser-title">Prix moyens en France</h2></div><div class="teaser-grid">${cards}</div>`;
@@ -34,11 +34,10 @@ export async function doSearch() {
   const res = document.getElementById('sresults');
   state.proxSearch = null;
   state.detailAnchor = null;
-  if (n.length < 3) { res.innerHTML = ''; return; }
-  res.innerHTML = '<div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Recherche en cours…</p></div>';
+  const isCode = /^\d{2,3}$/.test(n);
+  if (!n || (n.length < 3 && !isCode)) { res.innerHTML = ''; return; }
   let h = '';
   const regs = [], depts = [];
-  const isCode = /^\d{2,3}$/.test(n);
   if (isCode && state.db.dept_index[n]) {
     const d = state.db.dept_index[n];
     depts.push({ code: n, nom: d.nom, region: d.region, count: d.stations.length });
@@ -52,36 +51,45 @@ export async function doSearch() {
   if (regs.length) {
     h += '<div class="s-group"><div class="sec-l">Régions</div>';
     regs.forEach(g => {
-      h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('region','${g.nom.replace(/'/g, "\\'")}')"><div class="s-info"><div class="s-name">${E(g.nom)}</div><div class="s-addr">${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
+      h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('region','${jsStr(g.nom)}')"><div class="s-info"><div class="s-name">${E(g.nom)}</div><div class="s-addr">${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
     });
     h += '</div>';
   }
   if (depts.length) {
     h += '<div class="s-group"><div class="sec-l">Départements</div>';
     depts.forEach(g => {
-      h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('dept','${g.nom.replace(/'/g, "\\'")}')"><div class="s-info"><div class="s-name">${E(g.nom)} (${E(g.code)})</div><div class="s-addr">${E(g.region)} · ${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
+      h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('dept','${jsStr(g.nom)}')"><div class="s-info"><div class="s-name">${E(g.nom)} (${E(g.code)})</div><div class="s-addr">${E(g.region)} · ${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
     });
     h += '</div>';
   }
   const local = [];
   if (!isCode && state.db.cp_index[n]) {
-    state.db.cp_index[n].forEach(id => { if (hasFuel(state.db.stations[id])) local.push({ id, station: state.db.stations[id] }); });
+    state.db.cp_index[n].forEach(id => { if (hasActiveFuel(state.db.stations[id])) local.push({ id, station: state.db.stations[id] }); });
   } else if (!isCode) {
     for (const [id, d] of Object.entries(state.db.recherche_texte)) {
-      if (d.texte_norm.includes(n) && hasFuel(state.db.stations[id])) local.push({ id, station: state.db.stations[id] });
-      if (local.length > 80) break;
+      if (d.texte_norm.includes(n) && hasActiveFuel(state.db.stations[id])) {
+        local.push({ id, station: state.db.stations[id] });
+        if (local.length >= 80) break;
+      }
     }
   }
-  let sHtml = '';
+  const useOsm = !isCode;
+  if (useOsm) h += '<div id="osm-slot"><div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Recherche de villes & adresses…</p></div></div>';
   if (local.length) {
-    sHtml += '<div class="s-group"><div class="sec-l">Stations <span class="pill">data.gouv</span></div>';
+    h += '<div class="s-group"><div class="sec-l">Stations <span class="pill">data.gouv</span></div>';
     local.forEach(r => {
       const pCol = searchPrices(r.id, r.station);
       const h24 = r.station.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
-      sHtml += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(r.station))}${h24}</div><div class="s-addr">${E(titleCase(r.station.adresse))}, ${E(r.station.code_postal)} ${E(titleCase(r.station.ville))}</div></div><div class="s-prices">${pCol}</div></div>`;
+      h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(r.station))}${h24}</div><div class="s-addr">${E(titleCase(r.station.adresse))}, ${E(r.station.code_postal)} ${E(titleCase(r.station.ville))}</div></div><div class="s-prices">${pCol}</div></div>`;
     });
-    sHtml += '</div>';
+    h += '</div>';
   }
+  const hasLocal = !!(regs.length || depts.length || local.length);
+  if (!hasLocal && !useOsm) { res.innerHTML = notice('Aucun résultat', 'Essayez un autre mot-clé.'); return; }
+  // Résultats locaux affichés immédiatement ; Nominatim (externe, plus lent) remplit son emplacement ensuite.
+  res.innerHTML = h;
+  if (!useOsm) return;
+  let osmH = '';
   try {
     const or = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=fr&limit=4`, { signal: sig });
     if (or.ok) {
@@ -94,22 +102,23 @@ export async function doSearch() {
         return true;
       });
       if (od.length) {
-        h += '<div class="s-group"><div class="sec-l">Villes & adresses <span class="pill">OSM</span></div>';
+        osmH += '<div class="s-group"><div class="sec-l">Villes & adresses <span class="pill">OSM</span></div>';
         od.forEach(p => {
           const nm = p.display_name.split(',')[0];
           const desc = p.display_name.split(',').slice(1, -2).join(',').trim();
           const k = favKey(p.lat, p.lon);
           const is = k && favs.some(f => f.type === 'address' && favKey(f.lat, f.lon) === k);
-          const safeName = nm.replace(/'/g, "\\'");
-          h += `<div class="s-item"><div class="s-info" role="button" tabindex="0" onclick="findNear(${p.lat},${p.lon},'${safeName}')"><div class="s-name">${E(nm)}</div><div class="s-addr">${E(desc)}</div></div><button class="btn btn-g btn-i btn-sm${is ? ' btn-star-on' : ''}" type="button" data-favkey="${k}" onclick="event.stopPropagation();toggleFavAddr(${p.lat},${p.lon},'${safeName}')" aria-label="${is ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${is ? '★' : '☆'}</button></div>`;
+          const safeName = jsStr(nm);
+          osmH += `<div class="s-item"><div class="s-info" role="button" tabindex="0" onclick="findNear(${+p.lat},${+p.lon},'${safeName}')"><div class="s-name">${E(nm)}</div><div class="s-addr">${E(desc)}</div></div><button class="btn btn-g btn-i btn-sm${is ? ' btn-star-on' : ''}" type="button" data-favkey="${k}" onclick="event.stopPropagation();toggleFavAddr(${+p.lat},${+p.lon},'${safeName}')" aria-label="${is ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${is ? '★' : '☆'}</button></div>`;
         });
-        h += '</div>';
+        osmH += '</div>';
       }
     }
   } catch (e) { if (e.name !== 'AbortError') console.error('OSM', e); }
-  h += sHtml;
-  if (!h) h = notice('Aucun résultat', 'Essayez un autre mot-clé.');
-  if (!sig.aborted) res.innerHTML = h;
+  if (sig.aborted) return;
+  const slot = document.getElementById('osm-slot');
+  if (slot) slot.outerHTML = osmH;
+  if (!hasLocal && !osmH) res.innerHTML = notice('Aucun résultat', 'Essayez un autre mot-clé.');
 }
 
 export function searchPrices(sid, st) {

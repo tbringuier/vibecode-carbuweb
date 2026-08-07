@@ -1,7 +1,7 @@
 import logging
 
 from .config import ALL_FUELS
-from .helpers import normalize_text, purge_infinity, compute_latest_fuel_price_update_meta
+from .helpers import normalize_text, purge_infinity
 
 log = logging.getLogger("carbuweb")
 

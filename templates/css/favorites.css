@@ -130,6 +130,18 @@
   outline-offset: 2px;
 }
 
+/* Station favorite absente des données du jour : carte inerte, non cliquable */
+
+.fav-main-off {
+  cursor: default;
+  opacity: .72;
+  border-style: dashed;
+}
+
+.fav-main-off .fav-cta {
+  color: var(--t2);
+}
+
 .fav-n {
   font-weight: 800;
   font-size: .9375rem;

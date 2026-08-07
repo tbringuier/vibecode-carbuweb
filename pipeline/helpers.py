@@ -12,7 +12,6 @@ import pandas as pd
 import requests
 
 from .config import (
-    ALL_FUELS,
     DOWNLOAD_CACHE_BUSTER_PARAM,
     HTTP_NO_CACHE_HEADERS,
     HTTP_USER_AGENT,

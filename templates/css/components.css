@@ -261,6 +261,7 @@ select.inp {
   max-width: 30rem;
   max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 1.125rem 1.125rem calc(1.125rem + var(--safeb));
   box-shadow: var(--sh-l);
   border: 1px solid var(--bd);
@@ -515,20 +516,6 @@ footer code {
 
 @keyframes sp {
   to { transform: rotate(360deg); }
-}
-
-/* Skeleton shimmer */
-
-.skeleton {
-  background: linear-gradient(90deg, var(--bl) 0%, var(--bd) 50%, var(--bl) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-  border-radius: var(--r);
-}
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
 }
 
 /* Onboarding card — top banner on home, dismissible */

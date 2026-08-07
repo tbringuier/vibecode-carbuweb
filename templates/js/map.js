@@ -12,13 +12,13 @@ export function mkMap(id) {
   return m;
 }
 
+// Pins SVG inline : aucune requête externe, couleurs alignées sur la sémantique du site.
+const PIN_COLORS = { blue: '#2563eb', green: '#16a34a', orange: '#d97706', red: '#dc2626' };
+
 export function mkIcon(c) {
-  return L.icon({
-    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${c}.png`,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34]
-  });
+  const col = PIN_COLORS[c] || PIN_COLORS.blue;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="25" height="38" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${col}" stroke="rgba(0,0,0,.28)" stroke-width="1"/><circle cx="12" cy="11.6" r="4.4" fill="#fff"/></svg>`;
+  return L.divIcon({ className: 'pin-icon', html: svg, iconSize: [25, 38], iconAnchor: [12, 38], popupAnchor: [1, -32] });
 }
 
 export function initMap(markers /*, multi */) {
@@ -30,6 +30,7 @@ export function initMap(markers /*, multi */) {
   }
   state.stationMap = mkMap('station-map');
   const bounds = [];
+  let circle = null;
   const icons = {
     station_blue: mkIcon('blue'),
     station_green: mkIcon('green'),
@@ -38,9 +39,10 @@ export function initMap(markers /*, multi */) {
   };
   markers.forEach(m => {
     if (m.type === 'search_point') {
-      L.circle([m.lat, m.lon], { radius: maxKm() * 1000, color: ACCENT, fillColor: ACCENT, fillOpacity: .04, weight: 2, dashArray: '6 4' }).addTo(state.stationMap);
+      // circleKm/rKm : rayon effectif figé au rendu (rayon personnalisé d'un favori éventuellement).
+      circle = L.circle([m.lat, m.lon], { radius: (m.circleKm ?? maxKm()) * 1000, color: ACCENT, fillColor: ACCENT, fillOpacity: .04, weight: 2, dashArray: '6 4' }).addTo(state.stationMap);
       L.circleMarker([m.lat, m.lon], { radius: 7, color: ACCENT, fillColor: ACCENT, fillOpacity: .9, weight: 2 })
-        .bindPopup(`<div class="pop-body"><b>${E(m.label) || 'Recherche'}</b><br><span class="pop-meta">~${radius}\u202fkm</span></div>`)
+        .bindPopup(`<div class="pop-body"><b>${E(m.label) || 'Recherche'}</b><br><span class="pop-meta">~${m.rKm ?? radius} km</span></div>`)
         .addTo(state.stationMap)
         .openPopup();
     } else {
@@ -50,6 +52,7 @@ export function initMap(markers /*, multi */) {
     bounds.push([m.lat, m.lon]);
   });
   if (bounds.length > 1) state.stationMap.fitBounds(bounds, { padding: [35, 35], maxZoom: 13 });
+  else if (circle) state.stationMap.fitBounds(circle.getBounds(), { padding: [20, 20] });
   else state.stationMap.setView(bounds[0], 13);
   // Leaflet needs accurate container size; recompute after layout settles.
   const m = state.stationMap;

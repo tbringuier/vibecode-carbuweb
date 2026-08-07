@@ -12,8 +12,11 @@ export const state = {
   favDnD: null, vehicleDnD: null, editVId: null,
   dashSortFuel: null, dashSortDir: 'asc',
   toastT: null, saveT: null, refreshT: null, searchAC: null,
-  exploreMap: null, exploreMarkers: null
+  exploreMap: null, exploreMarkers: null, lastFetch: 0
 };
+
+// localStorage peut contenir du JSON corrompu (édition manuelle, bug passé) : ne jamais laisser un parse planter le boot.
+const lsArray = k => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) ? v : []; } catch { return []; } };
 
 export let radius = parseInt(localStorage.getItem(LS.r), 10) || 10;
 export function setRadius(v) { radius = v; }
@@ -27,10 +30,10 @@ export function setMaxAge(v) { maxAge = v; }
 export let uFuels = [...FUELS];
 export function setUFuels(v) { uFuels = v; }
 
-export let favs = JSON.parse(localStorage.getItem(LS.f)) || [];
+export let favs = lsArray(LS.f);
 export function setFavs(v) { favs = v; }
 
-export let vehicles = JSON.parse(localStorage.getItem(LS.v)) || [];
+export let vehicles = lsArray(LS.v);
 export function setVehicles(v) { vehicles = v; }
 
 export let activeV = localStorage.getItem(LS.av) || null;

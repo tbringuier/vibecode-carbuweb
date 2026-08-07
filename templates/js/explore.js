@@ -79,11 +79,19 @@ export function renderDash() {
     if (state.chartF) { state.chartF.destroy(); state.chartF = null; }
     const d = state.db.dashboard, fs = Object.keys(d.national.avg_prices).filter(f => d.national.avg_prices[f] > 0);
     const cols = ['#4361ee', '#2ec4b6', '#ff9f1c', '#e63946', '#7209b7', '#06d6a0'];
-    state.chartP = new Chart(document.getElementById('chart-prices'), { type: 'bar', data: { labels: fs, datasets: [{ label: '€/L', data: fs.map(f => d.national.avg_prices[f]), backgroundColor: cols }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } } });
-    state.chartF = new Chart(document.getElementById('chart-fuels'), { type: 'pie', data: { labels: fs, datasets: [{ data: fs.map(f => d.national.fuel_presence[f]), backgroundColor: cols }] }, options: { responsive: true, maintainAspectRatio: false } });
+    // Chart.js ne lit pas les custom properties : injecter les tokens du thème courant (light/dark).
+    const cs = getComputedStyle(document.documentElement);
+    const txt = cs.getPropertyValue('--t2').trim(), grid = cs.getPropertyValue('--bd').trim();
+    state.chartP = new Chart(document.getElementById('chart-prices'), { type: 'bar', data: { labels: fs, datasets: [{ label: '€/L', data: fs.map(f => d.national.avg_prices[f]), backgroundColor: cols }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { color: txt }, grid: { color: grid } }, x: { ticks: { color: txt }, grid: { color: grid } } } } });
+    state.chartF = new Chart(document.getElementById('chart-fuels'), { type: 'pie', data: { labels: fs, datasets: [{ data: fs.map(f => d.national.fuel_presence[f]), backgroundColor: cols }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: txt } } } } });
   }
   renderRegTable();
 }
+
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  state.chartsInit = false;
+  if (state.db && !document.getElementById('pane-explorer')?.classList.contains('hidden')) renderDash();
+});
 export function sortDash(f) { if (state.dashSortFuel === f) state.dashSortDir = state.dashSortDir === 'asc' ? 'desc' : 'asc'; else { state.dashSortFuel = f; state.dashSortDir = 'asc'; } renderRegTable(); }
 export function toggleReg(r) { document.querySelectorAll(`.dr-${CSS.escape(r)}`).forEach(x => x.classList.toggle('hidden')); }
 export function renderRegTable() {

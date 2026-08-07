@@ -8,7 +8,7 @@ import { geolocateMe, findNear, applySort } from './js/geolocation.js';
 import { debouncedSearch, renderHomeTeaser, jumpToExplorer } from './js/search.js';
 import { searchGeo } from './js/geo-zones.js';
 import { showStation } from './js/station.js';
-import { populateFuels, populateRegions, updateDeptFilter, findCheapest, sortDash, toggleReg, renderExploreMap, renderDash } from './js/explore.js';
+import { populateFuels, populateRegions, updateDeptFilter, findCheapest, sortDash, toggleReg } from './js/explore.js';
 import { toggleFavAddr, toggleFavStation, removeFav, adjFavR, findNearFav, showStationFav, renderFavs } from './js/favorites.js';
 import { applyV, switchV, openVForm, closeVForm, saveVForm, delV, renderVBar, renderVList } from './js/vehicles.js';
 
@@ -24,6 +24,24 @@ Object.assign(window, {
 
 initPopstate();
 
+// Clavier : Échap ferme les paramètres, Entrée/Espace activent les éléments role="button" générés par les templates.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('settings-modal');
+    if (m && !m.classList.contains('hidden')) { toggleSettings(); return; }
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target instanceof HTMLElement
+    && e.target.tagName !== 'BUTTON' && e.target.getAttribute('role') === 'button') {
+    e.preventDefault();
+    e.target.click();
+  }
+});
+
+// PWA remise au premier plan après une longue pause : rafraîchir sans attendre le prochain tick d'interval.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.db && Date.now() - state.lastFetch > REFRESH_MS) refreshData();
+});
+
 document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById('rslider').value = radius;
   document.getElementById('rval').innerText = radius;
@@ -32,14 +50,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (ageR) ageR.checked = true;
   try {
     state.db = await (await fetch(`data.json?_=${Date.now()}`, { cache: 'no-store' })).json();
+    state.lastFetch = Date.now();
     applyV(); renderVBar(); renderVList();
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('home-view').classList.remove('hidden');
-    if (localStorage.getItem(LS.w)) {
-      document.getElementById('onboard').classList.add('hidden');
-    } else {
-      localStorage.setItem(LS.w, '1');
-    }
+    if (localStorage.getItem(LS.w)) document.getElementById('onboard').classList.add('hidden');
     populateRegions(); populateFuels(); renderFavs(); renderHomeTeaser(); syncFooter();
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(

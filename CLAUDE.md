@@ -30,9 +30,9 @@ Comparateur de prix carburants en France. Site statique genere toutes les 5 min 
 
 | Module | Role |
 |--------|------|
-| `state.js` | Etat global, constantes, localStorage |
-| `helpers.js` | E(), norm(), hav(), toast(), fmtKm() |
-| `navigation.js` | Onglets, historique, back, favori header |
+| `state.js` | Etat global, constantes, localStorage (parse JSON tolerant aux donnees corrompues) |
+| `helpers.js` | E(), jsStr(), norm(), hav(), toast(), fmtKm() |
+| `navigation.js` | Onglets, pile navStack (types home/prox/geo/station), back, favori header |
 | `settings.js` | Modal parametres, rayon, refresh, syncFooter |
 | `search.js` | Recherche texte + geocodage Nominatim |
 | `geolocation.js` | GPS + liste stations proches + tri |
@@ -42,8 +42,8 @@ Comparateur de prix carburants en France. Site statique genere toutes les 5 min 
 | `favorites.js` | Favoris adresses + stations, drag-drop |
 | `vehicles.js` | Profils vehicules CRUD |
 | `prices.js` | Classification prix, cache proximite, estimation plein |
-| `freshness.js` | Badges fraicheur, libelles textuels |
-| `map.js` | Leaflet : mkMap, mkIcon, initMap |
+| `freshness.js` | Badges fraicheur, libelles textuels, isExpired(), hasActiveFuel() |
+| `map.js` | Leaflet : mkMap, mkIcon (pins SVG inline, zero requete externe), initMap |
 | `drag-drop.js` | TouchDragReorder (favoris + vehicules) |
 
 ---
@@ -78,6 +78,8 @@ Cas qui declenchent une mise a jour obligatoire :
 
 **`innerHTML` → toujours `E()` sur contenu externe** — `E()` est dans `helpers.js`, obligatoire sur tout contenu venant de l'utilisateur, des donnees de l'API ou des noms de stations/villes.
 
+**Attributs `onclick` inline → toujours `jsStr()` sur texte externe** — `jsStr()` est dans `helpers.js`. Tout nom/label externe (Nominatim, favoris, noms de zones) interpole dans un litteral JS a l'interieur d'un attribut `onclick="..."` doit passer par `jsStr()` (echappe `\`, `'`, `"`, `<`, `>`). Un simple `replace(/'/g, "\\'")` est insuffisant : un `"` dans le nom casse l'attribut HTML (XSS).
+
 **Pas de framework, pas de bundler, pas de npm** — vanilla JS ES modules uniquement. Pas de React, Vue, Tailwind, TypeScript, Vite, Webpack.
 
 **Placeholders HTML** — format `{{NOM_MAJUSCULES}}` uniquement. Liste complete actuelle : `{{BUILD_DATE}}`, `{{BUILD_DATETIME_PARIS}}`, `{{BUILD_DATETIME_ISO}}`, `{{STATION_COUNT}}`, `{{FUEL_DATA_UPDATE_FOOTER_HTML}}`, `{{GIT_COMMIT_HTML}}`, `{{APP_JS}}`, `{{ICON_SVG}}`, `{{STYLES_CSS}}`. Ne pas en inventer sans les implementer dans `pipeline/generate.py`.
@@ -86,7 +88,7 @@ Cas qui declenchent une mise a jour obligatoire :
 
 **Timestamps toujours Europe/Paris** — `maj_iso` en ISO 8601 avec offset Paris (`+01:00` ou `+02:00`), jamais UTC brut.
 
-**IDs HTML ↔ JS coherents** — tout ID utilise dans JS doit exister dans `templates/index.html`. Exceptions dynamiques connues : `station-map`, `sort-fuel`, `geo-sort`.
+**IDs HTML ↔ JS coherents** — tout ID utilise dans JS doit exister dans `templates/index.html`. Exceptions dynamiques connues : `station-map`, `sort-fuel`, `geo-sort`, `osm-slot`.
 
 **Settings modal = `<div role="dialog">`** — pas de balise HTML native `<dialog>`. L'ouverture/fermeture passe par toggle de la classe `.hidden`, le backdrop est un `<div class="dialog-backdrop">`. Le HTML native `<dialog>` force `display:none` en CSS et casse le toggle actuel.
 
@@ -175,7 +177,7 @@ for f in glob.glob('templates/js/*.js'):
 html = open('templates/index.html').read()
 js_ids = set(re.findall(r"getElementById\(['\"]([^'\"]+)['\"]\)", js))
 html_ids = set(re.findall(r'id="([^"]+)"', html))
-dynamic = {'station-map', 'sort-fuel', 'geo-sort'}
+dynamic = {'station-map', 'sort-fuel', 'geo-sort', 'osm-slot'}
 missing = js_ids - html_ids - dynamic
 print(f'ERREUR IDs manquants: {missing}' if missing else 'IDs OK')
 EOF
@@ -198,6 +200,11 @@ cd build && python -m http.server 8000
 - **`TouchDragReorder`** : s'attache au DOM au moment du rendu des listes. Si tu re-renders la liste des favoris ou vehicules, reconstruire l'instance via `state.favDnD` / `state.vehicleDnD`.
 - **Nominatim (geocodage)** : API externe rate-limited. Ne pas appeler en boucle. La recherche est deja debouncee (400ms) et utilise AbortController.
 - **`window.*`** : toutes les fonctions appelees depuis HTML inline (`onclick="..."`) sont exposees sur `window` dans `app.js`. Toute nouvelle fonction appelee depuis HTML doit etre ajoutee la.
+- **Pile de navigation (`state.navStack`)** : chaque entree decrit l'ecran QUITTE (`{type:'home'}`, `{type:'prox',lat,lon,label,customR}`, `{type:'geo',gType,name}`, `{type:'station',sid}`). `pushNav` est ignore pendant une restauration (`state.isRestoring`). Si tu ajoutes un ecran, empile son contexte au depart ET gere son type dans `initPopstate`.
+- **Zones geo plafonnees** : `searchGeo` n'affiche que les `GEO_MAX` (200) stations les moins cheres d'une region/departement (DOM + Leaflet s'ecroulent au-dela sur mobile). Le widget « Meilleurs prix » et le compteur utilisent la liste complete.
+- **Favoris stations absentes** : un favori station absent de `data.json` n'est PAS supprime (la station peut reapparaitre au prochain build) — il est rendu inerte avec une note. Ne pas reintroduire de filtre destructif dans `renderFavs`.
+- **`LS.fl` (carbuFuels)** : cle heritee d'un ancien filtre carburants manuel, sans UI. `applyV()` la purge systematiquement — ne pas la relire.
+- **Recherche en deux temps** : `doSearch` rend les resultats locaux immediatement et remplit `#osm-slot` quand Nominatim repond. Toute retouche doit preserver le controle `sig.aborted` avant d'ecrire dans le DOM.
 
 **Python — zones de vigilance :**
 
@@ -214,7 +221,7 @@ cd build && python -m http.server 8000
 - **Ordre CSS fixe** : `variables.css` doit etre en premier (custom properties utilisees partout), `utilities.css` en dernier pour permettre les overrides a specificite egale. Changer l'ordre casse le design.
 - **Cache-bust** : `generate.py` nettoie les anciens fichiers timestamps automatiquement. Ne pas supprimer manuellement des fichiers `build/app.*.js` ou `build/styles.*.css`.
 - **Minification JS** : `generate.py` retire les commentaires `//` et lignes vides. Ne pas mettre de code fonctionnel apres `//` sur la meme ligne.
-- **Assets statiques copies** : `sw.js`, `CNAME`, `manifest.webmanifest`. Ajouter un nouveau asset non-template ? L'ajouter dans la boucle `for extra in (...)` de `generate.py`.
+- **Assets statiques copies** : `sw.js`, `CNAME`, `manifest.webmanifest`, `icon.svg` (le manifest reference `icon.svg` sans cache-bust — ne pas retirer cette copie). Ajouter un nouveau asset non-template ? L'ajouter dans la boucle `for extra in (...)` de `generate.py`.
 - **`color-mix(in oklab, ...)`** : utilise dans le design system 2026. Support navigateurs modernes uniquement (Safari 16.2+, Chrome 111+, Firefox 113+). Ne pas l'utiliser dans des cas critiques hors ces navigateurs.
 
 ---

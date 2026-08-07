@@ -98,10 +98,6 @@
   margin: 0;
 }
 
-.teaser-more {
-  white-space: nowrap;
-}
-
 .teaser-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));

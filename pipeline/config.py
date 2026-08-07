@@ -76,14 +76,13 @@ RT_FUEL_COLUMNS = (
 # Instances Overpass publiques (rotation en cas de 504 / surcharge). Ordre : miroir FR puis instance principale.
 # Voir https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances
 OVERPASS_ENDPOINTS = (
-    "https://overpass.openstreetmap.fr/api/interpreter",        # Miroir FR, parfait pour tes données
+    "https://overpass.openstreetmap.fr/api/interpreter",        # Miroir FR (données France)
     "https://overpass-api.de/api/interpreter",                  # Instance principale (fiable mais limites strictes)
 )
 
 OVERPASS_MAX_ATTEMPTS = 100
 
-# Ton User-Agent est parfait : explicite, pointe vers le repo et donne la raison d'utilisation.
-# C'est la meilleure pratique pour éviter les bannissements sur ces API publiques.
+# User-Agent explicite (repo + finalité) : requis par les politiques d'usage des API publiques.
 HTTP_USER_AGENT = (
     "CarbuWeb-build/1.0 (+https://github.com/tbringuier/vibecode-carburant; "
     "dataset enrichment ref:FR:prix-carburants)"

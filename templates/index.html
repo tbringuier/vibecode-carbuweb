@@ -12,6 +12,8 @@
 <meta property="og:description" content="Comparez les prix des carburants en France. Données officielles mises à jour en continu.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="fr_FR">
+<meta property="og:url" content="https://carbuweb.folf.fr/">
+<link rel="canonical" href="https://carbuweb.folf.fr/">
 <link rel="icon" href="{{ICON_SVG}}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{{ICON_SVG}}">
 <link rel="manifest" href="manifest.webmanifest">
@@ -50,7 +52,7 @@
   <div id="home-view" class="hidden">
     <div class="ct">
       <div id="vbar" class="hidden" aria-label="Profils véhicules">
-        <div id="vbar-list" class="chips" role="radiogroup" aria-label="Véhicule actif"></div>
+        <div id="vbar-list" class="chips" role="group" aria-label="Véhicule actif"></div>
       </div>
 
       <div id="onboard" class="onboard" role="complementary">
@@ -80,7 +82,7 @@
               <label class="hero-lbl" for="sinput">Où cherchez-vous ?</label>
               <div class="sbox">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                <input type="search" id="sinput" class="inp" placeholder="Ville, adresse, code postal…" autocomplete="off" oninput="debouncedSearch()" aria-label="Rechercher une ville, une adresse ou un code postal">
+                <input type="search" id="sinput" class="inp" placeholder="Ville, adresse, code postal…" autocomplete="off" enterkeyhint="search" oninput="debouncedSearch()" aria-label="Rechercher une ville, une adresse ou un code postal">
               </div>
               <div class="hero-or"><span>ou</span></div>
               <button class="btn btn-p hero-gps" type="button" onclick="geolocateMe()">
@@ -166,7 +168,7 @@
           </div>
           <div class="v-form-row">
             <label class="lbl" for="v-icons">Icône</label>
-            <div id="v-icons" class="icon-pk" role="radiogroup" aria-label="Icône du véhicule"></div>
+            <div id="v-icons" class="icon-pk" role="group" aria-label="Icône du véhicule"></div>
           </div>
           <div class="v-form-row" id="v-fuels-wrap">
             <label class="lbl">Carburants</label>

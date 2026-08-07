@@ -64,3 +64,15 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Pins SVG inline générés par mkIcon() — neutraliser le style par défaut des divIcon Leaflet */
+
+.pin-icon {
+  background: none;
+  border: none;
+}
+
+.pin-icon svg {
+  display: block;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35));
+}

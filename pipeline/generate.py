@@ -36,14 +36,6 @@ def minify_js(src):
     return "\n".join(lines)
 
 
-def minify_json(path_in, path_out):
-    """Re-serialize JSON without whitespace (saves ~40 %)."""
-    with open(path_in, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    with open(path_out, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
-
-
 def _format_fr_int(n):
     """Espace fin insécable comme séparateur de milliers (usage affichage FR)."""
     s = f"{int(n):,}"
@@ -200,7 +192,8 @@ def generate_site():
             if basename not in (app_js_name, icon_svg_name, styles_css_name):
                 os.remove(old)
 
-    for extra in ("sw.js", "CNAME", "manifest.webmanifest"):
+    # icon.svg copié aussi sous son nom nu : manifest.webmanifest y fait référence sans cache-bust.
+    for extra in ("sw.js", "CNAME", "manifest.webmanifest", "icon.svg"):
         src = os.path.join(TEMPLATES_DIR, extra)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(BUILD_DIR, extra))

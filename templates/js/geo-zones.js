@@ -1,10 +1,13 @@
 import { state, uFuels, PRICE_EPS, PRICE_NEAR, maxAge } from './state.js';
-import { E, hasFuel, notice, titleCase, stationName } from './helpers.js';
+import { E, jsStr, notice, titleCase, stationName } from './helpers.js';
 import { pClass, tankInline } from './prices.js';
-import { freshPill, isExpired } from './freshness.js';
+import { freshPill, isExpired, hasActiveFuel } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav, syncHeaderFav } from './navigation.js';
 import { bestWidget } from './geolocation.js';
+
+// Une région peut compter plus de mille stations : au-delà, le DOM et Leaflet s'écroulent sur mobile.
+const GEO_MAX = 200;
 
 export function searchGeo(type, name, fuel) {
   let sids = [];
@@ -21,23 +24,25 @@ export function searchGeo(type, name, fuel) {
   state.detailAnchor = null;
   state.proxSearch = null;
   state.geoZone = { type, name, stationIds: sids };
-  const isActive = (st) => uFuels.some(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
-  const all = sids.map(id => ({ id, station: state.db.stations[id], dist: 0 })).filter(s => s.station && isActive(s.station));
+  const all = sids.map(id => ({ id, station: state.db.stations[id], dist: 0 })).filter(s => s.station && hasActiveFuel(s.station));
   let sf = fuel || uFuels[0] || '';
+  if (sf && !uFuels.includes(sf)) sf = uFuels[0] || '';
   let sts = [...all];
   if (sf) {
     sts = sts.filter(s => s.station.carburants_disponibles[sf] && !isExpired(s.station.carburants_disponibles[sf], maxAge));
     sts.sort((a, b) => parseFloat(a.station.carburants_disponibles[sf].prix) - parseFloat(b.station.carburants_disponibles[sf].prix));
   }
+  const shown = sts.slice(0, GEO_MAX);
   const zl = type === 'region' ? name : `${name} (dép.)`;
   document.getElementById('stitle').textContent = zl;
   const opts = uFuels.map(f => `<option value="${f}" ${sf === f ? 'selected' : ''}>${f}</option>`).join('');
   let minP = null;
   if (sf && sts.length) minP = Math.min(...sts.map(s => parseFloat(s.station.carburants_disponibles[sf].prix)));
-  const safeName = name.replace(/'/g, "\\'");
-  let h = `<div class="zone-h"><h2>${E(zl)}</h2><div class="zone-m">${all.length} stations</div></div><div id="station-map" class="d-map"></div>${bestWidget(all)}<div class="sort-bar"><div class="field"><label class="lbl" for="geo-sort">Trier par</label><select id="geo-sort" onchange="searchGeo('${type}','${safeName}',this.value)" class="inp">${opts}</select></div><div class="count">${sts.length} station${sts.length > 1 ? 's' : ''}</div></div><div class="card card-list">`;
+  const safeName = jsStr(name);
+  const countLbl = sts.length > GEO_MAX ? `${GEO_MAX} affichées / ${sts.length}` : `${sts.length} station${sts.length > 1 ? 's' : ''}`;
+  let h = `<div class="zone-h"><h2>${E(zl)}</h2><div class="zone-m">${all.length} stations</div></div><div id="station-map" class="d-map"></div>${bestWidget(all)}<div class="sort-bar"><div class="field"><label class="lbl" for="geo-sort">Trier par</label><select id="geo-sort" onchange="searchGeo('${type}','${safeName}',this.value)" class="inp">${opts}</select></div><div class="count">${countLbl}</div></div><div class="card card-list">`;
   if (all.length && !sts.length) h += notice('Aucune station ne propose ce carburant', '');
-  sts.forEach(r => {
+  shown.forEach(r => {
     const s = r.station;
     let ph = '';
     let mmk = 'station_blue';
@@ -61,9 +66,10 @@ export function searchGeo(type, name, fuel) {
     h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div><div class="s-prices">${ph}</div></div>`;
   });
   h += '</div>';
+  if (sts.length > GEO_MAX) h += `<div class="u-mt-05">${notice(`Liste limitée aux ${GEO_MAX} stations les moins chères`, 'Affinez par département ou utilisez la recherche par ville pour un résultat complet.')}</div>`;
   document.getElementById('scontent').innerHTML = h;
   window.scrollTo(0, 0);
-  const src = sts.length ? sts : all;
+  const src = shown.length ? shown : all.slice(0, GEO_MAX);
   const mm = src.filter(s => s.station.lat && s.station.lon).map(s => ({ type: s.mk || 'station_blue', lat: s.station.lat, lon: s.station.lon, label: stationName(s.station), adresse: `${s.station.adresse}, ${s.station.ville}`, id: s.id }));
   setTimeout(() => initMap(mm, true), 80);
   syncHeaderFav();

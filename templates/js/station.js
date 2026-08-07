@@ -7,9 +7,15 @@ import { pushNav } from './navigation.js';
 
 export function showStation(sid) {
   const station = state.db.stations[sid]; if (!station) return;
+  const sv = document.getElementById('station-view');
+  const prevSid = sv.getAttribute('data-sid');
+  // Empiler le contexte quitté pour que « retour » restaure la liste ou la station d'origine.
   if (!document.getElementById('home-view').classList.contains('hidden')) pushNav({ type: 'home' });
+  else if (prevSid && prevSid !== sid) pushNav({ type: 'station', sid: prevSid });
+  else if (!prevSid && state.proxSearch) pushNav({ type: 'prox', lat: state.proxSearch.lat, lon: state.proxSearch.lon, label: state.proxSearch.label, customR: state.proxSearch.customR });
+  else if (!prevSid && state.geoZone) pushNav({ type: 'geo', gType: state.geoZone.type, name: state.geoZone.name });
   document.getElementById('home-view').classList.add('hidden');
-  const sv = document.getElementById('station-view'); sv.classList.remove('hidden'); sv.setAttribute('data-sid', sid);
+  sv.classList.remove('hidden'); sv.setAttribute('data-sid', sid);
   document.getElementById('stitle').textContent = stationName(station);
   document.getElementById('btn-fav-header').hidden = true;
 

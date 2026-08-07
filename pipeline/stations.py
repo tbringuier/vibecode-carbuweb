@@ -3,7 +3,7 @@ import os
 
 import pandas as pd
 
-from .config import EXCEL_RT_FILE, ALL_FUELS, RT_FUEL_COLUMNS, VALID_PRICE_MIN, VALID_PRICE_MAX, FUEL_PRICE_RANGES
+from .config import EXCEL_RT_FILE, RT_FUEL_COLUMNS, VALID_PRICE_MIN, VALID_PRICE_MAX, FUEL_PRICE_RANGES
 from .helpers import (
     normalize_text,
     parse_geom_lat_lon,

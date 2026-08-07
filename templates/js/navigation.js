@@ -4,6 +4,7 @@ import { renderFavs, favKey, toggleFavAddr } from './favorites.js';
 import { renderExploreMap, renderDash, findCheapest } from './explore.js';
 import { findNear } from './geolocation.js';
 import { searchGeo } from './geo-zones.js';
+import { showStation } from './station.js';
 
 export function switchTab(tab) {
   const sv = document.getElementById('station-view');
@@ -37,8 +38,9 @@ export function initPopstate() {
     if (!state.navStack.length) { goHome(); return; }
     const p = state.navStack.pop(); state.isRestoring = true;
     try {
-      if (p.type === 'prox') findNear(p.lat, p.lon, p.label);
+      if (p.type === 'prox') findNear(p.lat, p.lon, p.label, p.customR);
       else if (p.type === 'geo') searchGeo(p.gType, p.name);
+      else if (p.type === 'station') showStation(p.sid);
       else goHome();
     } finally {
       state.isRestoring = false;

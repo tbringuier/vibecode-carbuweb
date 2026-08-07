@@ -5,7 +5,6 @@ log = logging.getLogger("carbuweb")
 
 def purge_priceless_stations(db):
     """Supprime les stations sans aucun prix de tous les index."""
-    before = len(db["stations"])
     empty_sids = [sid for sid, st in db["stations"].items() if not st["carburants_disponibles"]]
     for sid in empty_sids:
         st = db["stations"][sid]

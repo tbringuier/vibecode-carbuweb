@@ -6,9 +6,14 @@ import { renderFavs } from './favorites.js';
 import { refreshActive, refreshAll } from './settings.js';
 
 export function applyV() {
-  if (!vehicles.length) { setActiveV(null); localStorage.removeItem(LS.av); localStorage.removeItem(LS.fl); setUFuels([...FUELS]); return; }
-  if (activeV) { const v = vehicles.find(x => x.id === activeV); if (v) { setUFuels([...v.fuels]); return; } setActiveV(null); localStorage.removeItem(LS.av); }
-  setUFuels(JSON.parse(localStorage.getItem(LS.fl)) || [...FUELS]);
+  // LS.fl : ancien filtre carburants manuel sans UI pour le modifier — purgé pour ne pas appliquer un filtre invisible.
+  localStorage.removeItem(LS.fl);
+  if (activeV && vehicles.length) {
+    const v = vehicles.find(x => x.id === activeV);
+    if (v) { setUFuels(Array.isArray(v.fuels) && v.fuels.length ? [...v.fuels] : [...FUELS]); return; }
+  }
+  if (activeV || !vehicles.length) { setActiveV(null); localStorage.removeItem(LS.av); }
+  setUFuels([...FUELS]);
 }
 export function switchV(id) {
   if (id === activeV) return;
@@ -50,7 +55,7 @@ export function openVForm(id) {
   ['v-name-err', 'v-fuels-err', 'v-tank-err'].forEach(x => document.getElementById(x)?.classList.add('hidden'));
   ['v-name', 'v-tank'].forEach(x => document.getElementById(x)?.classList.remove('inp-err'));
   const si = ex ? ex.icon : ICONS[0];
-  document.getElementById('v-icons').innerHTML = ICONS.map(ic => `<button type="button" onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('sel'));this.classList.add('sel')" data-ic="${ic}" class="${ic === si ? 'sel' : ''}">${ic}</button>`).join('');
+  document.getElementById('v-icons').innerHTML = ICONS.map(ic => `<button type="button" onclick="this.parentNode.querySelectorAll('button').forEach(b=>{b.classList.remove('sel');b.setAttribute('aria-pressed','false')});this.classList.add('sel');this.setAttribute('aria-pressed','true')" data-ic="${ic}" class="${ic === si ? 'sel' : ''}" aria-pressed="${ic === si}" aria-label="Icône ${ic}">${ic}</button>`).join('');
   const sf = ex ? ex.fuels : [];
   document.getElementById('v-fuels').innerHTML = FUELS.map(f => `<label class="fuel-tg${sf.includes(f) ? ' sel' : ''}"><input type="checkbox" value="${f}" class="vcb" ${sf.includes(f) ? 'checked' : ''} onchange="this.closest('.fuel-tg').classList.toggle('sel',this.checked)">${f}</label>`).join('');
   document.getElementById('v-name').focus();

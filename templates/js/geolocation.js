@@ -1,7 +1,7 @@
 import { state, radius, uFuels, PRICE_EPS, PRICE_NEAR, maxAge } from './state.js';
-import { E, hav, maxKm, fmtKm, hasFuel, notice, titleCase, stationName } from './helpers.js';
+import { E, hav, maxKm, fmtKm, notice, titleCase, stationName } from './helpers.js';
 import { pClass, pickBest, tankInline } from './prices.js';
-import { freshPill, isExpired } from './freshness.js';
+import { freshPill, isExpired, hasActiveFuel } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav, syncHeaderFav } from './navigation.js';
 import { withR } from './settings.js';
@@ -18,7 +18,12 @@ export function geolocateMe() {
   document.getElementById('sresults').innerHTML = '<div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Localisation en cours…</p></div>';
   navigator.geolocation.getCurrentPosition(
     p => findNear(p.coords.latitude, p.coords.longitude, 'Votre position'),
-    () => { document.getElementById('sresults').innerHTML = notice('Position non disponible', 'Vérifiez que vous avez bien autorisé la géolocalisation.'); },
+    err => {
+      const msg = err?.code === 1
+        ? 'La géolocalisation a été refusée. Autorisez-la dans votre navigateur puis réessayez, ou cherchez une ville.'
+        : 'Position introuvable pour le moment. Réessayez, ou cherchez une ville ou un code postal.';
+      document.getElementById('sresults').innerHTML = notice('Position non disponible', msg);
+    },
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
   );
 }
@@ -43,37 +48,33 @@ export function applySort(fuel) {
 export function renderList(lat, lon, label, sortFuel) {
   document.getElementById('stitle').textContent = label || 'Résultats';
   const mk = maxKm();
-  const isActive = (s) => uFuels.some(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge));
-  let sts = [];
+  const all = [];
   for (const [id, s] of Object.entries(state.db.stations)) {
-    if (!s.lat || !s.lon || !isActive(s)) continue;
+    if (!s.lat || !s.lon || !hasActiveFuel(s)) continue;
     const d = hav(lat, lon, s.lat, s.lon);
-    if (d <= mk) sts.push({ id, station: s, dist: d });
+    if (d <= mk) all.push({ id, station: s, dist: d });
   }
+  let sts;
   if (sortFuel) {
-    sts = sts.filter(s => s.station.carburants_disponibles[sortFuel] && !isExpired(s.station.carburants_disponibles[sortFuel], maxAge));
+    sts = all.filter(s => s.station.carburants_disponibles[sortFuel] && !isExpired(s.station.carburants_disponibles[sortFuel], maxAge));
     sts.sort((a, b) => {
       const pa = parseFloat(a.station.carburants_disponibles[sortFuel].prix);
       const pb = parseFloat(b.station.carburants_disponibles[sortFuel].prix);
       return Math.abs(pa - pb) > PRICE_EPS ? pa - pb : a.dist - b.dist;
     });
   } else {
-    sts.sort((a, b) => a.dist - b.dist);
+    sts = [...all].sort((a, b) => a.dist - b.dist);
   }
   const opts = `<option value="" ${!sortFuel ? 'selected' : ''}>Distance</option>` +
     uFuels.map(f => `<option value="${f}" ${sortFuel === f ? 'selected' : ''}>${f}</option>`).join('');
   let minP = null;
   if (sortFuel && sts.length) minP = Math.min(...sts.map(s => parseFloat(s.station.carburants_disponibles[sortFuel].prix)));
-  const allR = [];
-  for (const [id, s] of Object.entries(state.db.stations)) {
-    if (!s.lat || !s.lon || !isActive(s)) continue;
-    const d = hav(lat, lon, s.lat, s.lon); if (d <= mk) allR.push({ id, station: s, dist: d });
-  }
-  const bw = bestWidget(allR);
+  const bw = bestWidget(all);
   const bwHtml = bw ? `<div class="best-band">${bw}</div>` : '';
   let h = `<div id="station-map" class="d-map"></div>${bwHtml}<div class="sort-bar"><div class="field"><label class="lbl" for="sort-fuel">Trier par</label><select id="sort-fuel" class="inp" onchange="applySort(this.value)">${opts}</select></div><div class="count">${sts.length} station${sts.length > 1 ? 's' : ''}</div></div><div class="card card-list">`;
   if (!sts.length) h += notice('Aucune station trouvée', sortFuel ? `Aucune station ne propose ${sortFuel} dans ce rayon.` : 'Élargissez le rayon depuis les paramètres.');
-  const markers = [{ type: 'search_point', lat, lon, label }];
+  // circleKm/rKm figés ici : le rayon global est temporairement remplacé par withR() pendant le rendu (rayon personnalisé d'un favori).
+  const markers = [{ type: 'search_point', lat, lon, label, circleKm: mk, rKm: radius }];
   sts.forEach(r => {
     const s = r.station;
     let ph = '';
@@ -95,7 +96,7 @@ export function renderList(lat, lon, label, sortFuel) {
     }
     const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
     h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div><div class="tank u-mt-025">${fmtKm(r.dist)}</div></div><div class="s-prices">${ph}</div></div>`;
-    if (s.lat && s.lon) markers.push({ type: mmk, lat: s.lat, lon: s.lon, label: stationName(s), adresse: `${s.adresse}, ${s.ville}`, id: r.id });
+    markers.push({ type: mmk, lat: s.lat, lon: s.lon, label: stationName(s), adresse: `${s.adresse}, ${s.ville}`, id: r.id });
   });
   h += '</div>';
   document.getElementById('scontent').innerHTML = h;
