@@ -1,11 +1,17 @@
 import { state, activeV, vehicles, PRICE_EPS, PRICE_NEAR, maxAge } from './state.js';
-import { hav, nearKm, stationName } from './helpers.js';
-import { isExpired } from './freshness.js';
+import { hav, nearKm, stationName, fmtP } from './helpers.js';
+import { isExpired, freshPill } from './freshness.js';
 
 export function tankSize() { if (!activeV) return null; const v = vehicles.find(x => x.id === activeV); return v?.tank || null; }
 export function tankStr(p) { const t = tankSize(); if (!t || !Number.isFinite(p)) return null; return (p * t).toFixed(2).replace('.', ','); }
 export function tankHtml(p) { const s = tankStr(p); return s ? `<div class="tank">Plein <b>${s}\u202f€</b></div>` : ''; }
 export function tankInline(p) { const s = tankStr(p); return s ? ` <span class="tank tank-inline">→ <b>${s}\u202f€</b></span>` : ''; }
+
+// Étiquette prix d'une liste (carburant, prix, fraîcheur, plein). `cls` imposé, sinon classement local.
+export function ptag(sid, fuel, entry, cls) {
+  const p = parseFloat(entry.prix);
+  return `<div class="ptag ${cls ?? pClass(sid, fuel, entry.prix)}"><span class="ptag-f">${fuel}</span><span class="ptag-v">${fmtP(p)}\u202f€</span>${freshPill(entry)}${tankInline(p)}</div>`;
+}
 
 const nearCache = new Map();
 export function clearNearCache() { nearCache.clear(); }

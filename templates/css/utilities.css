@@ -51,7 +51,7 @@
   margin-top: 1.25rem;
 }
 
-.explore-stats h3 {
+.explore-stats > .sec-t {
   font-size: .9375rem;
   font-weight: 700;
   margin-bottom: .625rem;

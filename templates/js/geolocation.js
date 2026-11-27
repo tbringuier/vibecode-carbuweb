@@ -1,7 +1,7 @@
 import { state, radius, uFuels, PRICE_EPS, PRICE_NEAR, maxAge } from './state.js';
-import { E, hav, maxKm, fmtKm, notice, titleCase, stationName } from './helpers.js';
-import { pClass, pickBest, tankInline } from './prices.js';
-import { freshPill, isExpired, hasActiveFuel } from './freshness.js';
+import { E, hav, maxKm, fmtKm, fmtEur, notice, titleCase, stationName } from './helpers.js';
+import { pickBest, tankInline, ptag } from './prices.js';
+import { isExpired, hasActiveFuel } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav, syncHeaderFav } from './navigation.js';
 import { withR } from './settings.js';
@@ -85,14 +85,9 @@ export function renderList(lat, lon, label, sortFuel) {
       let cls = '';
       if (d !== null && d <= PRICE_EPS) { cls = 'cheap'; mmk = 'station_green'; }
       else if (d !== null && d <= PRICE_NEAR) { cls = 'mid'; mmk = 'station_orange'; }
-      const fp = freshPill(s.carburants_disponibles[sortFuel]);
-      ph = `<div class="ptag ${cls}"><span class="ptag-f">${sortFuel}</span><span class="ptag-v">${s.carburants_disponibles[sortFuel].prix}€</span>${fp}${tankInline(p)}</div>`;
+      ph = ptag(r.id, sortFuel, s.carburants_disponibles[sortFuel], cls);
     } else {
-      ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => {
-        const cls = pClass(r.id, f, s.carburants_disponibles[f].prix);
-        const fp = freshPill(s.carburants_disponibles[f]);
-        return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[f].prix))}</div>`;
-      }).join('');
+      ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => ptag(r.id, f, s.carburants_disponibles[f])).join('');
     }
     const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
     h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div><div class="tank u-mt-025">${fmtKm(r.dist)}</div></div><div class="s-prices">${ph}</div></div>`;
@@ -110,7 +105,7 @@ export function bestWidget(sts) {
   uFuels.forEach(f => {
     const b = pickBest(sts, f);
     if (b) {
-      c += `<div class="best-c" role="button" tabindex="0" onclick="showStation('${b.id}')"><div class="best-f">${f}</div><div class="best-v">${b.prix.toFixed(3)}€</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div></div>`;
+      c += `<div class="best-c" role="button" tabindex="0" onclick="showStation('${b.id}')"><div class="best-f">${f}</div><div class="best-v">${fmtEur(b.prix)}</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div></div>`;
     }
   });
   return c ? `<div class="sec-l">Meilleurs prix</div><div class="best-g">${c}</div>` : '';

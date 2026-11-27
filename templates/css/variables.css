@@ -37,6 +37,15 @@
   --rd2: #dc2626;
   --rb: #fef2f2;
 
+  /* Carburants — une teinte fixe par carburant (ordre FUELS), la même dans tous les graphiques.
+     Palette catégorielle validée daltonisme (écart CVD adjacent >= 8) en clair et en sombre. */
+  --fuel-gazole: #257de0;
+  --fuel-sp95: #f47230;
+  --fuel-e10: #00b894;
+  --fuel-sp98: #f2a600;
+  --fuel-e85: #ee7fac;
+  --fuel-gplc: #008a17;
+
   /* Focus ring */
   --fr: 0 0 0 3px color-mix(in oklab, var(--ac) 30%, transparent);
 
@@ -97,6 +106,13 @@
     --rd: #f87171;
     --rd2: #fca5a5;
     --rb: #2b0c0c;
+
+    --fuel-gazole: #338ced;
+    --fuel-sp95: #e76624;
+    --fuel-e10: #00a888;
+    --fuel-sp98: #d28e05;
+    --fuel-e85: #e24d8b;
+    --fuel-gplc: #0aac23;
 
     --sh: 0 1px 2px rgba(0, 0, 0, .4), 0 1px 3px rgba(0, 0, 0, .35);
     --sh-h: 0 4px 8px rgba(0, 0, 0, .35), 0 10px 20px rgba(0, 0, 0, .45);

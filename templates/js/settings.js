@@ -7,7 +7,9 @@ import { debouncedSearch, renderHomeTeaser } from './search.js';
 import { renderList } from './geolocation.js';
 import { searchGeo } from './geo-zones.js';
 import { renderDash, findCheapest } from './explore.js';
+import { renderZoneHistory } from './history.js';
 import { showStation } from './station.js';
+import { clearHistCache } from './history.js';
 
 export function toggleSettings() {
   const m = document.getElementById('settings-modal');
@@ -26,11 +28,11 @@ export function refreshActive(o) {
   if (state.proxSearch) { let sf = reset ? (uFuels[0] || '') : (document.getElementById('sort-fuel')?.value || ''); if (sf && !uFuels.includes(sf)) sf = uFuels[0] || ''; withR(() => renderList(state.proxSearch.lat, state.proxSearch.lon, state.proxSearch.label, sf)); }
   else if (state.geoZone) { let gf = reset ? (uFuels[0] || '') : (document.getElementById('geo-sort')?.value || uFuels[0] || ''); if (gf && !uFuels.includes(gf)) gf = uFuels[0] || ''; searchGeo(state.geoZone.type, state.geoZone.name, gf); }
   else if (!document.getElementById('home-view').classList.contains('hidden')) debouncedSearch();
-  if (!document.getElementById('pane-explorer').classList.contains('hidden')) { state.chartsInit = false; renderDash(); findCheapest(); }
+  if (!document.getElementById('pane-explorer').classList.contains('hidden')) { state.chartsInit = false; renderDash(); findCheapest(); renderZoneHistory(); }
   const sid = document.getElementById('station-view').getAttribute('data-sid');
   if (sid && !document.getElementById('station-view').classList.contains('hidden')) showStation(sid);
 }
 export function refreshAll() { clearNearCache(); renderVBar(); renderVList(); renderFavs(); renderHomeTeaser(); syncFooter(); refreshActive({}); }
 export function syncFooter() { const el = document.getElementById('ft-count'); if (el && state.db) el.textContent = fmtInt(Object.keys(state.db.stations).length); }
 export function withR(fn) { const cr = state.proxSearch?.customR; if (!cr) return fn(); const s = radius; setRadius(cr); try { fn(); } finally { setRadius(s); } }
-export async function refreshData() { if (!state.db) return; try { const r = await fetch(`data.json?_=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) return; const n = await r.json(); if (!n?.stations) return; state.db = n; state.lastFetch = Date.now(); refreshAll(); } catch (e) { console.warn('refresh', e); } }
+export async function refreshData() { if (!state.db) return; try { const r = await fetch(`data.json?_=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) return; const n = await r.json(); if (!n?.stations) return; state.db = n; state.lastFetch = Date.now(); clearHistCache(); refreshAll(); } catch (e) { console.warn('refresh', e); } }

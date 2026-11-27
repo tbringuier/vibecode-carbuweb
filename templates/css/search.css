@@ -277,3 +277,28 @@
   white-space: nowrap;
   margin-left: auto;
 }
+
+.teaser-hint {
+  font-size: .6875rem;
+  color: var(--t3);
+}
+
+.teaser-card-f {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+}
+
+/* Variation sur 7 jours (remplie par history.js si l'historique est publié) */
+.teaser-card-t {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  min-height: 1rem;
+  font-size: .6875rem;
+}
+
+.teaser-card-p {
+  color: var(--t3);
+  font-weight: 600;
+}

@@ -22,7 +22,8 @@ export function mkIcon(c) {
 }
 
 export function initMap(markers /*, multi */) {
-  if (state.stationMap) state.stationMap.remove();
+  // Navigation rapide : arrêter les animations avant destruction (sinon erreur Leaflet « _leaflet_pos »).
+  if (state.stationMap) { state.stationMap.stop(); state.stationMap.remove(); state.stationMap = null; }
   const el = document.getElementById('station-map');
   if (!el || !markers.length) {
     if (el) el.innerHTML = '<div class="map-empty"><b>Carte indisponible</b></div>';
@@ -56,6 +57,7 @@ export function initMap(markers /*, multi */) {
   else state.stationMap.setView(bounds[0], 13);
   // Leaflet needs accurate container size; recompute after layout settles.
   const m = state.stationMap;
-  requestAnimationFrame(() => m.invalidateSize());
-  setTimeout(() => m.invalidateSize(), 160);
+  const resize = () => { if (state.stationMap === m) m.invalidateSize(); };
+  requestAnimationFrame(resize);
+  setTimeout(resize, 160);
 }

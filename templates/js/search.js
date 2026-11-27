@@ -1,8 +1,9 @@
 import { state, uFuels, favs, FUELS, maxAge } from './state.js';
-import { norm, E, jsStr, notice, titleCase, stationName } from './helpers.js';
-import { pClass, tankInline } from './prices.js';
-import { freshPill, isExpired, hasActiveFuel } from './freshness.js';
+import { norm, E, jsStr, notice, titleCase, stationName, fmtP } from './helpers.js';
+import { ptag } from './prices.js';
+import { isExpired, hasActiveFuel } from './freshness.js';
 import { favKey } from './favorites.js';
+import { decorateTeaser } from './history.js';
 
 export function debouncedSearch() { clearTimeout(state.searchTimeout); state.searchTimeout = setTimeout(doSearch, 400); }
 
@@ -12,17 +13,18 @@ export function renderHomeTeaser() {
   const avg = state.db.dashboard.national.avg_prices || {};
   const cards = FUELS
     .filter(f => typeof avg[f] === 'number' && avg[f] > 0)
-    .map(f => `<button type="button" class="teaser-card" onclick="jumpToExplorer('${f}')"><span class="teaser-card-f">${E(f)}</span><span class="teaser-card-v">${avg[f].toFixed(3)}<span class="teaser-card-u"> €/L</span></span></button>`)
+    .map(f => `<button type="button" class="teaser-card" data-fuel="${f}" onclick="jumpToExplorer('${f}')"><span class="teaser-card-f"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${E(f)}</span><span class="teaser-card-v">${fmtP(avg[f])}<span class="teaser-card-u">\u202f€/L</span></span><span class="teaser-card-t"></span></button>`)
     .join('');
   if (!cards) return;
-  c.innerHTML = `<div class="teaser-head"><h2 id="home-teaser-t" class="teaser-title">Prix moyens en France</h2></div><div class="teaser-grid">${cards}</div>`;
+  c.innerHTML = `<div class="teaser-head"><h2 id="home-teaser-t" class="teaser-title">Prix moyens en France</h2><span class="teaser-hint">Touchez un carburant pour voir le classement</span></div><div class="teaser-grid">${cards}</div>`;
   c.classList.remove('hidden');
+  decorateTeaser();
 }
 
 export function jumpToExplorer(fuel) {
   window.switchTab?.('explorer');
   const s = document.getElementById('exp-fuel');
-  if (s && fuel) { s.value = fuel; window.findCheapest?.(); }
+  if (s && fuel) { s.value = fuel; window.onFuelChange?.(); }
 }
 
 export async function doSearch() {
@@ -124,10 +126,5 @@ export async function doSearch() {
 export function searchPrices(sid, st) {
   const fs = uFuels.filter(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
   if (!fs.length) return '<span class="s-arrow">→</span>';
-  return fs.map(f => {
-    const d = st.carburants_disponibles[f];
-    const cls = pClass(sid, f, d.prix);
-    const fp = freshPill(d);
-    return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${d.prix}€</span>${fp}${tankInline(parseFloat(d.prix))}</div>`;
-  }).join('');
+  return fs.map(f => ptag(sid, f, st.carburants_disponibles[f])).join('');
 }

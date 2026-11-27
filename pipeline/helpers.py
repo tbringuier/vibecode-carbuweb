@@ -312,12 +312,12 @@ def footer_fuel_data_update_html(meta: dict) -> str:
         return (
             "<span>Dernière actualisation prix carburants\u202f: "
             f'<time id="footer-fuel-data-datetime" datetime="{iso_e}" '
-            f'class="font-medium text-slate-700 tabular-nums" title="{title}">{label_e}</time>'
+            f'class="u-semibold u-tabular" title="{title}">{label_e}</time>'
             "</span>"
         )
     return (
         "<span>Dernière actualisation prix carburants\u202f: "
-        f'<span id="footer-fuel-data-datetime" class="font-medium text-slate-600">{label_e}</span></span>'
+        f'<span id="footer-fuel-data-datetime" class="u-semibold">{label_e}</span></span>'
     )
 
 

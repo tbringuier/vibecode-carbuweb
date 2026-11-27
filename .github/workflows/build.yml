@@ -19,8 +19,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       TZ: Europe/Paris
+      HISTORY_KEEP_COMMITS: 30
 
     steps:
       - uses: actions/checkout@v6
@@ -45,6 +47,22 @@ jobs:
           key: osm-mapping-${{ steps.builddate.outputs.date }}
           restore-keys: osm-mapping-
 
+      # Historique des prix : branche orpheline `history` (voir pipeline/history.py).
+      # Absente au premier run : creee vide, l'import retroactif des archives demarre alors.
+      - name: Recuperer la branche d'historique
+        id: history
+        env:
+          REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: |
+          if git ls-remote --exit-code --heads "$REPO_URL" history >/dev/null 2>&1; then
+            git clone --quiet --single-branch --branch history --depth "$((HISTORY_KEEP_COMMITS + 5))" "$REPO_URL" .history
+            echo "tip=$(git -C .history rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            git init --quiet -b history .history
+            git -C .history remote add origin "$REPO_URL"
+            echo "tip=" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -56,6 +74,8 @@ jobs:
           .venv/bin/pip install --no-compile -r requirements.txt
 
       - name: Build
+        env:
+          CARBUWEB_HISTORY_DIR: .history
         run: .venv/bin/python main.py
 
       - name: Sauvegarder le cache mapping OpenStreetMap
@@ -65,6 +85,38 @@ jobs:
           path: datasets/osm_mapping-*.json
           key: osm-mapping-${{ steps.builddate.outputs.date }}
 
+      # Un commit par build qui change des donnees ; au-dela de HISTORY_KEEP_COMMITS commits,
+      # les plus anciens sont fusionnes en un commit racine (memes arbres, simple re-chainage) :
+      # la branche reste a la taille des donnees, avec quelques jours de retour arriere possible.
+      # Un echec ici ne bloque pas le deploiement : le run suivant reimporte les memes sources.
+      - name: Publier l'historique (branche history)
+        continue-on-error: true
+        working-directory: .history
+        env:
+          OLD_TIP: ${{ steps.history.outputs.tip }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Historique inchange."
+            exit 0
+          fi
+          git commit --quiet -m "Historique $(date '+%Y-%m-%d %H:%M %Z')"
+          if [ "$(git rev-list --count HEAD)" -gt "$HISTORY_KEEP_COMMITS" ]; then
+            base=$(git rev-list HEAD --skip=$((HISTORY_KEEP_COMMITS - 1)) -n 1)
+            new=$(git commit-tree "${base}^{tree}" -m "Historique consolide jusqu'au $(git log -1 --format=%cs "$base")")
+            for c in $(git rev-list --reverse "${base}..HEAD"); do
+              new=$(git commit-tree "${c}^{tree}" -p "$new" -m "$(git log -1 --format=%B "$c")")
+            done
+            git reset --quiet --soft "$new"
+          fi
+          if [ -n "$OLD_TIP" ]; then
+            git push --quiet --force-with-lease="history:$OLD_TIP" origin HEAD:history
+          else
+            git push --quiet origin HEAD:history
+          fi
+
       - name: Mettre à jour la branche pages (miroir)
         run: |
           cd build
@@ -72,7 +124,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b pages
-          git add -A
+          # L'historique vit sur sa propre branche : ne pas le re-televerser a chaque build.
+          git add -A -- . ':(exclude)history'
           git commit -m "Build $(date -u +%Y-%m-%d)"
           git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" pages
 

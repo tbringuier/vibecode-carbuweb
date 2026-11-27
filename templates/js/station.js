@@ -1,9 +1,10 @@
 import { state, favs, uFuels, PRICE_EPS, maxAge } from './state.js';
-import { E, coord, hav, fmtKm, notice, titleCase, stationName } from './helpers.js';
+import { E, coord, hav, fmtKm, fmtP, fmtEur, fmtCts, notice, titleCase, stationName } from './helpers.js';
 import { nearby, pClass, pickBest, tankHtml } from './prices.js';
 import { freshPill, freshLabel, majHtml, isExpired } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav } from './navigation.js';
+import { renderStationHistory } from './history.js';
 
 export function showStation(sid) {
   const station = state.db.stations[sid]; if (!station) return;
@@ -55,7 +56,7 @@ export function showStation(sid) {
     if (isExpired(d, maxAge)) {
       const fl = freshLabel(d);
       const mj = majHtml(d);
-      h += `<div class="p-card stale"><div class="p-card-f">${fuel}</div><div class="p-card-v">${d.prix}<span class="p-card-u"> €/L</span></div><div class="p-card-d">${mj ? `Maj. ${mj}` : ''}</div><div class="p-card-fl">${E(fl)}</div><div class="p-card-stale-notice">Masqué (ancienneté &gt; ${maxAge}j)</div></div>`;
+      h += `<div class="p-card stale"><div class="p-card-f">${fuel}</div><div class="p-card-v">${fmtP(d.prix)}<span class="p-card-u">\u202f€/L</span></div><div class="p-card-d">${mj ? `Maj. ${mj}` : ''}</div><div class="p-card-fl">${E(fl)}</div><div class="p-card-stale-notice">Masqué (ancienneté &gt; ${maxAge}j)</div></div>`;
       const b = pickBest(nSts, fuel);
       if (b) alts.push({ fuel, prix: b.prix, id: b.id, nom: b.nom, dist: b.dist, isNew: true });
       return;
@@ -74,19 +75,16 @@ export function showStation(sid) {
       const nm = mp.national?.[fuel];
       const rm = mp.regional?.[station.region]?.[fuel];
       const p = parseFloat(d.prix);
-      if (Number.isFinite(nm) && Number.isFinite(p)) {
-        const diff = p - nm;
-        cmp = `<div class="p-card-cmp">Min. nat. ${nm.toFixed(3)}€ (${diff > 0 ? '+' : ''}${diff.toFixed(3)})</div>`;
-      }
-      if (Number.isFinite(rm) && Number.isFinite(p) && rm !== nm) {
-        const diff = p - rm;
-        cmp += `<div class="p-card-cmp">Min. rég. ${rm.toFixed(3)}€ (${diff > 0 ? '+' : ''}${diff.toFixed(3)})</div>`;
-      }
+      if (Number.isFinite(nm) && Number.isFinite(p)) cmp = `<div class="p-card-cmp">Mini national ${fmtEur(nm)} <span class="p-card-cd">${fmtCts(p - nm)}</span></div>`;
+      if (Number.isFinite(rm) && Number.isFinite(p) && rm !== nm) cmp += `<div class="p-card-cmp">Mini régional ${fmtEur(rm)} <span class="p-card-cd">${fmtCts(p - rm)}</span></div>`;
     }
-    h += `<div class="p-card ${cls}"><div class="p-card-f">${fuel}</div><div class="p-card-v">${d.prix}<span class="p-card-u"> €/L</span></div>${tankHtml(parseFloat(d.prix))}<div class="p-card-d">${mj ? `Maj. ${mj}` : ''} ${fp}</div><div class="p-card-fl">${E(fl)}</div>${cmp}</div>`;
+    h += `<div class="p-card ${cls}"><div class="p-card-f">${fuel}</div><div class="p-card-v">${fmtP(d.prix)}<span class="p-card-u">\u202f€/L</span></div>${tankHtml(parseFloat(d.prix))}<div class="p-card-d">${mj ? `Maj. ${mj}` : ''} ${fp}</div><div class="p-card-fl">${E(fl)}</div>${cmp}</div>`;
   });
   if (!hasP) h += `<div class="u-grow">${notice('Aucun prix renseigné', '')}</div>`;
   h += '</div>';
+
+  // Historique : chargé après le rendu (fichier statique par station, voir history.js).
+  h += '<section class="hist" aria-labelledby="hist-t"><div class="sec-l"><h2 id="hist-t" class="sec-t">Historique des prix</h2></div><div id="hist-body" class="card hist-card"><div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Chargement de l\'historique…</p></div></div></section>';
 
   if (alts.length) {
     h += '<div class="sec-l">Alternatives proches</div>';
@@ -94,7 +92,7 @@ export function showStation(sid) {
     alts.forEach(a => {
       if (!grp[a.id]) grp[a.id] = { nom: a.nom, dist: a.dist, fuels: [], better: false };
       if (a.isNew || a.prix < parseFloat(station.carburants_disponibles[a.fuel]?.prix || 999)) grp[a.id].better = true;
-      grp[a.id].fuels.push(`${a.fuel} ${a.prix.toFixed(3)}€${a.isNew ? ' (nouveau)' : ''}`);
+      grp[a.id].fuels.push(`${a.fuel} ${fmtEur(a.prix)}${a.isNew ? ' (non proposé ici)' : ''}`);
     });
     const sorted = Object.entries(grp).sort((a, b) => a[1].dist - b[1].dist);
     for (const [aid, info] of sorted) {
@@ -127,7 +125,8 @@ export function showStation(sid) {
 
   document.getElementById('scontent').innerHTML = h;
   window.scrollTo(0, 0);
-  setTimeout(() => initMap(mm, false), 80);
+  setTimeout(() => { if (document.getElementById('station-view').getAttribute('data-sid') === sid) initMap(mm, false); }, 80);
+  renderStationHistory(sid);
 }
 
 export function getOrigin() {

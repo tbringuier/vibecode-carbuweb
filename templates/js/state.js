@@ -1,5 +1,5 @@
 export const FUELS = ["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"];
-export const LS = { r: 'carbuRadius', f: 'carbuFavorites', v: 'carbuVehicles', av: 'carbuActiveVehicle', fl: 'carbuFuels', w: 'carbuWelcome', ma: 'carbuMaxAge' };
+export const LS = { r: 'carbuRadius', f: 'carbuFavorites', v: 'carbuVehicles', av: 'carbuActiveVehicle', fl: 'carbuFuels', w: 'carbuWelcome', ma: 'carbuMaxAge', hp: 'carbuHistory' };
 export const ROUTE_F = 1.25, PRICE_EPS = 0.0005, PRICE_NEAR = 0.03, REFRESH_MS = 20 * 60 * 1000;
 export const MAX_AGE_DEFAULT = 14, MAX_AGE_OPTIONS = [14, 30, 60, 0];
 export const ICONS = ['🚗', '🚙', '🚛', '🏍️', '🚐', '🚌', '⛽'];
@@ -12,7 +12,10 @@ export const state = {
   favDnD: null, vehicleDnD: null, editVId: null,
   dashSortFuel: null, dashSortDir: 'asc',
   toastT: null, saveT: null, refreshT: null, searchAC: null,
-  exploreMap: null, exploreMarkers: null, lastFetch: 0
+  exploreMap: null, exploreMarkers: null, lastFetch: 0,
+  // Historique (history.js) : réponses fetch mises en cache par URL, graphiques, sélection courante.
+  histCache: new Map(), histChart: null, zoneChart: null, histReq: 0, zoneReq: 0,
+  histFuel: null, zoneFuels: null
 };
 
 // localStorage peut contenir du JSON corrompu (édition manuelle, bug passé) : ne jamais laisser un parse planter le boot.
@@ -38,6 +41,11 @@ export function setVehicles(v) { vehicles = v; }
 
 export let activeV = localStorage.getItem(LS.av) || null;
 export function setActiveV(v) { activeV = v; }
+
+// Préférences d'affichage de l'historique (période, regroupement, comparaison zone).
+export const HIST_DEFAULT = { period: '1y', gran: 'auto', cmp: true };
+export let histPrefs = (() => { try { const v = JSON.parse(localStorage.getItem(LS.hp)); return { ...HIST_DEFAULT, ...(v && typeof v === 'object' ? v : {}) }; } catch { return { ...HIST_DEFAULT }; } })();
+export function setHistPrefs(v) { histPrefs = { ...histPrefs, ...v }; try { localStorage.setItem(LS.hp, JSON.stringify(histPrefs)); } catch { } }
 
 export const saveFavs = () => localStorage.setItem(LS.f, JSON.stringify(favs));
 export const saveVehicles = () => localStorage.setItem(LS.v, JSON.stringify(vehicles));

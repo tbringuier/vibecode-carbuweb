@@ -13,6 +13,7 @@ from .dedup import deduplicate_daily
 from .download import download_daily_prices, download_flux_prices, resolve_osm_mapping
 from .generate import generate_site
 from .helpers import compute_latest_fuel_price_update_meta, check_price_validity
+from .history import run_history_phase
 from .purge import purge_priceless_stations
 from .stations import inject_daily_prices, merge_flux_instantane, register_station
 
@@ -114,4 +115,7 @@ def main():
     build_database(osm_file)
 
     generate_site()
+    # Historique : branche `history` (CARBUWEB_HISTORY_DIR) mise a jour puis copiee dans build/history/.
+    # Ne fait jamais echouer le build : en cas d'erreur, le site sort avec l'historique precedent.
+    run_history_phase()
     log.info("Build complete.")

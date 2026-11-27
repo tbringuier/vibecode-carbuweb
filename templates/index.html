@@ -63,7 +63,8 @@
         <p>Trouvez les meilleurs prix de carburant autour de vous, en temps réel.</p>
         <ul>
           <li><strong>Recherche</strong> — Tapez une ville ou activez le GPS</li>
-          <li><strong>Explorer</strong> — Classement et statistiques par zone</li>
+          <li><strong>Explorer</strong> — Classement, statistiques et évolution des prix par zone</li>
+          <li><strong>Historique</strong> — Courbe des prix de chaque station, par semaine, mois ou année</li>
           <li><strong>Favoris</strong> — Sauvegardez vos lieux et stations</li>
           <li><strong>Paramètres</strong> — Ajoutez vos véhicules pour estimer le plein</li>
         </ul>
@@ -95,22 +96,32 @@
 
           <section id="pane-explorer" class="hidden" role="tabpanel" aria-labelledby="tab-explorer">
             <div id="home-teaser" class="home-teaser hidden" aria-labelledby="home-teaser-t"></div>
-            <div class="explore-row">
-              <div class="field"><label class="lbl" for="exp-fuel">Carburant</label><select id="exp-fuel" class="inp" onchange="findCheapest()"></select></div>
-              <div class="field"><label class="lbl" for="exp-sort">Ordre</label><select id="exp-sort" class="inp" onchange="findCheapest()"><option value="asc">Moins cher</option><option value="desc">Plus cher</option></select></div>
+            <div class="explore-row card" role="group" aria-label="Filtres">
+              <div class="field"><label class="lbl" for="exp-fuel">Carburant</label><select id="exp-fuel" class="inp" onchange="onFuelChange()"></select></div>
               <div class="field"><label class="lbl" for="exp-region">Région</label><select id="exp-region" class="inp" onchange="updateDeptFilter()"><option value="">France entière</option></select></div>
-              <div class="field"><label class="lbl" for="exp-dept">Département</label><select id="exp-dept" class="inp" onchange="findCheapest()"><option value="">Tous</option></select></div>
+              <div class="field"><label class="lbl" for="exp-dept">Département</label><select id="exp-dept" class="inp" onchange="onZoneChange()" disabled><option value="">Tous</option></select></div>
+              <div class="field"><label class="lbl" for="exp-sort">Classement</label><select id="exp-sort" class="inp" onchange="findCheapest()"><option value="asc">Moins cher d'abord</option><option value="desc">Plus cher d'abord</option></select></div>
             </div>
+
+            <section id="zone-hist" class="card hist-zone hidden" aria-labelledby="zone-hist-t">
+              <div class="hist-zone-h">
+                <h2 id="zone-hist-t" class="sec-t">Évolution des prix moyens</h2>
+                <span id="zone-hist-zone" class="pill pill-ac"></span>
+              </div>
+              <div id="zone-hist-body"><div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Chargement de l'historique…</p></div></div>
+            </section>
+
+            <div class="sec-l"><h2 class="sec-t">Classement des stations</h2><span id="palmares-count" class="sec-count"></span></div>
             <div id="palmares-map" class="hidden" aria-label="Carte des stations classées"></div>
             <div id="palmares-results" aria-live="polite"></div>
             <div class="explore-stats">
-              <h3>Statistiques nationales</h3>
+              <h2 class="sec-t">Statistiques nationales du jour</h2>
               <div class="chart-r">
-                <div class="card"><div class="card-hdr">Prix moyens (€/L)</div><div class="chart-w"><canvas id="chart-prices" aria-label="Graphique des prix moyens par carburant"></canvas></div></div>
-                <div class="card"><div class="card-hdr">Disponibilité</div><div class="chart-w"><canvas id="chart-fuels" aria-label="Répartition de la disponibilité par carburant"></canvas></div></div>
+                <div class="card"><div class="card-hdr">Prix moyen par carburant</div><div class="chart-w"><canvas id="chart-prices" role="img" aria-label="Prix moyen national par carburant, détaillé dans le tableau ci-dessous"></canvas></div></div>
+                <div class="card"><div class="card-hdr">Stations proposant chaque carburant</div><div class="chart-w"><canvas id="chart-fuels" role="img" aria-label="Nombre de stations proposant chaque carburant"></canvas></div></div>
               </div>
-              <div class="sec-l">Détail par région</div>
-              <div class="table-w"><table id="table-regions" aria-label="Prix moyens par région"></table></div>
+              <div class="sec-l"><span>Détail par région</span><span class="sec-count">Touchez une région pour ses départements</span></div>
+              <div class="table-w"><table id="table-regions"></table></div>
             </div>
           </section>
         </div>

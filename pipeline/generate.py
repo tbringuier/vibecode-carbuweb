@@ -125,7 +125,7 @@ def generate_site():
     CSS_ORDER = [
         "variables.css", "base.css", "layout.css", "nav.css",
         "search.css", "station.css", "explore.css", "favorites.css",
-        "vehicles.css", "components.css", "map.css", "utilities.css",
+        "vehicles.css", "history.css", "components.css", "map.css", "utilities.css",
     ]
     css_dir = os.path.join(TEMPLATES_DIR, "css")
     css_parts = []

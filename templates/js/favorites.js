@@ -1,7 +1,7 @@
 import { state, radius, uFuels, favs, setFavs, saveFavs, maxAge } from './state.js';
-import { E, jsStr, coord, hav, fmtKm, maxKmFav, toast, stationName } from './helpers.js';
-import { pClass, pickBest, tankInline } from './prices.js';
-import { freshPill, isExpired, hasActiveFuel } from './freshness.js';
+import { E, jsStr, coord, hav, fmtKm, fmtEur, maxKmFav, toast, stationName, titleCase } from './helpers.js';
+import { pickBest, tankInline, ptag } from './prices.js';
+import { isExpired, hasActiveFuel } from './freshness.js';
 import { TouchDragReorder } from './drag-drop.js';
 import { showStation } from './station.js';
 import { findNear } from './geolocation.js';
@@ -54,15 +54,14 @@ export function renderFavs() {
         for (const [c, d] of Object.entries(st.carburants_disponibles)) {
           if (!uFuels.includes(c)) continue;
           if (isExpired(d, maxAge)) continue;
-          const cls = pClass(f.id, c, d.prix), fp = freshPill(d);
-          tags.push(`<div class="ptag ${cls}"><span class="ptag-f">${c}</span><span class="ptag-v">${d.prix}€</span>${fp}${tankInline(parseFloat(d.prix))}</div>`);
+          tags.push(ptag(f.id, c, d));
         }
         if (tags.length) section = `<div class="fav-section"><div class="fav-section-title">Prix suivis</div><div class="fav-p">${tags.join('')}</div></div>`;
       }
       // Station absente du jeu de données du jour : conserver le favori (elle peut réapparaître au prochain build).
       const main = st
-        ? `<button type="button" class="fav-main" onclick="showStation('${fid}')"><div class="fav-s">${E(f.adresse)}</div><div class="fav-cta">${activeCls ? 'Station ouverte actuellement' : 'Voir le détail de la station'}</div></button>`
-        : `<div class="fav-main fav-main-off"><div class="fav-s">${E(f.adresse)}</div><div class="fav-cta">Station absente des données du jour — elle réapparaîtra si la source la republie.</div></div>`;
+        ? `<button type="button" class="fav-main" onclick="showStation('${fid}')"><div class="fav-s">${E(titleCase(f.adresse))}</div><div class="fav-cta">${activeCls ? 'Station ouverte actuellement' : 'Voir le détail de la station'}</div></button>`
+        : `<div class="fav-main fav-main-off"><div class="fav-s">${E(titleCase(f.adresse))}</div><div class="fav-cta">Station absente des données du jour — elle réapparaîtra si la source la republie.</div></div>`;
       if (!st) section = '';
       h += `<article data-di="${i}" class="fav fav-station${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Station</span><span class="fav-name-inline">⛽ ${E(f.name)}</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer la station des favoris">✕</button></div>${main}${section}</div></article>`;
     } else {
@@ -80,7 +79,7 @@ export function renderFavs() {
           uFuels.forEach(fuel => {
             const b = pickBest(near, fuel);
             if (b) {
-              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${b.prix.toFixed(3)}€</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div><div class="best-d">${fmtKm(b.dist)}</div></div>`);
+              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${fmtEur(b.prix)}</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div><div class="best-d">${fmtKm(b.dist)}</div></div>`);
             }
           });
           if (cards.length) section = `<div class="fav-section"><div class="fav-section-title">Meilleurs prix dans ${fr}\u202fkm</div><div class="best-g">${cards.join('')}</div></div>`;

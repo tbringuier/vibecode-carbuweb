@@ -2,6 +2,7 @@ import { state, favs } from './state.js';
 import { coord } from './helpers.js';
 import { renderFavs, favKey, toggleFavAddr } from './favorites.js';
 import { renderExploreMap, renderDash, findCheapest } from './explore.js';
+import { renderZoneHistory } from './history.js';
 import { findNear } from './geolocation.js';
 import { searchGeo } from './geo-zones.js';
 import { showStation } from './station.js';
@@ -17,7 +18,7 @@ export function switchTab(tab) {
     if (p) { if (t === tab) p.classList.remove('hidden'); else p.classList.add('hidden'); }
   });
   ['recherche', 'explorer', 'favoris'].forEach(t => document.getElementById(`bn-${t}`)?.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
-  if (tab === 'explorer') { renderExploreMap(); findCheapest(); renderDash(); }
+  if (tab === 'explorer') { renderExploreMap(); findCheapest(); renderDash(); renderZoneHistory(); }
 }
 
 export function pushNav(s) { if (state.isRestoring) return; state.navStack.push(s); history.pushState({ idx: state.navStack.length }, ''); }

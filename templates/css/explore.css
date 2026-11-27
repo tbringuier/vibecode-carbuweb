@@ -187,3 +187,71 @@
 .pop-btn:hover {
   background: var(--ac2);
 }
+
+/* Filtres regroupés dans une carte (sans effet de survol) */
+
+.explore-row.card {
+  padding: .75rem;
+}
+
+.explore-row.card:hover {
+  box-shadow: var(--sh);
+}
+
+.sec-count {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+/* En-têtes triables et lignes dépliables : vrais boutons (clavier + lecteurs d'écran) */
+
+.th-btn,
+.reg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .3125rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.th-btn:hover {
+  color: var(--ac);
+}
+
+.th-ar {
+  opacity: .45;
+  font-size: .75rem;
+}
+
+th[aria-sort] .th-ar {
+  opacity: 1;
+  color: var(--ac);
+}
+
+.reg-btn {
+  font-weight: 700;
+}
+
+.reg-btn::before {
+  content: "▸";
+  color: var(--t3);
+  transition: transform var(--dur-1);
+}
+
+.reg-btn[aria-expanded="true"]::before {
+  transform: rotate(90deg);
+}
+
+.table-w tfoot td {
+  border-top: 1px solid var(--bd);
+  background: var(--sf-2);
+  font-weight: 800;
+}

@@ -8,7 +8,8 @@ import { geolocateMe, findNear, applySort } from './js/geolocation.js';
 import { debouncedSearch, renderHomeTeaser, jumpToExplorer } from './js/search.js';
 import { searchGeo } from './js/geo-zones.js';
 import { showStation } from './js/station.js';
-import { populateFuels, populateRegions, updateDeptFilter, findCheapest, sortDash, toggleReg } from './js/explore.js';
+import { populateFuels, populateRegions, updateDeptFilter, findCheapest, sortDash, toggleReg, onZoneChange, onFuelChange } from './js/explore.js';
+import { histSet, zoneToggleFuel } from './js/history.js';
 import { toggleFavAddr, toggleFavStation, removeFav, adjFavR, findNearFav, showStationFav, renderFavs } from './js/favorites.js';
 import { applyV, switchV, openVForm, closeVForm, saveVForm, delV, renderVBar, renderVList } from './js/vehicles.js';
 
@@ -19,7 +20,8 @@ Object.assign(window, {
   populateFuels, populateRegions, updateDeptFilter, findCheapest,
   sortDash, toggleReg, toggleFavAddr, toggleFavStation, removeFav,
   adjFavR, findNearFav, showStationFav, switchV, openVForm,
-  closeVForm, saveVForm, delV, jumpToExplorer, changeMaxAge, syncHeaderFav
+  closeVForm, saveVForm, delV, jumpToExplorer, changeMaxAge, syncHeaderFav,
+  onZoneChange, onFuelChange, histSet, zoneToggleFuel
 });
 
 initPopstate();

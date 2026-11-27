@@ -94,6 +94,44 @@ HTTP_USER_AGENT = (
 
 DOWNLOAD_CACHE_BUSTER_PARAM = "_cb"
 
+# ---------------------------------------------------------------------------
+# Historique des prix (stockage durable sur la branche git `history`)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_history_dir():
+    """Dossier du depot d'historique (checkout de la branche `history` en CI)."""
+    raw = os.environ.get("CARBUWEB_HISTORY_DIR", "").strip()
+    if not raw:
+        return os.path.join(BASE_DIR, ".history")
+    return raw if os.path.isabs(raw) else os.path.join(BASE_DIR, raw)
+
+
+HISTORY_DIR = _resolve_history_dir()
+# CARBUWEB_HISTORY=0 desactive la phase historique (builds locaux rapides).
+HISTORY_ENABLED = os.environ.get("CARBUWEB_HISTORY", "1").strip().lower() not in ("0", "off", "false", "no")
+HISTORY_SCHEMA = 1
+# Sous-dossier de build/ ou l'historique est publie (servi par GitHub Pages).
+HISTORY_BUILD_DIRNAME = "history"
+
+# Archives annuelles officielles : tous les changements de prix de l'annee, une par an
+# depuis 2007. Le fichier de l'annee en cours est regenere chaque nuit (cumul depuis le 1er janvier).
+HISTORY_ANNUAL_URL = "https://donnees.roulez-eco.fr/opendata/annee/{year}"
+HISTORY_FIRST_YEAR = 2007
+# Annees passees importees par build (import retroactif progressif, de la plus recente a la plus ancienne).
+HISTORY_BACKFILL_PER_RUN = max(0, int(os.environ.get("CARBUWEB_HISTORY_BACKFILL", "2") or 0))
+# Une annee dont l'import echoue autant de fois n'est plus retentee automatiquement.
+HISTORY_MAX_YEAR_FAILURES = 3
+
+# Un releve reste valable au plus HISTORY_TTL_DAYS jours sans nouvelle observation
+# (au-dela : trou dans la courbe). Un prix inchange mais reconfirme est re-enregistre
+# apres HISTORY_KEEPALIVE_DAYS jours pour garder la courbe continue (KEEPALIVE < TTL).
+HISTORY_TTL_DAYS = 45
+HISTORY_KEEPALIVE_DAYS = 30
+
+# Garde-fou anti-perte : refuser d'ecrire si le nombre de releves chute de plus de 1 %.
+HISTORY_MAX_RECORD_DROP = 0.01
+
 HTTP_NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, max-age=0",
     "Pragma": "no-cache",

@@ -1,0 +1,418 @@
+/* history.css — Historique des prix : fiche station, évolution par zone (Explorer), contrôles partagés */
+
+/* Titres sémantiques (h2) qui gardent l'apparence du contexte */
+
+.sec-t {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
+/* Pastilles de couleur carburant (légendes, puces, tableaux) */
+
+.sw {
+  display: inline-block;
+  width: .625rem;
+  height: .625rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ac);
+}
+
+.sw-gazole { background: var(--fuel-gazole); }
+.sw-sp95 { background: var(--fuel-sp95); }
+.sw-e10 { background: var(--fuel-e10); }
+.sw-sp98 { background: var(--fuel-sp98); }
+.sw-e85 { background: var(--fuel-e85); }
+.sw-gplc { background: var(--fuel-gplc); }
+
+.chip-fuel {
+  gap: .375rem;
+}
+
+.chip[aria-pressed="true"] .sw {
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+/* Contrôle segmenté (période) — même langage que les onglets du header */
+
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--bl);
+  border-radius: var(--rr);
+}
+
+.seg::-webkit-scrollbar {
+  display: none;
+}
+
+.seg-b {
+  min-height: 1.875rem;
+  padding: .3125rem .625rem;
+  border: 0;
+  border-radius: var(--rr);
+  background: transparent;
+  color: var(--t2);
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--dur-1), background-color var(--dur-1);
+}
+
+.seg-b:hover {
+  color: var(--tx);
+}
+
+.seg-b[aria-pressed="true"] {
+  background: var(--sf);
+  color: var(--ac);
+  box-shadow: var(--sh);
+}
+
+.seg-short {
+  display: none;
+}
+
+.inp-sm {
+  width: auto;
+  min-height: 2.25rem;
+  padding: .3125rem 1.75rem .3125rem .625rem;
+  font-size: .75rem;
+}
+
+/* Barre de contrôles */
+
+.hist {
+  margin-bottom: 1.25rem;
+}
+
+.hist-card,
+.hist-zone {
+  padding: 1rem;
+}
+
+.hist-card:hover,
+.hist-zone:hover {
+  box-shadow: var(--sh);
+}
+
+.hist-ctl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem .75rem;
+  margin-bottom: .75rem;
+}
+
+.hist-fuels {
+  padding: 0;
+  min-width: 0;
+}
+
+.hist-ctl-r {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .hist-ctl-r {
+    width: 100%;
+  }
+
+  .hist-ctl-r .seg {
+    flex: 1;
+  }
+
+  .hist-ctl-r .seg-b {
+    flex: 1;
+    padding: .3125rem .375rem;
+  }
+
+  .seg-long {
+    display: none;
+  }
+
+  .seg-short {
+    display: inline;
+  }
+
+  .hist-trend th,
+  .hist-trend td,
+  .hist-table th,
+  .hist-table td {
+    padding: .4375rem .4375rem;
+  }
+
+  .hist-trend table,
+  .hist-table table {
+    font-size: .6875rem;
+  }
+}
+
+/* Légende et graphique */
+
+.hist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1rem;
+  margin-bottom: .375rem;
+  font-size: .6875rem;
+  color: var(--t2);
+}
+
+.lg {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+}
+
+.lg-line {
+  width: 1rem;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ac);
+}
+
+.lg-band {
+  width: 1rem;
+  height: .625rem;
+  border-radius: 2px;
+  opacity: .28;
+}
+
+.lg-muted {
+  background: var(--t3);
+}
+
+.hist-chart {
+  position: relative;
+  height: 14rem;
+  margin-bottom: .875rem;
+}
+
+.hist-chart-lg {
+  height: 15rem;
+}
+
+@media (min-width: 768px) {
+  .hist-chart {
+    height: 17rem;
+  }
+
+  .hist-chart-lg {
+    height: 19rem;
+  }
+}
+
+/* Indicateurs de la période */
+
+.hist-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+@media (min-width: 560px) {
+  .hist-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .hist-stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.stat {
+  min-width: 0;
+  padding: .625rem .75rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rl);
+  background: var(--sf-2);
+}
+
+.stat-l {
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+
+.stat-v {
+  margin-top: .125rem;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: var(--tx);
+  white-space: nowrap;
+}
+
+.stat-s {
+  margin-top: .0625rem;
+  font-size: .6875rem;
+  color: var(--t2);
+}
+
+/* Variations : hausse = rouge, baisse = vert, toujours avec une flèche */
+
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta.up { color: var(--rd); }
+.delta.down { color: var(--gn); }
+.delta.flat { color: var(--t2); }
+
+.hist-cmp {
+  margin-bottom: .75rem;
+  padding: .625rem .75rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rl);
+  background: var(--sf-2);
+  font-size: .8125rem;
+  color: var(--t2);
+}
+
+.hist-cmp.good {
+  border-color: color-mix(in oklab, var(--gn2) 45%, var(--bd));
+  background: var(--gb);
+}
+
+.hist-cmp.good b { color: var(--gn); }
+
+.hist-cmp.bad {
+  border-color: color-mix(in oklab, var(--rd2) 45%, var(--bd));
+  background: var(--rb);
+}
+
+.hist-cmp.bad b { color: var(--rd); }
+
+.hist-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .25rem;
+  font-size: .8125rem;
+  color: var(--t2);
+  cursor: pointer;
+}
+
+.hist-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--ac);
+}
+
+.hist-toggle:has(input:disabled) {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* Vue tableau (alternative accessible au graphique) */
+
+.hist-table {
+  margin-top: .5rem;
+  padding-top: .5rem;
+  border-top: 1px solid var(--bl);
+}
+
+.hist-table summary {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  padding: .25rem 0;
+  font-size: .8125rem;
+  font-weight: 700;
+  color: var(--ac);
+  cursor: pointer;
+  list-style: none;
+}
+
+.hist-table summary::-webkit-details-marker {
+  display: none;
+}
+
+.hist-table summary::before {
+  content: "▸";
+  transition: transform var(--dur-1);
+}
+
+.hist-table[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.hist-table .table-w {
+  max-height: 22rem;
+  margin-top: .5rem;
+  overflow: auto;
+}
+
+.hist-table tbody tr,
+.hist-trend tbody tr {
+  cursor: default;
+}
+
+.hist-trend {
+  margin-bottom: .5rem;
+}
+
+.hist-trend .td-s {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+}
+
+.hist-note,
+.hist-src {
+  margin-top: .5rem;
+  font-size: .6875rem;
+  color: var(--t3);
+}
+
+/* Évolution par zone (Explorer) */
+
+.hist-zone {
+  margin-bottom: .5rem;
+}
+
+.hist-zone-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.hist-zone-h .sec-t {
+  font-size: .9375rem;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.pill-ac {
+  padding: .1875rem .5rem;
+  background: var(--ab);
+  color: var(--ac);
+  font-size: .6875rem;
+  letter-spacing: 0;
+  text-transform: none;
+}

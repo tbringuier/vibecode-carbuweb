@@ -1,7 +1,7 @@
 import { state, uFuels, PRICE_EPS, PRICE_NEAR, maxAge } from './state.js';
 import { E, jsStr, notice, titleCase, stationName } from './helpers.js';
-import { pClass, tankInline } from './prices.js';
-import { freshPill, isExpired, hasActiveFuel } from './freshness.js';
+import { ptag } from './prices.js';
+import { isExpired, hasActiveFuel } from './freshness.js';
 import { initMap } from './map.js';
 import { pushNav, syncHeaderFav } from './navigation.js';
 import { bestWidget } from './geolocation.js';
@@ -52,14 +52,9 @@ export function searchGeo(type, name, fuel) {
       let cls = '';
       if (d !== null && d <= PRICE_EPS) { cls = 'cheap'; mmk = 'station_green'; }
       else if (d !== null && d <= PRICE_NEAR) { cls = 'mid'; mmk = 'station_orange'; }
-      const fp = freshPill(s.carburants_disponibles[sf]);
-      ph = `<div class="ptag ${cls}"><span class="ptag-f">${sf}</span><span class="ptag-v">${s.carburants_disponibles[sf].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[sf].prix))}</div>`;
+      ph = ptag(r.id, sf, s.carburants_disponibles[sf], cls);
     } else {
-      ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => {
-        const cls = pClass(r.id, f, s.carburants_disponibles[f].prix);
-        const fp = freshPill(s.carburants_disponibles[f]);
-        return `<div class="ptag ${cls}"><span class="ptag-f">${f}</span><span class="ptag-v">${s.carburants_disponibles[f].prix}€</span>${fp}${tankInline(parseFloat(s.carburants_disponibles[f].prix))}</div>`;
-      }).join('');
+      ph = uFuels.filter(f => s.carburants_disponibles[f] && !isExpired(s.carburants_disponibles[f], maxAge)).map(f => ptag(r.id, f, s.carburants_disponibles[f])).join('');
     }
     r.mk = mmk;
     const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
