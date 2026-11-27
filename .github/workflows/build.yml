@@ -19,9 +19,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     env:
       TZ: Europe/Paris
 
@@ -37,12 +34,16 @@ jobs:
           echo "date=$D" >> "$GITHUB_OUTPUT"
           echo "CARBUWEB_BUILD_DATE=$D" >> "$GITHUB_ENV"
 
-      - name: Cache mapping OpenStreetMap
+      # Restaure le mapping du jour, ou a defaut le plus recent (secours si Overpass
+      # est injoignable). La sauvegarde est explicite plus bas, une fois le mapping
+      # du jour obtenu, pour ne jamais enregistrer un mapping de secours sous la cle du jour.
+      - name: Restaurer le cache mapping OpenStreetMap
         id: osm-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
-          path: datasets/osm_mapping-${{ steps.builddate.outputs.date }}.json
-          key: osm-mapping-fr-${{ steps.builddate.outputs.date }}
+          path: datasets/osm_mapping-*.json
+          key: osm-mapping-${{ steps.builddate.outputs.date }}
+          restore-keys: osm-mapping-
 
       - uses: actions/setup-python@v6
         with:
@@ -57,6 +58,13 @@ jobs:
       - name: Build
         run: .venv/bin/python main.py
 
+      - name: Sauvegarder le cache mapping OpenStreetMap
+        if: steps.osm-cache.outputs.cache-hit != 'true' && hashFiles(format('datasets/osm_mapping-{0}.json', steps.builddate.outputs.date)) != ''
+        uses: actions/cache/save@v5
+        with:
+          path: datasets/osm_mapping-*.json
+          key: osm-mapping-${{ steps.builddate.outputs.date }}
+
       - name: Mettre à jour la branche pages (miroir)
         run: |
           cd build
@@ -69,10 +77,30 @@ jobs:
           git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" pages
 
       - name: Artefact pour GitHub Pages
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: build
 
+  # Job separe (modele officiel GitHub Pages) : l'artefact est finalise cote API
+  # avant que deploy-pages ne le cherche. Une seconde tentative couvre les
+  # erreurs transitoires "No artifacts named github-pages were found".
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
+    steps:
       - name: Déployer sur GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Attendre avant nouvelle tentative
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+
+      - name: Déployer sur GitHub Pages (nouvelle tentative)
+        id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v5

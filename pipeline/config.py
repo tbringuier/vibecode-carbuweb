@@ -73,14 +73,18 @@ RT_FUEL_COLUMNS = (
     ("GPLc", "Prix GPLc", "Prix GPLc mis à jour le"),
 )
 
-# Instances Overpass publiques (rotation en cas de 504 / surcharge). Ordre : miroir FR puis instance principale.
+# Instances Overpass publiques, essayees en rotation (504 / surcharge / reseau).
+# overpass.openstreetmap.fr est retire : il repond 403 systematiquement aux runners GitHub Actions.
 # Voir https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances
 OVERPASS_ENDPOINTS = (
-    "https://overpass.openstreetmap.fr/api/interpreter",        # Miroir FR (données France)
-    "https://overpass-api.de/api/interpreter",                  # Instance principale (fiable mais limites strictes)
+    "https://overpass-api.de/api/interpreter",                      # Instance principale
+    "https://overpass.private.coffee/api/interpreter",              # Instance publique sans limite stricte
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",      # Instance VK Maps
 )
 
-OVERPASS_MAX_ATTEMPTS = 100
+# Nombre total de tentatives (toutes instances confondues). En cas d'echec complet,
+# le pipeline retombe sur le dernier mapping OSM connu (voir resolve_osm_mapping).
+OVERPASS_MAX_ATTEMPTS = 12
 
 # User-Agent explicite (repo + finalité) : requis par les politiques d'usage des API publiques.
 HTTP_USER_AGENT = (

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import time
 
 import requests
@@ -15,6 +16,7 @@ from .config import (
     HTTP_USER_AGENT,
     TODAY,
 )
+from .cleanup import previous_osm_mappings
 from .helpers import build_download_url, fetch
 
 log = logging.getLogger("carbuweb")
@@ -92,3 +94,27 @@ def download_osm():
     with open(OSM_FILE, "w", encoding="utf-8") as f:
         json.dump(mapping, f, ensure_ascii=False)
     log.info("OSM mapping built — %d stations.", len(mapping))
+
+
+def resolve_osm_mapping():
+    """Chemin du mapping OSM a utiliser pour ce build.
+
+    Ordre : mapping du jour deja present (cache) → requete Overpass → dernier
+    mapping d'un jour precedent. Le secours n'est pas copie sous le nom du jour,
+    pour que le build suivant retente Overpass.
+    """
+    if os.path.exists(OSM_FILE):
+        return OSM_FILE
+    try:
+        download_osm()
+        return OSM_FILE
+    except Exception as exc:
+        fallbacks = previous_osm_mappings()
+        if not fallbacks:
+            raise
+        log.warning(
+            "Overpass indisponible (%s) — repli sur le mapping precedent %s",
+            exc,
+            os.path.basename(fallbacks[0]),
+        )
+        return fallbacks[0]

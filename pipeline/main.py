@@ -10,7 +10,7 @@ from .aggregates import build_search_indexes, recompute_price_aggregates
 from .cleanup import cleanup_old_files
 from .config import ALL_FUELS, DB_FILE, EXCEL_FILE, OSM_FILE, TODAY, FUEL_PRICE_RANGES, PRICE_ABSURD_AGE_DAYS
 from .dedup import deduplicate_daily
-from .download import download_daily_prices, download_flux_prices, download_osm
+from .download import download_daily_prices, download_flux_prices, resolve_osm_mapping
 from .generate import generate_site
 from .helpers import compute_latest_fuel_price_update_meta, check_price_validity
 from .purge import purge_priceless_stations
@@ -24,11 +24,11 @@ logging.basicConfig(
 log = logging.getLogger("carbuweb")
 
 
-def build_database():
+def build_database(osm_file=OSM_FILE):
     log.info("Building database ...")
     df = pd.read_excel(EXCEL_FILE, dtype={"Code postal": str}).fillna("")
 
-    with open(OSM_FILE, "r", encoding="utf-8") as f:
+    with open(osm_file, "r", encoding="utf-8") as f:
         osm = json.load(f)
 
     db = {
@@ -110,9 +110,8 @@ def main():
     cleanup_old_files()
     download_daily_prices()
     download_flux_prices()
-    if not os.path.exists(OSM_FILE):
-        download_osm()
-    build_database()
+    osm_file = resolve_osm_mapping()
+    build_database(osm_file)
 
     generate_site()
     log.info("Build complete.")

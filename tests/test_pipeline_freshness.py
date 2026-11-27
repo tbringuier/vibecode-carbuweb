@@ -1,10 +1,12 @@
 import importlib
+import os
 import unittest
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, mock_open, patch
 
 import pandas as pd
 
+from pipeline import cleanup as cleanup_module
 from pipeline import download as download_module
 from pipeline import helpers as helpers_module
 from pipeline.dedup import deduplicate_daily
@@ -208,19 +210,71 @@ class MainOrchestrationTests(unittest.TestCase):
             patch("pipeline.main.cleanup_old_files") as cleanup_mock,
             patch("pipeline.main.download_daily_prices") as daily_mock,
             patch("pipeline.main.download_flux_prices") as flux_mock,
-            patch("pipeline.main.download_osm") as osm_mock,
+            patch("pipeline.main.resolve_osm_mapping", return_value="osm.json") as osm_mock,
             patch("pipeline.main.build_database") as build_mock,
             patch("pipeline.main.generate_site") as site_mock,
-            patch("pipeline.main.os.path.exists", side_effect=lambda path: path == main_module.OSM_FILE),
         ):
             main_module.main()
 
         cleanup_mock.assert_called_once_with()
         daily_mock.assert_called_once_with()
         flux_mock.assert_called_once_with()
-        osm_mock.assert_not_called()
-        build_mock.assert_called_once_with()
+        osm_mock.assert_called_once_with()
+        build_mock.assert_called_once_with("osm.json")
         site_mock.assert_called_once_with()
+
+
+class OsmFallbackTests(unittest.TestCase):
+    def _touch(self, directory, name):
+        path = os.path.join(directory, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("{}")
+        return path
+
+    def _patch_dirs(self, tmp):
+        today_file = os.path.join(tmp, "osm_mapping-2026-11-27.json")
+        return (
+            patch("pipeline.cleanup.DATASETS_DIR", tmp),
+            patch("pipeline.cleanup.TODAY", "2026-11-27"),
+            patch("pipeline.download.OSM_FILE", today_file),
+        )
+
+    def test_uses_cached_mapping_of_the_day_without_querying_overpass(self):
+        with TemporaryDirectory() as tmp:
+            today = self._touch(tmp, "osm_mapping-2026-11-27.json")
+            p1, p2, p3 = self._patch_dirs(tmp)
+            with p1, p2, p3, patch("pipeline.download.download_osm") as osm_mock:
+                self.assertEqual(download_module.resolve_osm_mapping(), today)
+            osm_mock.assert_not_called()
+
+    def test_falls_back_to_latest_previous_mapping_when_overpass_fails(self):
+        with TemporaryDirectory() as tmp:
+            self._touch(tmp, "osm_mapping-2026-11-25.json")
+            latest = self._touch(tmp, "osm_mapping-2026-11-26.json")
+            p1, p2, p3 = self._patch_dirs(tmp)
+            with p1, p2, p3, patch("pipeline.download.download_osm", side_effect=ConnectionError("down")):
+                self.assertEqual(download_module.resolve_osm_mapping(), latest)
+
+    def test_raises_when_overpass_fails_without_any_fallback(self):
+        with TemporaryDirectory() as tmp:
+            p1, p2, p3 = self._patch_dirs(tmp)
+            with p1, p2, p3, patch("pipeline.download.download_osm", side_effect=ConnectionError("down")):
+                with self.assertRaises(ConnectionError):
+                    download_module.resolve_osm_mapping()
+
+    def test_cleanup_keeps_only_latest_previous_osm_mapping(self):
+        with TemporaryDirectory() as tmp:
+            old = self._touch(tmp, "osm_mapping-2026-11-25.json")
+            latest = self._touch(tmp, "osm_mapping-2026-11-26.json")
+            old_xlsx = self._touch(tmp, "prix-carburant-2026-11-26.xlsx")
+            today_xlsx = self._touch(tmp, "prix-carburant-2026-11-27.xlsx")
+            p1, p2, _ = self._patch_dirs(tmp)
+            with p1, p2:
+                cleanup_module.cleanup_old_files()
+            self.assertFalse(os.path.exists(old))
+            self.assertTrue(os.path.exists(latest))
+            self.assertFalse(os.path.exists(old_xlsx))
+            self.assertTrue(os.path.exists(today_xlsx))
 
 
 if __name__ == "__main__":

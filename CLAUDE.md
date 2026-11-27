@@ -1,6 +1,6 @@
 # Carbu'Web — Guide Claude Code
 
-Comparateur de prix carburants en France. Site statique genere toutes les 5 min par CI (GitHub Actions → GitHub Pages). Domaine : `carbuweb.folf.fr`.
+Comparateur de prix carburants en France. Site statique regenere par CI (cron `*/5` demande, mais GitHub n'execute en pratique que ~3 runs/jour) (GitHub Actions → GitHub Pages). Domaine : `carbuweb.folf.fr`.
 
 **Deux parties independantes :**
 - `pipeline/` : Python, telecharge les donnees, construit `build/data.json` et `build/index.html`
@@ -24,6 +24,7 @@ Comparateur de prix carburants en France. Site statique genere toutes les 5 min 
 | Modifier les seuils de fraicheur des prix | `templates/js/freshness.js` |
 | Modifier les seuils de classification prix (cheap/mid/dear) | `templates/js/state.js` (PRICE_EPS, PRICE_NEAR) |
 | Modifier le rayon de recherche proximite | `templates/js/state.js` (LS.RADIUS, defaut) + `templates/js/helpers.js` (nearKm) |
+| Modifier le workflow CI / deploiement | `.github/workflows/build.yml` (jobs `build` puis `deploy` separes) |
 | Modifier les placeholders HTML | `pipeline/generate.py` (liste exhaustive) + `templates/index.html` |
 
 **Modules JS — responsabilites :**
@@ -214,6 +215,7 @@ cd build && python -m http.server 8000
 - **Validation prix** : 0.01–10.0 EUR/L. Les stations hors plage sont ignorees silencieusement. Ne pas elargir sans raison.
 - **`price_entry_should_replace()`** dans `helpers.py` : comparateur unique de fraicheur. Une entree avec horodatage complet prime sur une date seule le meme jour ; a egalite stricte, le flux peut primer si `prefer_incoming_on_tie=True`.
 - **`flux_replaces_daily_entry()`** : wrapper de compatibilite pour le cas flux-vs-quotidien. Garder la regle "le flux fait foi a egalite de timestamp".
+- **Mapping OSM avec secours** : `resolve_osm_mapping()` (`download.py`) prend le mapping du jour s'il existe, sinon interroge Overpass (`OVERPASS_ENDPOINTS`, `OVERPASS_MAX_ATTEMPTS`), sinon retombe sur le mapping precedent le plus recent. `cleanup_old_files()` conserve volontairement ce dernier mapping precedent. Ne jamais copier le secours sous le nom du jour (le build suivant doit retenter Overpass). `overpass.openstreetmap.fr` est exclu : 403 systematique depuis les runners GitHub.
 - **DST** : les comparaisons de timestamps utilisent l'offset Europe/Paris — prendre garde aux transitions heure ete/hiver si on modifie la logique de comparaison.
 
 **CSS/Build — zones de vigilance :**
@@ -240,7 +242,7 @@ rm datasets/osm_mapping-*.json       # Forcer reconstruction mapping OSM local
 **Sources de donnees :**
 - Prix quotidiens : XLSX ~9 Mo, une ligne par station/carburant (avec doublons)
 - Flux instantane : XLSX ~2.5 Mo, une ligne par station (toujours plus recent)
-- OSM : Overpass API, cache local journalier si `datasets/osm_mapping-{TODAY}.json` existe deja
+- OSM : Overpass API (3 instances en rotation), cache local journalier si `datasets/osm_mapping-{TODAY}.json` existe deja, repli sur le mapping precedent si Overpass est injoignable
 
 **Design system :**
 - Accent : `#2563eb` (bleu)
@@ -261,5 +263,7 @@ rm datasets/osm_mapping-*.json       # Forcer reconstruction mapping OSM local
 - Dear : au-dela
 
 **CI/CD :**
-- Cron toutes les 5 min, cache OSM journalier uniquement (pas de cache GitHub Actions sur les exports carburants), force push branche `pages`
+- Cron `*/5 * * * *` mais GitHub throttle fortement les crons : ~1 run toutes les 5-9 h en pratique. Pour forcer une mise a jour : `gh workflow run "Build & Deploy"`
+- Job `build` : telechargements + `main.py` + force push branche `pages` + `upload-pages-artifact`. Job `deploy` (separe, `needs: build`) : `deploy-pages` avec une seconde tentative apres 60 s — ne pas refusionner les deux jobs (erreurs intermittentes « No artifacts named github-pages were found »)
+- Cache GitHub Actions uniquement pour le mapping OSM (`actions/cache/restore` + `restore-keys` pour recuperer celui de la veille, puis `actions/cache/save` explicite seulement si le mapping du jour existe). Pas de cache sur les exports carburants
 - Concurrence : les runs precedents sont annules automatiquement
