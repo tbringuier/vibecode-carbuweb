@@ -135,3 +135,80 @@
 .pop-btn-2:hover {
   background: var(--ab);
 }
+
+/* Pastilles de prix (marqueurs) : prix du carburant choisi, couleur = classe de prix */
+
+.mk-wrap {
+  background: none;
+  border: 0;
+}
+
+.mk-pill {
+  position: absolute;
+  left: 0;
+  bottom: 7px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .1875rem .4375rem;
+  border: 1.5px solid #fff;
+  border-radius: var(--rr);
+  background: #475569;
+  color: #fff;
+  font: 800 .75rem/1.2 var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+  cursor: pointer;
+}
+
+/* Pointe vers la position exacte de la station */
+.mk-pill::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  border-right: 1.5px solid #fff;
+  border-bottom: 1.5px solid #fff;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.mk-cheap { background: #15803d; }
+.mk-mid { background: #b45309; }
+.mk-def { background: #475569; }
+.mk-dear { background: #b91c1c; }
+
+.mk-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 .25rem;
+  border-radius: var(--rr);
+  background: #fff;
+  color: #0e1116;
+  font-size: .6875rem;
+}
+
+.leaflet-marker-icon:hover .mk-pill,
+.leaflet-marker-icon:focus .mk-pill {
+  filter: brightness(1.12);
+}
+
+.mk-dot {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #475569;
+  box-shadow: 0 1px 3px rgb(0 0 0 / .35);
+  cursor: pointer;
+}

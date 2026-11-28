@@ -75,7 +75,7 @@ export function renderRanking() {
   $('palmares-results').innerHTML = listHtml(items, fuel, { key: 'explore', ranks: true, showDist: false, limit: lim, classOf: (_, i) => (i < 3 ? top : ''), empty: notice('Aucun résultat', 'Choisissez une autre zone ou un autre carburant.') });
   $('palmares-map-w').innerHTML = mapSlot('explore-map', 'd-map d-map-sticky');
   const mk = markersFor(items, fuel, 50);
-  mk.forEach((m, i) => { m.cls = i < 3 ? top : ''; m.rank = String(i + 1); });
+  mk.forEach((m, i) => { m.cls = i < 3 ? top : ''; m.rank = i < 3 ? String(i + 1) : ''; });
   renderMap('explore-map', mk);
 }
 

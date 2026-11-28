@@ -45,7 +45,10 @@ export function renderStation(r) {
     <div id="hist-body" class="card hist-card" data-sid="${E(s.id)}">${loader('Chargement de l’historique…')}</div>
   </section>`;
 
-  const markers = [{ lat: s.lat, lon: s.lon, label: s.name, sub: `${s.addr}, ${s.city}`, id: s.id, link: false }];
+  // Pastille : prix du premier carburant choisi vendu ici.
+  const pf = prefs.fuels.find(f => visiblePrice(s, f));
+  const pp = pf ? visiblePrice(s, pf).p : NaN;
+  const markers = [{ lat: s.lat, lon: s.lon, label: s.name, sub: `${s.addr}, ${s.city}`, id: s.id, link: false, fuel: pf, price: pp, pill: pf ? `${pf} ${fmtEur(pp)}` : '' }];
   renderMap('station-map', markers, origin ? { center: { lat: origin.lat, lon: origin.lon, label: origin.label } } : {});
   renderStationHistory(s.id);
 }

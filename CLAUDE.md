@@ -60,11 +60,11 @@ Comparateur de prix carburants en France. Site statique regenere par CI (cron `*
 | `vehicles.js` | Profils vehicules (CRUD) dans les reglages |
 | `settings.js` | Reglages : application de navigation, theme, fond de carte, economie de donnees, sauvegarde/restauration/effacement, rafraichissement des prix, pied de page |
 | `dialog.js` | Fenetres modales : ouverture/fermeture, pile, focus piege, retour du focus |
-| `directions.js` | « Y aller » : liens Waze / Google Maps / Plans (Apple) / geo: (Android), choix memorise, fenetre de choix |
+| `directions.js` | « Y aller » omnicanal : Waze / Google Maps / Apple Plans partout, geo: sur Android, choix memorise, fenetre de choix |
 | `prices.js` | Voisinage (cache), rang local, classe de prix, meilleur prix, plein estime, `ptag()` |
 | `history.js` | Historique : une courbe par carburant choisi (station + moyenne du departement en pointilles), evolution par zone (Explorer), tableaux de synthese, tendance 7 j |
 | `freshness.js` | Anciennete des prix : `isExpired()`, `visiblePrice()`, badges, libelles |
-| `map.js` | Cartes Leaflet (chargees a la demande), bouton Plan / Satellite (photos IGN), pins SVG inline, « Y aller » dans les bulles, carte differee en economie de donnees |
+| `map.js` | Cartes Leaflet (chargees a la demande), pastilles de prix du carburant choisi, bouton Plan / Satellite (photos IGN), « Y aller » dans les bulles, carte differee en economie de donnees |
 | `vendor.js` | Chargement a la demande de Leaflet et Chart.js (SRI) |
 | `drag-drop.js` | TouchDragReorder (favoris + vehicules) |
 
@@ -275,7 +275,8 @@ cd build && python -m http.server 8000
 - **Navigation vers l'ecran courant** : `go()` ne fait que remonter en haut de page (pas d'entree d'historique) ; les lieux GPS tardifs ne naviguent que si l'accueil est toujours affiche (`locateMe`).
 - **Favoris stations absentes** : un favori station absent des donnees n'est PAS supprime (la station peut reapparaitre) — carte inerte avec une note.
 - **Fonds de carte** : plan = `tile.openstreetmap.fr` ; satellite = orthophotos IGN (Geoplateforme `data.geopf.fr`, licence ouverte, sans cle, zoom ≤ 19). Le choix (`prefs.mapStyle`) vaut pour toutes les cartes.
-- **« Y aller »** : Plans (Apple) n'est propose que sur appareil Apple, `geo:` que sur Android (`availableApps()`). Le lien `geo:` s'ouvre dans l'onglet courant (pas de `target`).
+- **« Y aller » omnicanal** : Waze, Google Maps et Apple Plans sont proposes sur tous les appareils (appli ou version web), Apple Plans en premier sur appareil Apple ; `geo:` seulement sur Android (`availableApps()`). Le lien `geo:` s'ouvre dans l'onglet courant (pas de `target`).
+- **Pastilles de prix sur les cartes** : `markersFor()` (`lists.js`) donne le prix du carburant trie (ou du premier carburant choisi) ; `map.js` affiche une pastille pour les `PILL_MAX` (40) stations les moins cheres, des points pour les autres, les moins cheres au premier plan (`zIndexOffset`).
 - **Historique multi-carburants** : la comparaison au departement (pointilles) est limitee a `CMP_MAX_FUELS` (2) carburants affiches, au-dela le graphique deviendrait illisible.
 - **Economie de donnees** : cartes differees (`mapSlot()` affiche un bouton ; `showMapNow()` memorise le choix pour la vue courante), tuiles non « retina », pas de rafraichissement periodique. Activee par defaut si `navigator.connection.saveData`.
 - **Fraicheur** : `isExpired()` = plus de `maxAge` jours revolus ; toujours passer par `visiblePrice()` pour afficher ou comparer un prix (filtre coherent partout, y compris les statistiques).

@@ -1,5 +1,6 @@
-// directions.js — « Y aller » : ouvre l'itinéraire dans Waze, Google Maps, Plans (Apple) ou l'application
-// GPS par défaut (Android). Le choix peut être mémorisé : le bouton ouvre alors directement l'application.
+// directions.js — « Y aller » : ouvre l'itinéraire dans Waze, Google Maps, Apple Plans ou l'application GPS
+// par défaut (Android). Omnicanal : Waze, Google Maps et Apple Plans sont proposés sur tous les appareils
+// (application installée ou version web), dans un ordre adapté à l'appareil. Le choix peut être mémorisé.
 import { prefs, setNavApp, NAV_APPS } from './state.js';
 import { $, E, ICON, toast } from './helpers.js';
 import { station } from './data.js';
@@ -12,11 +13,12 @@ const isAndroid = /Android/.test(UA);
 export const APPS = {
   waze: { name: 'Waze', url: (lat, lon) => `https://waze.com/ul?ll=${lat},${lon}&navigate=yes` },
   gmaps: { name: 'Google Maps', url: (lat, lon) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving` },
-  apple: { name: 'Plans (Apple)', url: (lat, lon) => `https://maps.apple.com/?daddr=${lat},${lon}&dirflg=d` },
+  apple: { name: 'Apple Plans', url: (lat, lon) => `https://maps.apple.com/?daddr=${lat},${lon}&dirflg=d` },
   geo: { name: 'Autre application GPS', url: (lat, lon, label) => `geo:${lat},${lon}?q=${lat},${lon}(${encodeURIComponent(label || 'Station')})` }
 };
-// Plans n'existe que sur les appareils Apple ; le lien geo: n'est fiable que sur Android.
-export const availableApps = () => NAV_APPS.filter(a => (a !== 'apple' || isApple) && (a !== 'geo' || isAndroid));
+// Apple Plans en premier sur iPhone / iPad / Mac ; « Autre application GPS » (lien geo:) seulement sur
+// Android, le seul système qui le confie à l'application de navigation choisie par l'utilisateur.
+export const availableApps = () => [...(isApple ? ['apple', 'waze', 'gmaps'] : ['waze', 'gmaps', 'apple']), ...(isAndroid ? ['geo'] : [])].filter(a => NAV_APPS.includes(a));
 const savedApp = () => (prefs.navApp !== 'ask' && availableApps().includes(prefs.navApp) ? prefs.navApp : null);
 
 // Lien vers une application (s'ouvre hors de Carbu'Web ; geo: reste dans l'onglet pour déclencher l'appli).

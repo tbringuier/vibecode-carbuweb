@@ -43,6 +43,16 @@ function styleControl(L, m, layers) {
   new Ctl({ position: 'topright' }).addTo(m);
 }
 
+// Au-delà, les stations plus chères deviennent de petits points (cliquables) : la carte reste lisible.
+const PILL_MAX = 40;
+const dotIcon = L => L.divIcon({ className: 'mk-wrap', html: '<span class="mk-dot"></span>', iconSize: [0, 0], iconAnchor: [0, 0], popupAnchor: [0, -8] });
+
+// Pastille de prix (carburant choisi) : posée au-dessus du point, pointe vers la station.
+function pillIcon(L, cls, text, rank) {
+  const html = `<span class="mk-pill mk-${cls || 'def'}">${rank ? `<b class="mk-rank">${E(rank)}</b>` : ''}${E(text)}</span>`;
+  return L.divIcon({ className: 'mk-wrap', html, iconSize: [0, 0], iconAnchor: [0, 0], popupAnchor: [0, -34] });
+}
+
 export function destroyMap(id) {
   const m = state.maps[id];
   if (m) { try { m.stop(); m.remove(); } catch { /* conteneur déjà retiré du DOM */ } delete state.maps[id]; }
@@ -109,12 +119,18 @@ export async function renderMap(id, markers, opts = {}) {
     L.circleMarker([c.lat, c.lon], { radius: 7, color: '#fff', fillColor: PIN.blue, fillOpacity: 1, weight: 3 }).bindPopup(`<div class="pop-body"><b>${E(c.label || 'Point de recherche')}</b></div>`).addTo(m);
     bounds.push([c.lat, c.lon]);
   }
-  for (const mk of markers) {
+  // Les moins chères passent au premier plan quand les pastilles se chevauchent.
+  const byPrice = markers.map((mk, i) => [Number.isFinite(mk.price) ? mk.price : Infinity, i]).sort((a, b) => a[0] - b[0]);
+  const zRank = new Array(markers.length);
+  let dot = null;
+  byPrice.forEach(([, i], r) => { zRank[i] = r; });
+  markers.forEach((mk, i) => {
     const acts = mk.id ? `<span class="pop-acts">${mk.link !== false ? `<a class="pop-btn" href="#s/${encodeURIComponent(mk.id)}">Voir la station</a>` : ''}<button type="button" class="pop-btn pop-btn-2" data-act="go" data-id="${E(mk.id)}">Y aller</button></span>` : '';
-    const pop = `<div class="pop-body"><b>${E(mk.label)}</b>${mk.sub ? `<span class="pop-meta">${E(mk.sub)}</span>` : ''}${Number.isFinite(mk.price) ? `<b class="pop-price">${fmtEur(mk.price)}</b>` : ''}${acts}</div>`;
-    L.marker([mk.lat, mk.lon], { icon: icon(CLS_PIN[mk.cls] || 'blue', mk.rank), title: mk.label, riseOnHover: true }).bindPopup(pop).addTo(m);
+    const pop = `<div class="pop-body"><b>${E(mk.label)}</b>${mk.sub ? `<span class="pop-meta">${E(mk.sub)}</span>` : ''}${Number.isFinite(mk.price) ? `<b class="pop-price">${mk.fuel ? `${E(mk.fuel)} ` : ''}${fmtEur(mk.price)}</b>` : ''}${acts}</div>`;
+    const ic = mk.pill ? (zRank[i] < PILL_MAX ? pillIcon(L, mk.cls, mk.pill, mk.rank) : (dot ||= dotIcon(L))) : icon(CLS_PIN[mk.cls] || 'blue', mk.rank);
+    L.marker([mk.lat, mk.lon], { icon: ic, title: mk.pill ? `${mk.label} · ${mk.pill}` : mk.label, riseOnHover: true, zIndexOffset: (markers.length - zRank[i]) * 1000 }).bindPopup(pop).addTo(m);
     bounds.push([mk.lat, mk.lon]);
-  }
+  });
   if (circleBounds) m.fitBounds(circleBounds, { padding: [12, 12] });
   else if (bounds.length > 1) m.fitBounds(bounds, { padding: [28, 28], maxZoom: 14 });
   else if (bounds.length) m.setView(bounds[0], 14);

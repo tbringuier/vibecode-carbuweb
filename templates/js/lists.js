@@ -63,12 +63,19 @@ export function bestBand(items, title = 'Meilleurs prix') {
   return cards ? `<section class="best" aria-label="${E(title)}"><h2 class="sec-l">${E(title)}</h2><div class="best-g">${cards}</div></section>` : '';
 }
 
-// Marqueurs de carte pour une liste triée : vert / orange = les bonnes affaires, bleu neutre pour le reste
-// (une carte couverte de rouge alarme sans aider à choisir).
+// Marqueurs de carte : pastille de prix du carburant choisi (celui du tri, sinon le premier de la sélection).
+// Vert / orange = les bonnes affaires, neutre pour le reste (une carte couverte de rouge alarme sans aider).
 export function markersFor(items, fuel, max = 300) {
-  const min = fuel && items.length ? items[0].p : NaN;
-  return items.slice(0, max).map((it, i) => ({
-    lat: it.s.lat, lon: it.s.lon, id: it.s.id, label: it.s.name, sub: `${it.s.addr}, ${it.s.city}`,
-    price: it.p, cls: fuel && Number.isFinite(min) ? classFor(it.p - min).replace('dear', '') : '', rank: fuel && i < 3 ? String(i + 1) : ''
-  }));
+  const shown = items.slice(0, max);
+  const pf = fuel || prefs.fuels.find(f => shown.some(it => visiblePrice(it.s, f))) || prefs.fuels[0];
+  const prices = shown.map(it => (fuel ? it.p : visiblePrice(it.s, pf)?.p));
+  const min = Math.min(...prices.filter(Number.isFinite));
+  return shown.map((it, i) => {
+    const p = prices[i];
+    return {
+      lat: it.s.lat, lon: it.s.lon, id: it.s.id, label: it.s.name, sub: `${it.s.addr}, ${it.s.city}`,
+      price: p, fuel: pf, cls: Number.isFinite(p) && Number.isFinite(min) ? classFor(p - min).replace('dear', '') : '',
+      rank: fuel && i < 3 ? String(i + 1) : '', pill: Number.isFinite(p) ? fmtEur(p) : ''
+    };
+  });
 }
