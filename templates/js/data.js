@@ -1,14 +1,13 @@
 // data.js — Chargement économe des données et index dérivés.
 //
-// Deux fichiers (voir pipeline/export.py) :
+// Deux fichiers (voir pipeline/export.py, format v3) :
 //   data.json            prix + ruptures (~160 Ko gzip), revalidé à chaque rafraîchissement ;
-//   stations.<hash>.json stations (adresses, horaires…), nom figé par contenu, en cache HTTP.
+//   stations.<hash>.json stations (nom, adresse, coordonnées), nom figé par contenu, en cache HTTP.
 // Les requêtes sont conditionnelles (ETag) : un rafraîchissement sans nouveauté coûte ~0 octet.
 import { state, prefs, FUELS } from './state.js';
 import { norm, titleCase } from './helpers.js';
 import { isExpired } from './freshness.js';
 
-const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 let stationsDoc = null, stationsFile = '';
 
 async function getJSON(url, cache = 'no-cache') {
@@ -20,7 +19,7 @@ async function getJSON(url, cache = 'no-cache') {
 // Retourne true si de nouvelles données ont été chargées.
 export async function loadData() {
   let live = await getJSON('data.json');
-  if (live?.v !== 2 || !live.stations) throw new Error('Format de données inattendu');
+  if (live?.v !== 3 || !live.stations) { const e = new Error('Format de données inattendu : rechargez la page'); e.code = 'format'; throw e; }
   if (state.db && live.built === state.db.built && live.stations === stationsFile) { state.lastFetch = Date.now(); return false; }
   if (live.stations !== stationsFile) {
     try {
@@ -45,7 +44,6 @@ export async function loadData() {
 // Hydratation : tableaux compacts -> objets station
 // ---------------------------------------------------------------------------
 // station = { id, name, brand, osm, addr, city, cp, dept, deptCode, region, lat, lon,
-//             hours: null | {auto, days:[7 × (null | '' | 'HH:MM-HH:MM,…')]},
 //             fuels: {Gazole: {p: 1.789, t: ms}}, rupt: {E85: jour} | null }
 
 function hydrate(sd, live) {
@@ -57,7 +55,7 @@ function hydrate(sd, live) {
   const list = new Array(sd.s.length);
   const byId = new Map();
   for (let i = 0; i < sd.s.length; i++) {
-    const [id, b, osm, addr, city, cp, di, lat, lon, h] = sd.s[i];
+    const [id, b, osm, addr, city, cp, di, lat, lon] = sd.s[i];
     const d = depts[di] || { name: '', code: '', region: '', stations: [] };
     const brand = b >= 0 ? sd.brands[b] : '';
     const c = titleCase(city);
@@ -65,7 +63,7 @@ function hydrate(sd, live) {
       id, brand, osm, cp, lat, lon, addr: titleCase(addr), city: c,
       name: brand || `Station · ${c || 'inconnue'}`,
       dept: d.name, deptCode: d.code, region: d.region,
-      hours: decodeHours(h, sd.hours), fuels: {}, rupt: null
+      fuels: {}, rupt: null
     };
     const p = live.p[i] || [];
     for (let k = 0; k + 2 < p.length; k += 3) {
@@ -86,13 +84,6 @@ function hydrate(sd, live) {
   };
 }
 
-function decodeHours(h, table) {
-  if (!h) return null;
-  if (h === 1) return { auto: true, days: null };
-  const days = h.slice(1).map(i => (i < 0 ? null : table[i] ?? null));
-  return { auto: !!h[0], days };
-}
-export const dayName = i => DAYS[i];
 
 // ---------------------------------------------------------------------------
 // Accès et index (calculés à la demande, invalidés à chaque nouvelle donnée)

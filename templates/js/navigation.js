@@ -30,6 +30,9 @@ export const zoneHash = (kind, key) => `#z/${kind}/${encodeURIComponent(key)}`;
 // Vues enregistrées par app.js (évite les imports circulaires) : {home(tab), station(r), near(r), zone(r)}.
 let views = {};
 export function registerViews(v) { views = v; }
+// Appelé à chaque changement d'écran (lien, retour, geste, GPS) : ferme les fenêtres ouvertes.
+let onLeave = () => {};
+export function onScreenChange(fn) { onLeave = fn; }
 
 let depth = history.state?.d || 0;
 history.scrollRestoration = 'manual';
@@ -56,7 +59,7 @@ export function render({ scroll = 0, keep = false } = {}) {
   if (!state.db) return;
   const r = parseHash();
   const key = JSON.stringify(r);
-  if (key !== lastKey) { state.listLimit = 0; state.expLimit = 0; }
+  if (key !== lastKey) { state.listLimit = 0; state.expLimit = 0; onLeave(); }
   const same = key === lastKey;
   lastKey = key;
   state.route = r;

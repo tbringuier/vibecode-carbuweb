@@ -4,7 +4,6 @@ import { state, prefs, PAGE, PRICE_EPS } from './state.js';
 import { E, fmtKm, fmtEur, plural } from './helpers.js';
 import { visiblePrice } from './freshness.js';
 import { ptag, minorPrices, classFor, pickBest, tankTxt } from './prices.js';
-import { openBadge } from './hours.js';
 
 // Carburant de tri valide pour la sélection courante ('' = distance si autorisé).
 export function sortFuelFor(allowDistance) {
@@ -22,10 +21,10 @@ export function sortItems(items, fuel) {
   return out.sort((a, b) => (Math.abs(a.p - b.p) > PRICE_EPS ? a.p - b.p : (a.dist || 0) - (b.dist || 0)));
 }
 
-export function sortSelect(id, fuel, allowDistance) {
+export function sortSelect(id, fuel, allowDistance, label = 'Trier par', action = 'sort') {
   const opts = (allowDistance ? [`<option value=""${fuel === '' ? ' selected' : ''}>Distance</option>`] : [])
     .concat(prefs.fuels.map(f => `<option value="${f}"${f === fuel ? ' selected' : ''}>Prix ${f}</option>`)).join('');
-  return `<label class="sort-l" for="${id}">Trier par</label><select id="${id}" class="inp inp-sm" data-change="sort">${opts}</select>`;
+  return `<label class="sort-l" for="${id}">${label}</label><select id="${id}" class="inp inp-sm" data-change="${action}">${opts}</select>`;
 }
 
 // Une ligne de liste (lien vers la fiche station).
@@ -38,7 +37,7 @@ export function stationRow(it, { fuel, min, rank, showDist = true, cls } = {}) {
   const minor = minorPrices(s, fuel ? others : prefs.fuels);
   const meta = [showDist && Number.isFinite(it.dist) ? `<span class="s-dist">${fmtKm(it.dist)}</span>` : '', minor].filter(Boolean).join('');
   const tank = fuel && Number.isFinite(it.p) ? tankTxt(it.p) : '';
-  return `<a class="s-item" href="#s/${encodeURIComponent(s.id)}">${rank ? `<span class="s-rank">${rank}</span>` : ''}<span class="s-info"><span class="s-name"><span class="s-name-t">${E(s.name)}</span>${openBadge(s)}</span><span class="s-addr">${E(s.addr)}${s.addr ? ', ' : ''}${E(s.cp)} ${E(s.city)}</span>${meta ? `<span class="s-meta">${meta}</span>` : ''}</span><span class="s-price">${main}${tank ? `<span class="tank">plein ${tank}</span>` : ''}</span></a>`;
+  return `<a class="s-item" href="#s/${encodeURIComponent(s.id)}">${rank ? `<span class="s-rank">${rank}</span>` : ''}<span class="s-info"><span class="s-name"><span class="s-name-t">${E(s.name)}</span></span><span class="s-addr">${E(s.addr)}${s.addr ? ', ' : ''}${E(s.cp)} ${E(s.city)}</span>${meta ? `<span class="s-meta">${meta}</span>` : ''}</span><span class="s-price">${main}${tank ? `<span class="tank">plein ${tank}</span>` : ''}</span></a>`;
 }
 
 // Liste paginée. `key` identifie la liste pour le bouton « Voir plus ».

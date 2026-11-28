@@ -674,3 +674,17 @@ select.inp {
 .error-block .btn {
   margin-top: .75rem;
 }
+
+.dialog-sm {
+  max-width: 26rem;
+}
+
+.opts-first {
+  margin-top: 0;
+}
+
+.opts-in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+}

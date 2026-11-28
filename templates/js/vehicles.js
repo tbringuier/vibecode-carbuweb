@@ -35,10 +35,12 @@ export function openVForm(id) {
   ['v-name', 'v-tank'].forEach(x => $(x).classList.remove('inp-err'));
   const icon = ex ? ex.icon : ICONS[0];
   $('v-icons').innerHTML = ICONS.map(ic => `<button type="button" data-act="v-icon" data-ic="${ic}" aria-pressed="${ic === icon}" aria-label="Icône ${ic}">${ic}</button>`).join('');
-  const sel = ex ? ex.fuels : prefs.fuels.length < FUELS.length ? prefs.fuels : [];
-  $('v-fuels').innerHTML = FUELS.map(f => `<label class="fuel-tg"><input type="checkbox" value="${f}" class="vcb"${sel.includes(f) ? ' checked' : ''}><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${f}</label>`).join('');
+  const sel = ex ? ex.fuels : [];
+  // Même sélecteur que partout ailleurs (puces cochables).
+  $('v-fuels').innerHTML = FUELS.map(f => `<button type="button" class="chip chip-fuel" data-act="v-fuel" data-fuel="${f}" aria-pressed="${sel.includes(f)}"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${f}</button>`).join('');
   $('v-name').focus();
 }
+export function toggleVFuel(btn) { btn.setAttribute('aria-pressed', String(btn.getAttribute('aria-pressed') !== 'true')); }
 export function pickIcon(btn) { btn.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn))); }
 export function closeVForm() { state.editVId = null; $('vform').classList.add('hidden'); $('v-add-btn').classList.remove('hidden'); }
 
@@ -47,7 +49,7 @@ export function saveVForm() {
   ['v-name', 'v-tank'].forEach(x => $(x).classList.remove('inp-err'));
   const name = $('v-name').value.trim().slice(0, 30);
   const icon = document.querySelector('#v-icons [aria-pressed="true"]')?.dataset.ic || ICONS[0];
-  const fuels = FUELS.filter(f => document.querySelector(`.vcb[value="${f}"]`)?.checked);
+  const fuels = FUELS.filter(f => document.querySelector(`#v-fuels [data-fuel="${f}"]`)?.getAttribute('aria-pressed') === 'true');
   const ts = $('v-tank').value.trim();
   let tank = null, ok = true;
   if (ts) { const n = parseInt(ts, 10); if (!Number.isFinite(n) || n < 1 || n > 999) { $('v-tank').classList.add('inp-err'); $('v-tank-err').classList.remove('hidden'); ok = false; } else tank = n; }

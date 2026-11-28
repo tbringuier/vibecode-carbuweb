@@ -49,7 +49,7 @@ export function renderNear(r) {
   const fav = placeFav(r), radius = radiusOf(r);
   state.origin = { lat: r.lat, lon: r.lon, label: r.label };
   if (r.label !== ME) pushRecent({ t: 'p', lat: r.lat, lon: r.lon, label: r.label });
-  setHeader(r.label, `Stations à ${radius} km (route)`, starBtn(!!fav, 'ce lieu') + shareBtn());
+  setHeader(r.label, `Stations à moins de ${radius} km`, starBtn(!!fav, 'ce lieu') + shareBtn());
   const fuel = sortFuelFor(true);
   $('d-body').innerHTML = `<div class="toolbar card">
       ${fuelChips()}
@@ -58,6 +58,7 @@ export function renderNear(r) {
         <div class="sort-w">${sortSelect('near-sort', fuel, true)}</div>
       </div>
     </div>
+    <div id="near-best"></div>
     <div class="split">
       <div class="split-side">${mapSlot('near-map', 'd-map d-map-sticky')}</div>
       <div class="split-main" id="near-results" aria-live="polite"></div>
@@ -72,8 +73,8 @@ function renderNearResults(r) {
   const items = sortItems(all, fuel);
   const box = $('near-results'); if (!box) return;
   const empty = notice('Aucune station dans ce rayon', fuel ? `Aucune station ne propose ${E(fuel)} à moins de ${radius} km. Élargissez le rayon ci-dessus.` : 'Élargissez le rayon ci-dessus.');
-  box.innerHTML = `${bestBand(all)}
-    <div class="list-h"><h2 class="sec-l">${fuel ? `Classées par prix ${E(fuel)}` : 'Classées par distance'}</h2><span class="count">${plural(items.length, 'station', 'stations')}</span></div>
+  $('near-best').innerHTML = bestBand(all);
+  box.innerHTML = `<div class="list-h"><h2 class="sec-l">${fuel ? `Classées par prix ${E(fuel)}` : 'Classées par distance'}</h2><span class="count">${plural(items.length, 'station', 'stations')}</span></div>
     ${listHtml(items, fuel, { key: 'near', empty })}`;
   renderMap('near-map', markersFor(items, fuel), { center: { lat: r.lat, lon: r.lon, label: r.label, radiusKm: km } });
 }
@@ -89,7 +90,7 @@ export function onRadiusInput(el) {
     const fav = placeFav(r);
     if (fav?.radius) { fav.radius = v; saveFavs(); } else setRadius(v);
     state.listLimit = 0;
-    $('d-sub').textContent = `Stations à ${v} km (route)`;
+    $('d-sub').textContent = `Stations à moins de ${v} km`;
     renderNearResults(r);
   }, 220);
 }

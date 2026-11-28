@@ -432,6 +432,15 @@ a.s-item:hover,
   margin: 0;
 }
 
+#near-best:not(:empty),
+.best {
+  margin-bottom: 1rem;
+}
+
+#near-best .best {
+  margin-bottom: 0;
+}
+
 .count {
   font-size: .8125rem;
   font-weight: 600;

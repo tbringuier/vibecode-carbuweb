@@ -76,8 +76,9 @@
             <li><b>Choisissez vos carburants</b> juste au-dessus (vous pouvez en cocher plusieurs).</li>
             <li><b>Cherchez une ville</b> ou touchez <b>Autour de moi</b>.</li>
             <li><b>Comparez</b> : <span class="lg-dot cheap"></span>vert = le moins cher du secteur, <span class="lg-dot mid"></span>orange = à moins de 3&nbsp;centimes, <span class="lg-dot dear"></span>rouge = plus cher.</li>
+            <li><b>Touchez « Y aller »</b> pour lancer Waze, Google Maps ou votre GPS.</li>
           </ol>
-          <p class="onboard-more">Touchez l’étoile pour garder une station ou un lieu en favori. Dans <b>Réglages</b>, ajoutez votre véhicule pour voir le prix du plein.</p>
+          <p class="onboard-more">L’étoile garde une station ou un lieu en favori. Dans <b>Réglages</b>, ajoutez votre véhicule pour voir le prix du plein.</p>
           <button type="button" class="btn btn-p btn-sm" data-act="welcome-ok">J’ai compris</button>
         </div>
 
@@ -87,14 +88,15 @@
 
       <section id="pane-explorer" class="hidden" aria-labelledby="explorer-t">
         <h1 id="explorer-t" class="page-t">Explorer les prix</h1>
-        <section id="home-teaser" class="teaser" aria-labelledby="home-teaser-t"></section>
 
-        <div id="exp-filters" class="card filters-card" role="group" aria-label="Zone et carburant">
-          <div class="field"><label class="lbl" for="exp-fuel">Carburant</label><select id="exp-fuel" class="inp" data-change="exp"></select></div>
-          <div class="field"><label class="lbl" for="exp-region">Région</label><select id="exp-region" class="inp" data-change="exp"></select></div>
-          <div class="field"><label class="lbl" for="exp-dept">Département</label><select id="exp-dept" class="inp" data-change="exp" disabled><option value="">Tous</option></select></div>
-          <div class="field"><label class="lbl" for="exp-sort">Ordre</label><select id="exp-sort" class="inp" data-change="exp"><option value="asc">Moins chères</option><option value="desc">Plus chères</option></select></div>
+        <div id="exp-filters" class="card filters-card" role="group" aria-label="Carburants et zone">
+          <div id="exp-fuels"></div>
+          <div class="filters-grid">
+            <div class="field"><label class="lbl" for="exp-region">Région</label><select id="exp-region" class="inp" data-change="exp"></select></div>
+            <div class="field"><label class="lbl" for="exp-dept">Département</label><select id="exp-dept" class="inp" data-change="exp" disabled><option value="">Tous</option></select></div>
+          </div>
         </div>
+        <section id="home-teaser" class="teaser" aria-labelledby="home-teaser-t"></section>
 
         <section id="zone-hist" class="card hist-zone hidden" aria-labelledby="zone-hist-t">
           <div class="hist-zone-h">
@@ -106,6 +108,10 @@
 
         <section class="ranking" aria-labelledby="ranking-t">
           <div class="sec-h"><h2 id="ranking-t" class="card-t">Classement des stations</h2><span id="palmares-count" class="sec-count"></span></div>
+          <div class="ranking-ctl">
+            <div class="sort-w" id="exp-rank-w"></div>
+            <div class="sort-w"><label class="sort-l" for="exp-sort">Ordre</label><select id="exp-sort" class="inp inp-sm" data-change="exp"><option value="asc">Moins chères d’abord</option><option value="desc">Plus chères d’abord</option></select></div>
+          </div>
           <div class="split">
             <div class="split-side" id="palmares-map-w"></div>
             <div class="split-main"><div id="palmares-results" aria-live="polite"></div><div id="palmares-link" class="u-mt-075"></div></div>
@@ -167,8 +173,8 @@
           </div>
           <div class="v-form-row">
             <span class="lbl" id="v-fuels-l">Carburants compatibles</span>
-            <div id="v-fuels" class="fuel-pk" role="group" aria-labelledby="v-fuels-l"></div>
-            <p id="v-fuels-err" class="err hidden">Cochez au moins un carburant.</p>
+            <div id="v-fuels" class="chips fchips" role="group" aria-labelledby="v-fuels-l"></div>
+            <p id="v-fuels-err" class="err hidden">Choisissez au moins un carburant.</p>
           </div>
           <div class="v-form-row">
             <label class="lbl" for="v-tank">Capacité du réservoir en litres <span class="u-text-faint">(facultatif, pour estimer le plein)</span></label>
@@ -199,6 +205,14 @@
         </fieldset>
       </section>
 
+      <section class="m-sec" aria-labelledby="m-nav">
+        <h3 id="m-nav">Itinéraire</h3>
+        <fieldset class="opts opts-first">
+          <legend class="lbl">Application ouverte par « Y aller »</legend>
+          <div id="nav-opts" class="opts-in"></div>
+        </fieldset>
+      </section>
+
       <section class="m-sec" aria-labelledby="m-display">
         <h3 id="m-display">Affichage</h3>
         <fieldset class="opts">
@@ -206,6 +220,11 @@
           <label class="opt"><input type="radio" name="theme" value="auto" data-change="theme"> Automatique</label>
           <label class="opt"><input type="radio" name="theme" value="light" data-change="theme"> Clair</label>
           <label class="opt"><input type="radio" name="theme" value="dark" data-change="theme"> Sombre</label>
+        </fieldset>
+        <fieldset class="opts">
+          <legend class="lbl">Fond des cartes</legend>
+          <label class="opt"><input type="radio" name="mapStyle" value="plan" data-change="map-style"> Plan</label>
+          <label class="opt"><input type="radio" name="mapStyle" value="sat" data-change="map-style"> Satellite</label>
         </fieldset>
         <label class="switch u-mt-1">
           <input type="checkbox" id="ds-toggle" data-change="data-saver">
@@ -230,6 +249,20 @@
         <p class="m-sec-desc">Prix officiels publiés par l’État (data.economie.gouv.fr), historique depuis 2007 (archives officielles), cartes © OpenStreetMap. Site indépendant, sans publicité ni traceur.</p>
         <button type="button" class="btn btn-sm" data-act="refresh" id="btn-refresh">Vérifier les nouveaux prix</button>
       </section>
+    </div>
+  </div>
+</div>
+
+<div id="go-sheet" class="hidden">
+  <div class="dialog-backdrop">
+    <div class="dialog dialog-sm" role="dialog" aria-modal="true" aria-labelledby="go-title">
+      <div class="dialog-head">
+        <h2 id="go-title">Y aller avec…</h2>
+        <button type="button" class="btn btn-g btn-i" data-act="dialog-close" aria-label="Fermer">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div id="go-body"></div>
     </div>
   </div>
 </div>

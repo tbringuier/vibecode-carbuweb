@@ -80,3 +80,58 @@
 .pin-icon svg {
   filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35));
 }
+
+/* Bouton « Satellite / Plan » */
+
+.map-style {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  min-height: 2.25rem;
+  padding: .375rem .75rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  background: var(--sf);
+  color: var(--tx);
+  font: 700 .8125rem/1 var(--font);
+  box-shadow: var(--sh);
+  cursor: pointer;
+}
+
+.map-style:hover {
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.map-style .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.pop-body {
+  display: flex;
+  flex-direction: column;
+  gap: .125rem;
+}
+
+.pop-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+  margin-top: .375rem;
+}
+
+.pop-acts .pop-btn {
+  margin-top: 0;
+}
+
+.pop-btn-2 {
+  border: 1px solid var(--ac);
+  background: var(--sf);
+  color: var(--ac) !important;
+  cursor: pointer;
+}
+
+.pop-btn-2:hover {
+  background: var(--ab);
+}

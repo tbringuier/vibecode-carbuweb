@@ -9,8 +9,10 @@ export const ICONS = ['🚗', '🚙', '🚛', '🏍️', '🚐', '🚌', '⛽'];
 export const LS = {
   r: 'carbuRadius', f: 'carbuFavorites', v: 'carbuVehicles', av: 'carbuActiveVehicle',
   fs: 'carbuFuelSel', w: 'carbuWelcome', ma: 'carbuMaxAge', hp: 'carbuHistory',
-  ds: 'carbuDataSaver', th: 'carbuTheme', rc: 'carbuRecent'
+  ds: 'carbuDataSaver', th: 'carbuTheme', rc: 'carbuRecent', nav: 'carbuNavApp', ms: 'carbuMapStyle'
 };
+// Applications de navigation proposées par « Y aller » ('ask' = demander à chaque fois).
+export const NAV_APPS = ['waze', 'gmaps', 'apple', 'geo'];
 // Anciennes clés sans interface : purgées au démarrage.
 const LEGACY_KEYS = ['carbuFuels'];
 
@@ -21,11 +23,10 @@ export const MAX_AGE_DEFAULT = 14, MAX_AGE_OPTIONS = [14, 30, 60, 0];
 export const REFRESH_MS = 20 * 60 * 1000;  // revalidation (requête conditionnelle : ~0 octet si inchangé)
 export const PAGE = 40;                    // lignes rendues par lot dans les listes
 export const RECENT_MAX = 8;
-const HIST_DEFAULT = { period: '1y', gran: 'auto', cmp: true };
-const HIST_PERIODS = ['1m', '3m', '1y', '5y', '10y', 'all'], HIST_GRANS = ['auto', 'day', 'week', 'month', 'year'];
+const HIST_DEFAULT = { period: '1y', cmp: true };
+const HIST_PERIODS = ['1m', '3m', '1y', '5y', '10y', 'all'];
 const cleanHist = v => (v && typeof v === 'object' ? {
   period: HIST_PERIODS.includes(v.period) ? v.period : HIST_DEFAULT.period,
-  gran: HIST_GRANS.includes(v.gran) ? v.gran : HIST_DEFAULT.gran,
   cmp: typeof v.cmp === 'boolean' ? v.cmp : HIST_DEFAULT.cmp
 } : { ...HIST_DEFAULT });
 
@@ -101,6 +102,8 @@ export const prefs = {
   dataSaver: (() => { const v = read(LS.ds); return v == null ? saveDataHint : v === '1'; })(),
   theme: (() => { const v = read(LS.th); return v === 'light' || v === 'dark' ? v : 'auto'; })(),
   recent: listOf(readJSON(LS.rc), cleanRecent, recentKey).slice(0, RECENT_MAX),
+  navApp: (() => { const v = read(LS.nav); return NAV_APPS.includes(v) ? v : 'ask'; })(),
+  mapStyle: read(LS.ms) === 'sat' ? 'sat' : 'plan',
   welcomed: !!read(LS.w)
 };
 if (prefs.activeV && !prefs.vehicles.some(v => v.id === prefs.activeV)) prefs.activeV = null;
@@ -116,6 +119,8 @@ export function setActiveV(id) { prefs.activeV = id || null; write(LS.av, prefs.
 export function setHist(v) { prefs.hist = cleanHist({ ...prefs.hist, ...v }); write(LS.hp, prefs.hist); }
 export function setDataSaver(on) { prefs.dataSaver = !!on; write(LS.ds, on ? '1' : '0'); }
 export function setTheme(t) { prefs.theme = t === 'light' || t === 'dark' ? t : 'auto'; write(LS.th, prefs.theme === 'auto' ? null : prefs.theme); }
+export function setNavApp(a) { prefs.navApp = NAV_APPS.includes(a) ? a : 'ask'; write(LS.nav, prefs.navApp === 'ask' ? null : prefs.navApp); }
+export function setMapStyle(s) { prefs.mapStyle = s === 'sat' ? 'sat' : 'plan'; write(LS.ms, prefs.mapStyle === 'sat' ? 'sat' : null); }
 export function setWelcomed() { prefs.welcomed = true; write(LS.w, '1'); }
 export function pushRecent(r) {
   const c = cleanRecent(r); if (!c) return;
@@ -128,7 +133,7 @@ export function resetStorage() { Object.values(LS).forEach(k => write(k, null));
 
 // Sauvegarde / restauration manuelle (fichier JSON) : favoris, véhicules et réglages.
 export function exportPrefs() {
-  return { app: 'carbuweb', v: 1, exported: new Date().toISOString(), radius: prefs.radius, maxAge: prefs.maxAge, fuels: prefs.fuels, favorites: prefs.favs, vehicles: prefs.vehicles, activeVehicle: prefs.activeV, history: prefs.hist, dataSaver: prefs.dataSaver, theme: prefs.theme };
+  return { app: 'carbuweb', v: 1, exported: new Date().toISOString(), radius: prefs.radius, maxAge: prefs.maxAge, fuels: prefs.fuels, favorites: prefs.favs, vehicles: prefs.vehicles, activeVehicle: prefs.activeV, history: prefs.hist, dataSaver: prefs.dataSaver, theme: prefs.theme, navApp: prefs.navApp, mapStyle: prefs.mapStyle };
 }
 export function importPrefs(doc) {
   if (!doc || doc.app !== 'carbuweb') throw new Error('Fichier non reconnu');
@@ -143,6 +148,8 @@ export function importPrefs(doc) {
   if (doc.history && typeof doc.history === 'object') setHist(doc.history);
   if (typeof doc.dataSaver === 'boolean') setDataSaver(doc.dataSaver);
   if (doc.theme) setTheme(doc.theme);
+  if (doc.navApp) setNavApp(doc.navApp);
+  if (doc.mapStyle) setMapStyle(doc.mapStyle);
   return { favs: favs.length, vehicles: vehicles.length };
 }
 
@@ -162,7 +169,7 @@ export const state = {
   expLimit: 0,
   maps: {},               // cartes Leaflet par conteneur
   charts: {},             // graphiques Chart.js par clé
-  histCache: new Map(), histReq: 0, zoneReq: 0, histFuel: null, zoneFuels: null,
+  histCache: new Map(), histReq: 0, zoneReq: 0,
   dashSort: { fuel: null, dir: 'asc' },
   searchAC: null, searchT: null, toastT: null, refreshT: null,
   favDnD: null, vehicleDnD: null, editVId: null

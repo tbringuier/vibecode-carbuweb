@@ -1,40 +1,16 @@
 // settings.js — Paramètres (fenêtre modale), données de l'appareil (sauvegarde, restauration,
 // réinitialisation), thème, économie de données, rafraîchissement des prix, pied de page.
-import { state, prefs, setRadius, setMaxAge, setTheme, setDataSaver, exportPrefs, importPrefs, resetStorage, storageAvailable, REFRESH_MS } from './state.js';
+import { state, prefs, setRadius, setMaxAge, setTheme, setDataSaver, setNavApp, setMapStyle, exportPrefs, importPrefs, resetStorage, storageAvailable, REFRESH_MS } from './state.js';
 import { $, fmtInt, ago, toast, plural } from './helpers.js';
 import { loadData, invalidateDerived, stationCount } from './data.js';
 import { clearHistCache } from './history.js';
 import { renderVList, closeVForm } from './vehicles.js';
 import { rerender } from './navigation.js';
+import { openDialog, closeDialog, isOpen } from './dialog.js';
+import { availableApps, APPS, refreshGoButtons } from './directions.js';
 
-let lastFocus = null;
-export function openSettings() {
-  const m = $('settings-modal');
-  lastFocus = document.activeElement;
-  syncSettings();
-  renderVList();
-  m.classList.remove('hidden');
-  document.body.classList.add('modal-open');
-  m.querySelector('.dialog-head button')?.focus();
-}
-export function closeSettings() {
-  const m = $('settings-modal');
-  if (m.classList.contains('hidden')) return;
-  closeVForm();
-  m.classList.add('hidden');
-  document.body.classList.remove('modal-open');
-  (lastFocus && document.contains(lastFocus) ? lastFocus : $('btn-settings'))?.focus();
-}
-export const settingsOpen = () => !$('settings-modal').classList.contains('hidden');
-// Garde le focus clavier dans la fenêtre (Tab / Maj+Tab).
-export function trapFocus(e) {
-  if (e.key !== 'Tab' || !settingsOpen()) return;
-  const f = [...$('settings-modal').querySelectorAll('button, [href], input, select, textarea')].filter(x => !x.disabled && x.offsetParent !== null);
-  if (!f.length) return;
-  const first = f[0], last = f[f.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-}
+export function openSettings() { syncSettings(); renderVList(); openDialog('settings-modal'); }
+export function closeSettings() { if (!isOpen('settings-modal')) return; closeVForm(); closeDialog('settings-modal'); }
 
 function syncSettings() {
   $('rslider').value = prefs.radius;
@@ -42,6 +18,8 @@ function syncSettings() {
   document.querySelectorAll('input[name="maxAge"]').forEach(r => { r.checked = +r.value === prefs.maxAge; });
   document.querySelectorAll('input[name="theme"]').forEach(r => { r.checked = r.value === prefs.theme; });
   $('ds-toggle').checked = prefs.dataSaver;
+  $('nav-opts').innerHTML = ['ask', ...availableApps()].map(a => `<label class="opt"><input type="radio" name="navApp" value="${a}" data-change="nav-app"${prefs.navApp === a || (a === 'ask' && !availableApps().includes(prefs.navApp)) ? ' checked' : ''}> ${a === 'ask' ? 'Me demander' : APPS[a].name}</label>`).join('');
+  document.querySelectorAll('input[name="mapStyle"]').forEach(r => { r.checked = r.value === prefs.mapStyle; });
   const nf = prefs.favs.length, nv = prefs.vehicles.length, nr = prefs.recent.length;
   $('storage-info').innerHTML = storageAvailable()
     ? `Sur cet appareil : <b>${plural(nf, 'favori', 'favoris')}</b>, <b>${plural(nv, 'véhicule', 'véhicules')}</b>, ${plural(nr, 'élément récent', 'éléments récents')} et vos réglages. Rien n’est envoyé à un serveur et aucun cookie n’est utilisé.`
@@ -56,6 +34,8 @@ export function onDefaultRadius(el) {
 }
 export function onMaxAge(el) { setMaxAge(el.value); invalidateDerived('stats'); rerender(); }
 export function onTheme(el) { setTheme(el.value); applyTheme(); rerender(); }
+export function onNavApp(el) { setNavApp(el.value); refreshGoButtons(); }
+export function onMapStyle(el) { setMapStyle(el.value); rerender(); }
 export function onDataSaver(el) { setDataSaver(el.checked); scheduleRefresh(); rerender(); toast(el.checked ? 'Économie de données activée' : 'Économie de données désactivée'); }
 
 export function applyTheme() {
@@ -109,7 +89,9 @@ export async function refreshData({ manual = false } = {}) {
     syncFooter();
   } catch (e) {
     console.warn('refresh', e);
-    if (manual) toast('Connexion impossible, réessayez plus tard');
+    // Données publiées dans un nouveau format : cette page est une ancienne version de l'appli.
+    if (e.code === 'format') toast('Une nouvelle version de Carbu’Web est disponible', { label: 'Recharger', fn: () => location.reload() });
+    else if (manual) toast('Connexion impossible, réessayez plus tard');
   } finally { btn?.classList.remove('is-busy'); }
 }
 // Économie de données : pas de rafraîchissement périodique, seulement au retour sur l'appli (si > 2 h).

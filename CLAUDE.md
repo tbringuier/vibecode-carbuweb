@@ -19,7 +19,7 @@ Comparateur de prix carburants en France. Site statique regenere par CI (cron `*
 | Nouvelle fonctionnalite UI | `templates/js/[module].js` + `templates/index.html` si nouveaux IDs + `templates/css/[vue].css` + action dans `templates/app.js` (tables `CLICK`/`CHANGE`/`INPUT`) |
 | Nouvel ecran (route) | `templates/js/navigation.js` (`parseHash` + constructeur de hash) + vue enregistree dans `app.js` (`registerViews`) |
 | Modifier le pipeline de donnees | `pipeline/[phase].py` + `pipeline/config.py` si nouvelles constantes |
-| Changer les donnees servies au navigateur | `pipeline/export.py` (format v2) **ET** `templates/js/data.js` (hydratation) + `tests/test_export.py` + `tests/front.test.mjs` |
+| Changer les donnees servies au navigateur | `pipeline/export.py` (format v3) **ET** `templates/js/data.js` (hydratation) + `tests/test_export.py` + `tests/front.test.mjs` |
 | Changer la base complete (database-*.json) | `pipeline/aggregates.py` ou `stations.py` ; verifier `export.py` et `history.py` qui la lisent |
 | Modifier les styles | `templates/css/[fichier].css` uniquement — jamais de `style=` inline |
 | Ajouter une classe utilitaire generique | `templates/css/utilities.css` (prefixe `.u-*`) |
@@ -29,8 +29,9 @@ Comparateur de prix carburants en France. Site statique regenere par CI (cron `*
 | Modifier les seuils de fraicheur des prix | `templates/js/freshness.js` |
 | Modifier les seuils de classification prix (cheap/mid/dear) | `templates/js/state.js` (PRICE_EPS, PRICE_NEAR) + `templates/js/helpers.js` (`NEAR_KM`, voisinage) |
 | Modifier le rayon de recherche | `templates/js/state.js` (RADIUS_*) ; curseur inline : `filters.js` (`radiusControl`) + `near.js` |
-| Modifier les filtres carburants / vehicule | `templates/js/filters.js` (puces partagees) |
-| Modifier les horaires / « ouvert maintenant » | `templates/js/hours.js` (+ normalisation `pipeline/export.py`) |
+| Modifier le selecteur de carburants / vehicule | `templates/js/filters.js` (`fuelChips()`, **unique** composant de choix des carburants, utilise partout) |
+| Modifier « Y aller » (applications de navigation) | `templates/js/directions.js` (+ reglage dans `settings.js`) |
+| Modifier les cartes (fonds plan / satellite) | `templates/js/map.js` |
 | Modifier le workflow CI / deploiement | `.github/workflows/build.yml` (jobs `build` puis `deploy` separes) |
 | Modifier les placeholders HTML | `pipeline/generate.py` (liste exhaustive) + `templates/index.html` |
 | Modifier l'historique (sources, fusion, zones, garde-fous, import retroactif) | `pipeline/history.py` + constantes `HISTORY_*` de `pipeline/config.py` + `tests/test_history.py` |
@@ -43,26 +44,27 @@ Comparateur de prix carburants en France. Site statique regenere par CI (cron `*
 
 | Module | Role |
 |--------|------|
-| `app.js` | Point d'entree : demarrage, tables d'actions (delegation d'evenements), vue d'accueil, raccourcis clavier, rafraichissement au retour |
+| `app.js` | Point d'entree : demarrage, tables d'actions (delegation d'evenements), vue d'accueil, fenetres (Echap, fond), raccourcis clavier, rafraichissement au retour |
 | `state.js` | Constantes, preferences persistees (lecture validee, ecriture tolerante aux erreurs, sauvegarde/restauration), etat d'execution |
 | `data.js` | Chargement econome (`data.json` + `stations.<hash>.json`, requetes conditionnelles), hydratation, index derives (recherche, codes postaux, zones), statistiques par zone |
 | `helpers.js` | `E()`, `norm()`, formats FR (prix, centimes, km, dates relatives), `hav()`, `titleCase()`, `toast()` (avec action « Annuler »), icones SVG |
 | `navigation.js` | Routeur par fragment d'URL (`#s/…`, `#p/…`, `#z/…`, `#explorer`, `#favoris`), retour + restauration du defilement, en-tete des ecrans de detail, partage |
-| `filters.js` | Puces carburants (selection multiple), puces vehicules, curseur de rayon |
+| `filters.js` | Selecteur unique de carburants (puces, selection multiple) + puces vehicules, curseur de rayon |
 | `lists.js` | Lignes de liste partagees, tri, pagination « Voir plus », bandeau « Meilleurs prix », marqueurs de carte |
 | `search.js` | Recherche accueil (zones + stations locales, puis Nominatim), recents |
 | `near.js` | Geolocalisation + ecran « autour d'un point » (rayon inline, tri) |
 | `zone.js` | Ecran region / departement (navigation entre departements) |
-| `station.js` | Fiche station : prix + rang local + ecart a la moyenne, alternatives, horaires, carte, historique |
-| `explore.js` | Explorer : prix moyens nationaux, filtres, classement, tableau regional |
-| `favorites.js` | Favoris lieux + stations, reordonnancement (glisser ou fleches), suppression annulable |
+| `station.js` | Fiche station : « Y aller », prix + rang local + ecart a la moyenne, alternatives, carte, historique |
+| `explore.js` | Explorer : prix moyens nationaux, filtres (carburants + zone), classement, tableau regional |
+| `favorites.js` | Favoris lieux + stations (avec « Y aller »), reordonnancement (glisser ou fleches), suppression annulable |
 | `vehicles.js` | Profils vehicules (CRUD) dans les reglages |
-| `settings.js` | Fenetre de reglages, theme, economie de donnees, sauvegarde/restauration/effacement, rafraichissement des prix, pied de page |
+| `settings.js` | Reglages : application de navigation, theme, fond de carte, economie de donnees, sauvegarde/restauration/effacement, rafraichissement des prix, pied de page |
+| `dialog.js` | Fenetres modales : ouverture/fermeture, pile, focus piege, retour du focus |
+| `directions.js` | « Y aller » : liens Waze / Google Maps / Plans (Apple) / geo: (Android), choix memorise, fenetre de choix |
 | `prices.js` | Voisinage (cache), rang local, classe de prix, meilleur prix, plein estime, `ptag()` |
-| `history.js` | Historique : fiche station (courbe, indicateurs, comparaison departement), evolution par zone (Explorer), tendance 7 j |
-| `hours.js` | Horaires : statut « ouvert / ferme » a l'heure de Paris, tableau de la semaine |
+| `history.js` | Historique : une courbe par carburant choisi (station + moyenne du departement en pointilles), evolution par zone (Explorer), tableaux de synthese, tendance 7 j |
 | `freshness.js` | Anciennete des prix : `isExpired()`, `visiblePrice()`, badges, libelles |
-| `map.js` | Cartes Leaflet (chargees a la demande), pins SVG inline, carte differee en economie de donnees |
+| `map.js` | Cartes Leaflet (chargees a la demande), bouton Plan / Satellite (photos IGN), pins SVG inline, « Y aller » dans les bulles, carte differee en economie de donnees |
 | `vendor.js` | Chargement a la demande de Leaflet et Chart.js (SRI) |
 | `drag-drop.js` | TouchDragReorder (favoris + vehicules) |
 
@@ -97,7 +99,7 @@ Cas qui declenchent une mise a jour obligatoire :
 
 **Pas de `var`** — uniquement `const` et `let`.
 
-**Synchronisation FUELS obligatoire** — `pipeline/config.py` (ALL_FUELS) et `templates/js/state.js` (FUELS) listent exactement les memes carburants dans le meme ordre : `["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]`. Chaque carburant a un jeton couleur `--fuel-<nom en minuscules>` (clair + sombre + `[data-theme="dark"]`, `variables.css`) et une classe `.sw-<nom>` (`history.css`). Le format v2 transmet les carburants par index dans cet ordre.
+**Synchronisation FUELS obligatoire** — `pipeline/config.py` (ALL_FUELS) et `templates/js/state.js` (FUELS) listent exactement les memes carburants dans le meme ordre : `["Gazole", "SP95", "E10", "SP98", "E85", "GPLc"]`. Chaque carburant a un jeton couleur `--fuel-<nom en minuscules>` (clair + sombre + `[data-theme="dark"]`, `variables.css`) et une classe `.sw-<nom>` (`history.css`). Le format v3 transmet les carburants par index dans cet ordre.
 
 **Prix affiches au format francais** — toujours via `fmtP()` / `fmtEur()` (3 decimales, virgule : `1,789 €`) et `fmtCts()` pour les ecarts (`+1,2 ct`). Les etiquettes prix des listes passent par `ptag()` (`prices.js`).
 
@@ -105,7 +107,11 @@ Cas qui declenchent une mise a jour obligatoire :
 
 **Etat jamais porte par la seule couleur** — prix : couleur + rang / ecart ecrit ; puces : `aria-pressed` + coche ✓ ; variations : fleche ▲▼ + signe.
 
-**Couleurs des graphiques** — une teinte fixe par carburant (`fuelColor()` lit `--fuel-*`), identique dans tous les graphiques ; palette validee daltonisme dans l'ordre FUELS, ne pas la permuter. Pas de camembert, pas de double axe ; tout graphique a une alternative tableau.
+**Couleurs des graphiques** — une teinte fixe par carburant (`fuelColor()` lit `--fuel-*`), identique dans tous les graphiques ; palette validee daltonisme dans l'ordre FUELS, ne pas la permuter. Pas de camembert, pas de double axe ; tout graphique est accompagne d'un tableau de synthese chiffre (pas de tableau brut par periode).
+
+**Un seul selecteur de carburants** — le composant `fuelChips()` (`filters.js`) est le seul moyen de choisir des carburants, partout (accueil, listes, fiche station, Explorer, favoris, formulaire vehicule avec la meme apparence). Toutes les vues (listes, prix, historique, classement, tableaux) affichent `prefs.fuels`. Quand un seul carburant est necessaire (tri, classement), on le choisit parmi la selection avec `sortSelect()`. Ne pas ajouter de selecteur de carburant propre a une vue.
+
+**Noms de carburants** — jamais de `text-transform: uppercase` (« GPLc » deviendrait « GPLC »).
 
 **Pas de framework, pas de bundler, pas de npm** — vanilla JS ES modules uniquement. Bibliotheques externes (Leaflet, Chart.js) chargees a la demande par `vendor.js`, versions figees + SRI.
 
@@ -117,11 +123,15 @@ Cas qui declenchent une mise a jour obligatoire :
 
 **Timestamps** — base complete : `maj_iso` en ISO 8601 avec offset Paris, jamais UTC brut. Donnees navigateur : minutes depuis l'epoch (`t0` + delta), hydratees en millisecondes (`entry.t`).
 
-**IDs HTML ↔ JS coherents** — tout ID utilise dans JS doit exister dans `templates/index.html`. Exceptions dynamiques connues : `footer-fuel-data-datetime` (injecte par `{{FUEL_DATA_UPDATE_FOOTER_HTML}}`), `near-r`, `near-sort`, `near-results`, `near-map`, `zone-sort`, `zone-map`, `station-map`, `explore-map`, `hist-body`, `hist-chart`, `zone-chart`, `osm-slot`.
+**IDs HTML ↔ JS coherents** — tout ID utilise dans JS doit exister dans `templates/index.html`. Exceptions dynamiques connues : `footer-fuel-data-datetime` (injecte par `{{FUEL_DATA_UPDATE_FOOTER_HTML}}`), `near-r`, `near-sort`, `near-results`, `near-best`, `near-map`, `zone-sort`, `zone-map`, `station-map`, `explore-map`, `exp-rank`, `hist-body`, `hist-chart`, `zone-chart`, `osm-slot`, `go-remember`.
 
 **Historique : la branche `history` n'est ecrite que par la CI** — jamais de commit manuel dessus ; la reconstruire si besoin avec `python -m pipeline.history backfill …` puis laisser la CI publier.
 
-**Reglages = `<div role="dialog">`** dans `#settings-modal` — pas de balise `<dialog>`. Ouverture/fermeture par la classe `.hidden` (`openSettings()` / `closeSettings()`), focus piege (`trapFocus`), Echap et clic sur le fond ferment.
+**Fenetres = `<div role="dialog">`** (`#settings-modal`, `#go-sheet`) — pas de balise `<dialog>`. Ouverture/fermeture via `dialog.js` (`openDialog` / `closeDialog`, classe `.hidden`), focus piege, Echap et clic sur le fond ferment la fenetre du dessus.
+
+**Liens externes dans la delegation** — un `<a href="https://…">` portant `data-act` (ex. « Y aller ») n'est pas bloque : `app.js` n'appelle `preventDefault()` que pour les autres elements.
+
+**Pas d'horaires d'ouverture** — retires (donnees source trop souvent absentes ou fausses) : ni exportes, ni affiches. Ne pas les reintroduire sans source fiable.
 
 **Preferences persistees** — uniquement via `state.js` : chaque lecture est validee (`cleanFav`, `cleanVehicle`, bornes numeriques), chaque ecriture passe par `write()` (try/catch : navigation privee, quota). Toute nouvelle preference doit aussi etre couverte par `exportPrefs()` / `importPrefs()`.
 
@@ -168,27 +178,25 @@ app.js (module)
 ```
 
 **Etat (`state.js`) :**
-- `prefs` : preferences persistees (`radius`, `maxAge`, `fuels`, `favs`, `vehicles`, `activeV`, `hist`, `dataSaver`, `theme`, `recent`, `welcomed`) — modifiees uniquement via les setters / `save*()` du module
+- `prefs` : preferences persistees (`radius`, `maxAge`, `fuels`, `favs`, `vehicles`, `activeV`, `hist` {period, cmp}, `dataSaver`, `theme`, `recent`, `welcomed`, `navApp` ('ask'|'waze'|'gmaps'|'apple'|'geo'), `mapStyle` ('plan'|'sat')) — modifiees uniquement via les setters / `save*()` du module
 - `state` : etat d'execution (`db`, `route`, `origin`, `geo`, `sortFuel`, pagination, cartes, graphiques, caches de l'historique…)
-- Cles localStorage : constante `LS` (`carbuRadius`, `carbuFavorites`, `carbuVehicles`, `carbuActiveVehicle`, `carbuFuelSel`, `carbuWelcome`, `carbuMaxAge`, `carbuHistory`, `carbuDataSaver`, `carbuTheme`, `carbuRecent`). `carbuFuels` (ancien filtre sans UI) est purge au demarrage.
+- Cles localStorage : constante `LS` (`carbuRadius`, `carbuFavorites`, `carbuVehicles`, `carbuActiveVehicle`, `carbuFuelSel`, `carbuWelcome`, `carbuMaxAge`, `carbuHistory`, `carbuDataSaver`, `carbuTheme`, `carbuRecent`, `carbuNavApp`, `carbuMapStyle`). `carbuFuels` (ancien filtre sans UI) est purge au demarrage.
 
-**Donnees navigateur (format v2, `pipeline/export.py` → `templates/js/data.js`) :**
+**Donnees navigateur (format v3, `pipeline/export.py` → `templates/js/data.js`) :**
 ```
-stations.<hash>.json   (nom adresse par contenu ; ~1 Mo brut, ~370 Ko gzip, en cache tant qu'il ne change pas)
-  {"v":2, "fuels":[...], "regions":[nom], "depts":[[nom, code, i_region]], "brands":[nom], "hours":["07:00-21:00", "", ...],
-   "s":[[id, i_brand|-1, osm ("n123"/"w123"/""), adresse, ville, cp, i_dept, lat, lon, horaires], ...]}
-  horaires : 0 inconnus | 1 automate seul | [automate, i_lundi..i_dimanche] (-1 = jour inconnu, "" = ferme)
+stations.<hash>.json   (nom adresse par contenu ; ~0,9 Mo brut, ~330 Ko gzip, en cache tant qu'il ne change pas)
+  {"v":3, "fuels":[...], "regions":[nom], "depts":[[nom, code, i_region]], "brands":[nom],
+   "s":[[id, i_brand|-1, osm ("n123"/"w123"/""), adresse, ville, cp, i_dept, lat, lon], ...]}
   departement : nom de la source (code postal en secours) ; code 2A/2B pour la Corse
 
 data.json              (~520 Ko brut, ~145 Ko gzip, seul fichier re-telecharge quand les prix changent)
-  {"v":2, "built", "updated", "updated_label", "stations":"stations.<hash>.json", "n", "t0":minutes,
+  {"v":3, "built", "updated", "updated_label", "stations":"stations.<hash>.json", "n", "t0":minutes,
    "p":[[i_carburant, prix millimes, minutes depuis t0, ...], ...]   (aligne ligne a ligne sur "s")
    "r":{"<index>":[i_carburant, jour depuis 1970, ...]}}             (ruptures de moins de EXPORT_RUPTURE_MAX_AGE_DAYS)
 ```
 **Station hydratee :**
 ```js
 { id, name, brand, osm, addr, city, cp, dept, deptCode, region, lat, lon,
-  hours: null | { auto, days: [7 × (null | '' | 'HH:MM-HH:MM,…')] },
   fuels: { Gazole: { p: 1.789, t: 1764200000000 } }, rupt: null | { E85: jourDepuis1970 } }
 ```
 Statistiques (moyenne, minimum, nombre par carburant, France / region / departement) calculees cote navigateur (`zoneStats()`), sur les prix visibles (filtre d'anciennete applique).
@@ -232,7 +240,7 @@ js = open('templates/app.js').read() + ''.join(open(f).read() for f in glob.glob
 html = open('templates/index.html').read()
 js_ids = set(re.findall(r"\$\(['\"]([^'\"]+)['\"]\)", js)) | set(re.findall(r"getElementById\(['\"]([^'\"]+)['\"]\)", js))
 html_ids = set(re.findall(r'id="([^"]+)"', html))
-dynamic = {'footer-fuel-data-datetime', 'near-r', 'near-sort', 'near-results', 'near-map', 'zone-sort', 'zone-map', 'station-map', 'explore-map', 'hist-body', 'hist-chart', 'zone-chart', 'osm-slot'}
+dynamic = {'footer-fuel-data-datetime', 'near-r', 'near-sort', 'near-results', 'near-best', 'near-map', 'zone-sort', 'zone-map', 'station-map', 'explore-map', 'exp-rank', 'hist-body', 'hist-chart', 'zone-chart', 'osm-slot', 'go-remember'}
 missing = js_ids - html_ids - dynamic
 inline = re.findall(r'\son[a-z]+="', html + js)
 print(f'ERREUR IDs manquants: {missing}' if missing else 'IDs OK')
@@ -266,6 +274,9 @@ cd build && python -m http.server 8000
 - **Cle des lieux favoris** : `favKey()` arrondit a 5 decimales, exactement comme `nearHash()`. Toute autre precision casse la reconnaissance d'un favori depuis son lien (doublons, rayon personnalise ignore).
 - **Navigation vers l'ecran courant** : `go()` ne fait que remonter en haut de page (pas d'entree d'historique) ; les lieux GPS tardifs ne naviguent que si l'accueil est toujours affiche (`locateMe`).
 - **Favoris stations absentes** : un favori station absent des donnees n'est PAS supprime (la station peut reapparaitre) — carte inerte avec une note.
+- **Fonds de carte** : plan = `tile.openstreetmap.fr` ; satellite = orthophotos IGN (Geoplateforme `data.geopf.fr`, licence ouverte, sans cle, zoom ≤ 19). Le choix (`prefs.mapStyle`) vaut pour toutes les cartes.
+- **« Y aller »** : Plans (Apple) n'est propose que sur appareil Apple, `geo:` que sur Android (`availableApps()`). Le lien `geo:` s'ouvre dans l'onglet courant (pas de `target`).
+- **Historique multi-carburants** : la comparaison au departement (pointilles) est limitee a `CMP_MAX_FUELS` (2) carburants affiches, au-dela le graphique deviendrait illisible.
 - **Economie de donnees** : cartes differees (`mapSlot()` affiche un bouton ; `showMapNow()` memorise le choix pour la vue courante), tuiles non « retina », pas de rafraichissement periodique. Activee par defaut si `navigator.connection.saveData`.
 - **Fraicheur** : `isExpired()` = plus de `maxAge` jours revolus ; toujours passer par `visiblePrice()` pour afficher ou comparer un prix (filtre coherent partout, y compris les statistiques).
 
@@ -278,7 +289,7 @@ cd build && python -m http.server 8000
 - **`price_entry_should_replace()`** dans `helpers.py` : comparateur unique de fraicheur. Une entree avec horodatage complet prime sur une date seule le meme jour ; a egalite stricte, le flux peut primer si `prefer_incoming_on_tie=True`.
 - **Mapping OSM avec secours** : `resolve_osm_mapping()` (`download.py`) prend le mapping du jour s'il existe, sinon interroge Overpass, sinon retombe sur le mapping precedent le plus recent. Ne jamais copier le secours sous le nom du jour. `overpass.openstreetmap.fr` est exclu (403 depuis les runners GitHub).
 - **Departements** : le code postal ne suffit pas (communes limitrophes, Corse 20xxx). `export.py` prend le nom de departement de la source et ne deduit du code postal que les « Inconnu ».
-- **Horaires source** : « Ferme » les 7 jours sans automate = valeur par defaut de la source, exportee comme « inconnus ». `00.00 - 00.00` et `00.00 - 23.59` = 24 h.
+- **Horaires source** : presents dans la base complete (`parse_hours`) mais volontairement non exportes vers le navigateur (trop souvent absents ou « Ferme » par defaut).
 - **DST** : les comparaisons de timestamps utilisent l'offset Europe/Paris.
 - **Horodatages des exports XLSX decales** : data.economie.gouv.fr ajoute `+01:00`/`+02:00` a des heures deja locales. L'historique prend la **date UTC** de `maj_iso` (`snapshot_day`) pour retomber sur le jour des archives. Ne pas « corriger » vers la date locale.
 - **Archives annuelles** : prix en euros (`"1.789"`) depuis ~2022, en millimes (`"1789"`) avant, et `maj` avec espace + microsecondes en 2007 — `parse_annual_price()` gere les deux. Fichier courant republie chaque nuit vers 23:40 UTC.
@@ -321,9 +332,9 @@ node --test tests/front.test.mjs     # Tests unitaires du front
 - Archives annuelles : `donnees.roulez-eco.fr/opendata/annee/AAAA` depuis 2007, zip 10–35 Mo (XML ISO-8859-1), tous les changements de prix de l'annee ; annee en cours republiee chaque nuit
 - Flux instantane : XLSX ~2.5 Mo, une ligne par station (toujours plus recent)
 - OSM : Overpass API (3 instances en rotation), cache local journalier, repli sur le mapping precedent
-- Geocodage : Nominatim (navigateur, a la demande) ; tuiles : `tile.openstreetmap.fr` (a la demande)
+- Geocodage : Nominatim (navigateur, a la demande) ; tuiles : `tile.openstreetmap.fr` (plan) et IGN Geoplateforme (satellite), a la demande
 
-**Poids reseau (gzip) :** premiere visite ≈ 145 Ko (prix) + 370 Ko (stations) + ~60 Ko (HTML/CSS/JS) ; visite suivante sans nouveaux prix ≈ quelques requetes 304 ; nouveaux prix ≈ 145 Ko. Leaflet (~45 Ko) et Chart.js (~60 Ko) seulement si une carte / un graphique est affiche.
+**Poids reseau (gzip) :** premiere visite ≈ 142 Ko (prix) + 331 Ko (stations) + ~62 Ko (HTML/CSS/JS) ; visite suivante sans nouveaux prix ≈ quelques requetes 304 ; nouveaux prix ≈ 145 Ko. Leaflet (~45 Ko) et Chart.js (~60 Ko) seulement si une carte / un graphique est affiche.
 
 **Design system :**
 - Accent : `#2563eb` (bleu) ; polices systeme (aucun telechargement)

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 const { fmtP, fmtEur, fmtCts, fmtKm, titleCase, norm, E } = await import('../templates/js/helpers.js');
-const { openStatus, parisNow } = await import('../templates/js/hours.js');
+const { APPS } = await import('../templates/js/directions.js');
 const { isExpired, freshBadge } = await import('../templates/js/freshness.js');
 const { cleanFav, cleanVehicle, importPrefs, prefs, favKey } = await import('../templates/js/state.js');
 const nb = s => s.replace(/[  ]/g, ' ');
@@ -29,20 +29,11 @@ test('casse et normalisation', () => {
   assert.equal(E('<a href="x">\'</a>'), '&lt;a href=&quot;x&quot;&gt;&#39;&lt;/a&gt;');
 });
 
-test('horaires : ouvert / fermé (heure de Paris)', () => {
-  const days = ['07:00-21:00', '07:00-21:00', '07:00-12:00,14:00-19:00', '', null, '22:00-02:00', '00:00-00:00'];
-  const s = { hours: { auto: false, days } };
-  assert.deepEqual(openStatus(s, { day: 0, min: 8 * 60 }), { open: true, soon: false, label: 'jusqu’à 21h00' });
-  assert.equal(openStatus(s, { day: 0, min: 20 * 60 + 45 }).soon, true);
-  assert.equal(openStatus(s, { day: 2, min: 13 * 60 }).label, 'ouvre à 14h00');
-  assert.equal(openStatus(s, { day: 3, min: 10 * 60 }).label, 'réouverture non communiquée');
-  assert.equal(openStatus(s, { day: 4, min: 10 * 60 }), null);
-  assert.equal(openStatus(s, { day: 6, min: 60 }).open, true, 'créneau de la veille après minuit');
-  assert.equal(openStatus(s, { day: 6, min: 12 * 60 }).label, '24h/24 aujourd’hui');
-  assert.equal(openStatus({ hours: { auto: true, days: null } }).auto, true);
-  assert.equal(openStatus({ hours: null }), null);
-  const now = parisNow(new Date('2026-11-30T23:30:00Z'));  // lundi 00:30 à Paris (UTC+1)
-  assert.deepEqual(now, { day: 1, min: 30 });
+test('liens « Y aller » (applications de navigation)', () => {
+  assert.equal(APPS.waze.url(45.75, 4.83), 'https://waze.com/ul?ll=45.75,4.83&navigate=yes');
+  assert.equal(APPS.gmaps.url(45.75, 4.83), 'https://www.google.com/maps/dir/?api=1&destination=45.75,4.83&travelmode=driving');
+  assert.equal(APPS.apple.url(45.75, 4.83), 'https://maps.apple.com/?daddr=45.75,4.83&dirflg=d');
+  assert.equal(APPS.geo.url(45.75, 4.83, 'Total & Co'), 'geo:45.75,4.83?q=45.75,4.83(Total%20%26%20Co)');
 });
 
 test('fraîcheur et filtre d’ancienneté', () => {
@@ -64,8 +55,10 @@ test('validation des favoris / véhicules (stockage corrompu)', () => {
   // La clé d'un lieu favori doit se retrouver depuis son adresse #p/lat,lon (5 décimales).
   assert.equal(favKey(45.7578137, 4.8320114), favKey(+(45.7578137).toFixed(5), +(4.8320114).toFixed(5)));
   assert.throws(() => importPrefs({ app: 'autre' }));
-  importPrefs({ app: 'carbuweb', history: { period: 'x', gran: '<b>', cmp: 'false' } });
-  assert.deepEqual(prefs.hist, { period: '1y', gran: 'auto', cmp: true }, 'préférences historique validées');
+  importPrefs({ app: 'carbuweb', history: { period: 'x', gran: '<b>', cmp: 'false' }, navApp: 'minitel', mapStyle: 'sat' });
+  assert.deepEqual(prefs.hist, { period: '1y', cmp: true }, 'préférences historique validées');
+  assert.equal(prefs.navApp, 'ask', 'application inconnue -> demander');
+  assert.equal(prefs.mapStyle, 'sat');
   const r = importPrefs({ app: 'carbuweb', favorites: [{ type: 'station', id: '1000001' }, { type: 'station', id: '1000001' }, null], vehicles: [], fuels: [] });
   assert.equal(r.favs, 1, 'doublons et entrées invalides écartés');
   assert.equal(prefs.fuels.length, 6, 'sélection vide -> tous les carburants');
@@ -77,7 +70,7 @@ const dataPath = new URL('data.json', BUILD);
 test('hydratation de build/data.json + stations.<hash>.json', { skip: !existsSync(dataPath) && 'pas de build' }, async () => {
   const live = JSON.parse(readFileSync(dataPath, 'utf8'));
   const sd = JSON.parse(readFileSync(new URL(live.stations, BUILD), 'utf8'));
-  assert.equal(live.v, 2);
+  assert.equal(live.v, 3);
   assert.equal(sd.s.length, live.n);
   assert.equal(live.p.length, live.n);
   globalThis.fetch = async url => ({ ok: true, status: 200, json: async () => (String(url).startsWith('data.json') ? live : sd) });
@@ -87,6 +80,7 @@ test('hydratation de build/data.json + stations.<hash>.json', { skip: !existsSyn
   assert.equal(state.db.list.length, live.n);
   const s = state.db.list[0];
   assert.ok(s.id && s.name && Number.isFinite(s.lat) && s.dept && s.region, 'station complète');
+  assert.equal(s.hours, undefined, 'pas d’horaires publiés');
   assert.equal(station(s.id), s);
   const f = Object.values(state.db.list.find(x => Object.keys(x.fuels).length).fuels)[0];
   assert.ok(f.p > 0.3 && f.p < 4 && f.t > Date.UTC(2020, 0, 1), 'prix et horodatage décodés');

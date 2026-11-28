@@ -17,11 +17,9 @@
 }
 
 .ptag-f {
-  font-size: .625rem;
+  font-size: .6875rem;
   font-weight: 700;
-  letter-spacing: .03em;
-  text-transform: uppercase;
-  color: var(--t3);
+  color: var(--t2);
 }
 
 .ptag-v {
@@ -89,8 +87,6 @@
 }
 
 .badge-ok { border-color: color-mix(in oklab, var(--gn2) 50%, var(--bd)); background: var(--gb); color: var(--gn); }
-.badge-warn { border-color: color-mix(in oklab, var(--am2) 50%, var(--bd)); background: var(--amb); color: var(--am); }
-.badge-off { border-color: color-mix(in oklab, var(--rd2) 40%, var(--bd)); background: var(--rb); color: var(--rd); }
 
 /* Cartes Leaflet */
 
@@ -174,10 +170,8 @@
   display: inline-flex;
   align-items: center;
   gap: .375rem;
-  font-size: .6875rem;
+  font-size: .8125rem;
   font-weight: 800;
-  letter-spacing: .03em;
-  text-transform: uppercase;
   color: var(--t2);
 }
 
@@ -268,8 +262,8 @@
   gap: .5rem;
 }
 
-.prices .sec-l,
-.st-main section > .sec-l {
+.st-prices > .sec-l,
+.st-alts > .sec-l {
   margin-top: 0;
 }
 
@@ -374,6 +368,19 @@
 .p-card.out {
   border-style: dashed;
   box-shadow: none;
+}
+
+/* Carburant non vendu : information neutre, pas une alerte */
+.p-card.absent {
+  border-style: dashed;
+  background: var(--sf-2);
+  box-shadow: none;
+}
+
+.p-card.absent .p-card-na {
+  color: var(--t3);
+  font-size: .9375rem;
+  font-weight: 700;
 }
 
 .p-legend {
@@ -491,79 +498,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Horaires */
-
-.st-hours .sec-l {
-  margin-top: 0;
-}
-
-.st-hours:hover {
-  box-shadow: var(--sh);
-}
-
-.b24 {
-  display: flex;
-  align-items: flex-start;
-  gap: .5rem;
-  margin-bottom: .5rem;
-  padding: .5rem .625rem;
-  border-radius: var(--r);
-  background: var(--gb);
-  color: var(--gn);
-  font-size: .8125rem;
-  font-weight: 700;
-}
-
-.b24 .icon {
-  flex-shrink: 0;
-  margin-top: .125rem;
-}
-
-.hours-list {
-  list-style: none;
-}
-
-.hours-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: .75rem;
-  padding: .375rem .5rem;
-  border-radius: var(--r);
-  font-size: .875rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.hours-list li.is-today {
-  background: var(--ab);
-  font-weight: 700;
-}
-
-.h-day {
-  color: var(--t2);
-  font-weight: 600;
-}
-
-.is-today .h-day {
-  color: var(--ac);
-}
-
-.h-val {
-  text-align: right;
-}
-
-.h-closed {
-  color: var(--rd);
-  font-weight: 700;
-}
-
-.h-na {
-  color: var(--t3);
-}
-
-.st-hours-na {
-  font-size: .875rem;
-  color: var(--t2);
-}
 
 /* Mobile : carte de prix en ligne (prix à gauche, contexte à droite) — plus courte et plus lisible */
 @media (max-width: 559px) {
@@ -604,4 +538,140 @@
 .d-map.map-off {
   height: 5rem;
   min-height: 0;
+}
+
+/* En-tête de la fiche : adresse, distance, actions */
+
+.st-addr-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .5rem .75rem;
+}
+
+.st-actions .btn {
+  min-height: 2.75rem;
+}
+
+.prices-card {
+  display: flex;
+  flex-direction: column;
+  gap: .875rem;
+}
+
+.prices-card:hover {
+  box-shadow: var(--sh);
+}
+
+.prices-card .p-legend {
+  margin-top: 0;
+}
+
+/* « Y aller » : bouton direct + choix d'une autre application */
+
+.go-wrap {
+  display: inline-flex;
+}
+
+.go-split {
+  display: inline-flex;
+}
+
+.go-split > a.btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.go-more {
+  min-width: 2.5rem;
+  padding-left: .5rem;
+  padding-right: .5rem;
+  border-left: 1px solid color-mix(in oklab, var(--ac-tx) 35%, transparent);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.go-with {
+  font-weight: 600;
+  opacity: .9;
+}
+
+.go-dest {
+  display: flex;
+  flex-direction: column;
+  gap: .125rem;
+  margin-bottom: 1rem;
+  font-size: .875rem;
+  color: var(--t2);
+}
+
+.go-dest b {
+  font-size: 1rem;
+  color: var(--tx);
+}
+
+.go-apps {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+
+.go-app {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-height: 3.25rem;
+  padding: .625rem .875rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rl);
+  background: var(--sf);
+  color: var(--tx);
+  font-weight: 700;
+  transition: border-color var(--dur-1), background-color var(--dur-1);
+}
+
+.go-app:hover {
+  border-color: var(--ac);
+  background: var(--ab);
+  text-decoration: none;
+}
+
+.go-app.is-saved {
+  border-color: var(--ac);
+}
+
+.go-app > .icon:last-child {
+  margin-left: auto;
+  color: var(--t3);
+}
+
+.go-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: #fff;
+}
+
+.go-ico .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.go-ico-waze { background: #1aa3d4; }
+.go-ico-gmaps { background: #34a853; }
+.go-ico-apple { background: #6b7280; }
+.go-ico-geo { background: var(--ac); }
+
+.go-tag {
+  padding: .0625rem .5rem;
+  border-radius: var(--rr);
+  background: var(--ab);
+  color: var(--ac);
+  font-size: .6875rem;
+  font-weight: 700;
 }

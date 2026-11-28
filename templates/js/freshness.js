@@ -22,13 +22,6 @@ export function freshBadge(e) {
   if (d >= 7) return `<span class="fresh warn">${d} j</span>`;
   return '';
 }
-// Libellé lisible : « mis à jour il y a 3 h » / « … le 12/11 à 08:15 ».
-export function freshText(e) {
-  if (!e || !Number.isFinite(e.t)) return 'date inconnue';
-  const d = new Date(e.t);
-  const hm = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
-  const days = freshDays(e);
-  if (days < 2) return `${ago(e.t)} · ${hm}`;
-  return `${ago(e.t)} · ${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}`;
-}
+// Libellé lisible : « il y a 3 h », « il y a 5 j », « il y a 2 mois ».
+export const freshText = e => (e && Number.isFinite(e.t) ? ago(e.t) : 'date inconnue');
 export const freshCls = e => { const d = freshDays(e); return d === null || d >= 15 ? 'old' : d >= 7 ? 'warn' : ''; };

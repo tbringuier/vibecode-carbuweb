@@ -35,10 +35,10 @@ export function renderZone(r) {
       <div class="toolbar-row"><div class="zone-kpi"><b>${plural(z.stations.length, 'station', 'stations')}</b>${Number.isFinite(avg) ? ` · prix moyen ${E(fuel)} <b>${fmtEur(avg)}</b>` : ''}</div><div class="sort-w">${sortSelect('zone-sort', fuel, false)}</div></div>
       ${nav}
     </div>
+    ${bestBand(z.stations.map(s => ({ s, dist: NaN })))}
     <div class="split">
       <div class="split-side">${mapSlot('zone-map', 'd-map d-map-sticky')}</div>
       <div class="split-main">
-        ${bestBand(z.stations.map(s => ({ s, dist: NaN })))}
         <div class="list-h"><h2 class="sec-l">Classées par prix ${E(fuel)}</h2><span class="count">${fmtInt(items.length)} / ${plural(z.stations.length, 'station', 'stations')}</span></div>
         ${listHtml(items, fuel, { key: 'zone', ranks: true, showDist: false, empty: notice('Aucune station ne propose ce carburant', 'Choisissez un autre carburant ci-dessus.') })}
       </div>

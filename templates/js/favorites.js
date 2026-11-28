@@ -4,10 +4,10 @@ import { state, prefs, saveFavs, favKey, RADIUS_MIN, RADIUS_MAX } from './state.
 import { $, E, ICON, fmtEur, fmtKm, crowKm, toast, notice } from './helpers.js';
 import { station } from './data.js';
 import { within, pickBest, ptag, tankTxt } from './prices.js';
-import { openBadge } from './hours.js';
 import { fuelChips } from './filters.js';
 import { TouchDragReorder } from './drag-drop.js';
 import { nearHash, stationHash, starBtn } from './navigation.js';
+import { goButton } from './directions.js';
 
 export function isPlaceFav(lat, lon) { const k = favKey(lat, lon); return prefs.favs.some(f => f.type === 'address' && f.id === k); }
 export const isStationFav = id => prefs.favs.some(f => f.type === 'station' && f.id === id);
@@ -98,9 +98,10 @@ function stationCard(f, i) {
   }
   const tags = prefs.fuels.map(fu => ptag(s, fu)).filter(Boolean).join('');
   return `<article class="fav" data-di="${i}">
-    <div class="fav-top">${handle(i, s.name)}<a class="fav-name" href="${stationHash(s.id)}"><span class="fav-kind" aria-hidden="true">⛽</span>${E(s.name)}</a>${openBadge(s)}${removeBtn(i, s.name)}</div>
+    <div class="fav-top">${handle(i, s.name)}<a class="fav-name" href="${stationHash(s.id)}"><span class="fav-kind" aria-hidden="true">⛽</span>${E(s.name)}</a>${removeBtn(i, s.name)}</div>
     <p class="fav-sub">${E(s.addr)}, ${E(s.cp)} ${E(s.city)}</p>
-    <a class="fav-prices" href="${stationHash(s.id)}" aria-label="Voir la fiche de ${E(s.name)}">${tags || '<span class="u-text-muted">Aucun des carburants choisis ici.</span>'}<span class="fav-go">Fiche ${ICON.chev}</span></a>
+    <div class="fav-prices">${tags || '<span class="u-text-muted">Aucun des carburants choisis n’est vendu ici.</span>'}</div>
+    <div class="fav-foot">${goButton(s, ' btn-sm')}<a class="btn btn-sm" href="${stationHash(s.id)}">Voir la fiche ${ICON.chev}</a></div>
   </article>`;
 }
 
@@ -122,7 +123,7 @@ function placeCard(f, i) {
         <span class="stepper-v">${r} km</span>
         <button type="button" class="btn btn-i btn-sm" data-act="fav-radius" data-i="${i}" data-d="5" aria-label="Augmenter le rayon"${r >= RADIUS_MAX ? ' disabled' : ''}>+</button>
       </div>
-      <a class="btn btn-p btn-sm" href="${nearHash(f.lat, f.lon, f.name)}">Voir toutes les stations ${ICON.chev}</a>
+      <a class="btn btn-p btn-sm" href="${nearHash(f.lat, f.lon, f.name)}">Voir les stations ${ICON.chev}</a>
     </div>
   </article>`;
 }

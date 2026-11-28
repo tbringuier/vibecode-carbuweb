@@ -7,9 +7,7 @@ from zoneinfo import ZoneInfo
 
 from pipeline.export import (
     build_payloads,
-    encode_hours,
     entry_minutes,
-    normalize_day_hours,
     osm_ref,
     write_frontend_data,
 )
@@ -22,25 +20,6 @@ def station(dept, region, cp, prices=None, horaires=None, **kw):
         "horaires": horaires or {"automate_24_24": False, "jours": {"Statut": "Horaires indisponibles"}},
         "carburants_disponibles": prices or {}, "carburants_en_rupture": kw.get("ruptures", {}),
     }
-
-
-class HoursTests(unittest.TestCase):
-    def test_day_normalisation(self):
-        self.assertEqual(normalize_day_hours("07.00 - 12.00 / 14.00 - 19.00"), "07:00-12:00,14:00-19:00")
-        self.assertEqual(normalize_day_hours("Fermé"), "")
-        self.assertIsNone(normalize_day_hours("Horaires indisponibles"))
-        self.assertIsNone(normalize_day_hours(None))
-
-    def test_encode(self):
-        table = {}
-        jours = {d: "07.00 - 21.00" for d in ("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi")}
-        jours.update({"Samedi": "Fermé"})
-        self.assertEqual(encode_hours({"automate_24_24": True, "jours": jours}, table), [1, 0, 0, 0, 0, 0, 1, -1])
-        self.assertEqual(table, {"07:00-21:00": 0, "": 1})
-        # « Ferme » partout sans automate : valeur par defaut de la source, consideree inconnue.
-        closed = {d: "Fermé" for d in ("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche")}
-        self.assertEqual(encode_hours({"automate_24_24": False, "jours": closed}, {}), 0)
-        self.assertEqual(encode_hours({"automate_24_24": True, "jours": {"Statut": "Horaires indisponibles"}}, {}), 1)
 
 
 class FieldTests(unittest.TestCase):
@@ -73,6 +52,8 @@ class PayloadTests(unittest.TestCase):
     def test_payloads_are_aligned_and_compact(self):
         st, data = build_payloads(self.db, today=date(2026, 11, 28))
         self.assertEqual(len(st["s"]), data["n"])
+        self.assertEqual(st["v"], 3)
+        self.assertTrue(all(len(r) == 9 for r in st["s"]), "pas de colonne horaires")
         self.assertEqual(len(data["p"]), data["n"])
         ids = [r[0] for r in st["s"]]
         self.assertEqual(ids, ["1000001", "1000002", "20000001", "20200001"])

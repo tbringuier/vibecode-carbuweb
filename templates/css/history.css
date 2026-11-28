@@ -101,39 +101,14 @@
   margin-bottom: .75rem;
 }
 
-.hist-fuels {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.hist-ctl-r {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .5rem;
-  min-width: 0;
-}
-
 @media (max-width: 639px) {
-  .hist-ctl-r {
-    width: 100%;
-  }
-
-  .hist-ctl-r .seg {
+  .hist-ctl .seg {
     flex: 1 1 100%;
   }
 
-  .hist-ctl-r .seg-b {
+  .hist-ctl .seg-b {
     flex: 1;
     padding: .3125rem .25rem;
-  }
-
-  .hist-gran {
-    flex: 1;
-  }
-
-  .hist-gran .inp-sm {
-    width: 100%;
   }
 
   .seg-long {
@@ -144,10 +119,8 @@
     display: inline;
   }
 
-  .hist-trend th,
-  .hist-trend td,
-  .hist-table th,
-  .hist-table td {
+  .hist-sum th,
+  .hist-sum td {
     padding: .4375rem .5rem;
   }
 }
@@ -175,15 +148,12 @@
   border-radius: 2px;
 }
 
-.lg-band {
-  width: 1rem;
-  height: .625rem;
-  border-radius: 2px;
-  opacity: .28;
+.lg-line {
+  background: var(--t2);
 }
 
-.lg-muted {
-  background: var(--t3);
+.lg-dash {
+  background: repeating-linear-gradient(90deg, var(--t2) 0 5px, transparent 5px 9px);
 }
 
 .hist-chart {
@@ -206,54 +176,6 @@
   }
 }
 
-/* Indicateurs de la période */
-
-.hist-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .5rem;
-  margin-bottom: .75rem;
-}
-
-@media (min-width: 560px) {
-  .hist-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1000px) {
-  .hist-stats {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
-.stat {
-  min-width: 0;
-  padding: .625rem .75rem;
-  border: 1px solid var(--bd);
-  border-radius: var(--rl);
-  background: var(--sf-2);
-}
-
-.stat-l {
-  font-size: .6875rem;
-  font-weight: 700;
-  color: var(--t2);
-}
-
-.stat-v {
-  margin-top: .125rem;
-  font-size: 1.0625rem;
-  font-weight: 800;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-s {
-  font-size: .6875rem;
-  color: var(--t3);
-}
-
 /* Variations : hausse = rouge, baisse = vert, toujours avec une flèche ou un signe */
 
 .delta {
@@ -268,30 +190,6 @@
 .delta.up { color: var(--rd); }
 .delta.down { color: var(--gn); }
 .delta.flat { color: var(--t2); }
-
-.hist-cmp {
-  margin-bottom: .75rem;
-  padding: .625rem .75rem;
-  border: 1px solid var(--bd);
-  border-radius: var(--rl);
-  background: var(--sf-2);
-  font-size: .875rem;
-  color: var(--t2);
-}
-
-.hist-cmp.good {
-  border-color: color-mix(in oklab, var(--gn2) 45%, var(--bd));
-  background: var(--gb);
-}
-
-.hist-cmp.good b { color: var(--gn); }
-
-.hist-cmp.bad {
-  border-color: color-mix(in oklab, var(--rd2) 45%, var(--bd));
-  background: var(--rb);
-}
-
-.hist-cmp.bad b { color: var(--rd); }
 
 .hist-toggle {
   display: inline-flex;
@@ -308,58 +206,27 @@
   height: 1.125rem;
 }
 
-.hist-toggle:has(input:disabled) {
-  opacity: .5;
-  cursor: not-allowed;
+.hist-hint {
+  font-size: .8125rem;
+  color: var(--t3);
 }
 
-/* Tableau (alternative accessible au graphique) */
+/* Tableaux de synthèse (chiffres clés par carburant) */
 
-.hist-table {
-  margin-top: .5rem;
-  padding-top: .5rem;
-  border-top: 1px solid var(--bl);
-}
-
-.hist-table summary {
-  display: inline-flex;
-  align-items: center;
-  gap: .375rem;
-  min-height: 2.25rem;
-  font-size: .875rem;
-  font-weight: 700;
-  color: var(--ac);
-  cursor: pointer;
-  list-style: none;
-}
-
-.hist-table summary::-webkit-details-marker {
-  display: none;
-}
-
-.hist-table summary::before {
-  content: "▸";
-  transition: transform var(--dur-1);
-}
-
-.hist-table[open] summary::before {
-  transform: rotate(90deg);
-}
-
-.hist-table .table-w {
-  max-height: 22rem;
-  margin-top: .5rem;
-  overflow: auto;
-}
-
-.hist-trend {
+.hist-sum {
   margin-bottom: .5rem;
 }
 
-.hist-trend .td-s {
-  display: flex;
-  align-items: center;
-  gap: .375rem;
+.hist-sum th.td-s {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cell-sub {
+  display: block;
+  font-size: .6875rem;
+  font-weight: 500;
+  color: var(--t3);
 }
 
 .hist-note,
@@ -389,14 +256,3 @@
   text-transform: none;
 }
 
-/* Puces carburants de l'historique : toutes visibles (retour à la ligne) */
-.hist-fuels {
-  flex-wrap: wrap;
-  overflow: visible;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-
-.hist-fuels::after {
-  display: none;
-}

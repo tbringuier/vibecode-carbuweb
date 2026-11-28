@@ -4,24 +4,23 @@ La base du jour (datasets/database-*.json) reste au format complet : elle sert a
 l'historique et au debogage. Le navigateur recoit un format en tableaux, ~7x plus
 leger, decoupe en deux fichiers pour economiser les donnees mobiles :
 
-- ``stations.<hash>.json`` : donnees quasi statiques (nom, adresse, coordonnees,
-  horaires). Nom adresse par contenu : telecharge une fois, puis servi par le cache
-  HTTP tant que rien ne change.
+- ``stations.<hash>.json`` : donnees quasi statiques (nom, adresse, coordonnees).
+  Nom adresse par contenu : telecharge une fois, puis servi par le cache HTTP tant
+  que rien ne change.
 - ``data.json`` : prix et ruptures, alignes ligne a ligne sur le fichier stations
   qu'il reference. C'est le seul fichier re-telecharge a chaque mise a jour.
 
-Format (v2), decode par ``templates/js/data.js`` :
+Format (v3), decode par ``templates/js/data.js`` :
 
 stations.<hash>.json
-    {"v":2, "fuels":[...], "regions":[nom...], "depts":[[nom, code, i_region]...],
-     "brands":[nom...], "hours":["07:00-21:00", "", ...],
-     "s":[[id, i_brand|-1, osm, adresse, ville, cp, i_dept, lat, lon, horaires], ...]}
+    {"v":3, "fuels":[...], "regions":[nom...], "depts":[[nom, code, i_region]...],
+     "brands":[nom...],
+     "s":[[id, i_brand|-1, osm, adresse, ville, cp, i_dept, lat, lon], ...]}
     osm      "n123" / "w123" / "r123" (noeud, chemin, relation OpenStreetMap) ou ""
-    horaires 0 inconnus | 1 automate 24/24 seul | [automate 0/1, i_lundi, ..., i_dimanche]
-             (i = index dans "hours", -1 = jour inconnu, "" = ferme)
+    (les horaires d'ouverture ne sont pas publies : trop souvent absents ou faux dans la source)
 
 data.json
-    {"v":2, "built":iso, "updated":iso, "updated_label":"28/11/2026 a 01:05",
+    {"v":3, "built":iso, "updated":iso, "updated_label":"28/11/2026 a 01:05",
      "stations":"stations.<hash>.json", "n":nb, "t0":minutes epoch,
      "p":[[i_carburant, prix millimes, minutes depuis t0, ...], ...],   # aligne sur "s"
      "r":{"<index station>":[i_carburant, jour depuis 1970, ...]}}       # ruptures recentes
@@ -42,10 +41,7 @@ log = logging.getLogger("carbuweb")
 
 PARIS = ZoneInfo("Europe/Paris")
 EPOCH = date(1970, 1, 1)
-DAYS = ("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche")
-FORMAT_VERSION = 2
-UNKNOWN_HOURS = "Horaires indisponibles"
-_SLOT_RE = re.compile(r"(\d{1,2})[.:h](\d{2})\s*-\s*(\d{1,2})[.:h](\d{2})")
+FORMAT_VERSION = 3
 _OSM_RE = re.compile(r"openstreetmap\.org/(node|way|relation)/(\d+)")
 # Codes officiels de la Corse : le code postal (20xxx) ne distingue pas les deux departements.
 _CORSICA = {"Corse-du-Sud": "2A", "Haute-Corse": "2B"}
@@ -57,37 +53,6 @@ def cp_dept_code(cp):
     if len(cp) < 2 or not cp[:2].isdigit():
         return ""
     return cp[:3] if cp.startswith("97") else cp[:2]
-
-
-def normalize_day_hours(raw):
-    """« 07.00 - 12.00 / 14.00 - 19.00 » -> « 07:00-12:00,14:00-19:00 » ; « Ferme » -> « » ; inconnu -> None."""
-    if not raw or raw == UNKNOWN_HOURS:
-        return None
-    if raw == "Fermé":
-        return ""
-    slots = [f"{int(a):02d}:{b}-{int(c):02d}:{d}" for a, b, c, d in _SLOT_RE.findall(str(raw))]
-    return ",".join(slots) if slots else None
-
-
-def encode_hours(horaires, table):
-    """Horaires d'une station -> 0 | 1 | [automate, i_lundi..i_dimanche] (voir docstring du module)."""
-    horaires = horaires or {}
-    auto = 1 if horaires.get("automate_24_24") else 0
-    jours = horaires.get("jours") or {}
-    days = [normalize_day_hours(jours.get(d)) for d in DAYS]
-    known = [d for d in days if d is not None]
-    # « Ferme » tous les jours sans automate : valeur par defaut de la source, pas une information.
-    if not known or (not auto and all(d == "" for d in known)):
-        return auto
-    idx = []
-    for d in days:
-        if d is None:
-            idx.append(-1)
-        else:
-            if d not in table:
-                table[d] = len(table)
-            idx.append(table[d])
-    return [auto] + idx
 
 
 def osm_ref(url):
@@ -163,7 +128,7 @@ def build_payloads(db, today=None):
     depts = [[n, dept_code.get(n, ""), region_idx.get(dept_region.get(n), -1)] for n in dept_names]
     dept_idx = {n: i for i, n in enumerate(dept_names)}
 
-    brands, hours = {}, {}
+    brands = {}
     rows, prices, ruptures = [], [], {}
     stamps = []
     min_day = (today - EPOCH).days - EXPORT_RUPTURE_MAX_AGE_DAYS
@@ -185,7 +150,6 @@ def build_payloads(db, today=None):
             dept_idx.get(name, -1),
             round(float(st["lat"]), 5),
             round(float(st["lon"]), 5),
-            encode_hours(st.get("horaires"), hours),
         ])
         p = []
         for fuel in ALL_FUELS:
@@ -226,7 +190,6 @@ def build_payloads(db, today=None):
         "regions": regions,
         "depts": depts,
         "brands": list(brands),
-        "hours": list(hours),
         "s": rows,
     }
     meta = db.get("meta") or {}
