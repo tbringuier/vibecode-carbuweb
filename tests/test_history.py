@@ -268,6 +268,22 @@ class UpdateHistoryTests(unittest.TestCase):
                 self.assertEqual(f.read(), "{}")
             self.assertFalse(os.path.exists(os.path.join(store_dir, "stations")))
 
+    def test_backfill_budget_keeps_recent_years_and_defers_older_ones(self):
+        calls = []
+
+        def fake_ingest(store, year, today, local_zip=None, force=False):
+            calls.append(year)
+            return None
+
+        clock = iter([0])  # t0 = 0, puis toute lecture de l'horloge renvoie 1000 s
+        with TemporaryDirectory() as tmp, patch.object(H, "TODAY", "2026-11-27"), \
+                patch.object(H, "HISTORY_FIRST_YEAR", 2020), \
+                patch.object(H, "_ingest_year", side_effect=fake_ingest), \
+                patch.object(H.time, "time", side_effect=lambda: next(clock, 1000)):
+            H.update_history(os.path.join(tmp, "store"), None, budget_s=10)
+        # 2026 et 2025 toujours verifiees ; budget depasse avant l'import retroactif (2024…).
+        self.assertEqual(calls, [2026, 2025])
+
     def test_plan_years(self):
         manifest = {"annual": {"2026": {}, "2025": {}, "2024": {}}, "failures": {"2023": 3}}
         with patch.object(H, "HISTORY_FIRST_YEAR", 2019):

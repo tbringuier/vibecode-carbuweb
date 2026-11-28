@@ -1,109 +1,148 @@
-/* vehicles.css — Vehicle profile form, picker, slider */
+/* vehicles.css — Liste et formulaire des véhicules (réglages) */
 
-.v-form {
-  margin-top: .625rem;
-  padding: .875rem;
-  border: 1px solid var(--bd);
-  border-radius: var(--rx);
-  background: var(--sf-2);
-}
-
-.v-form-row {
+#vlist {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
   margin-bottom: .625rem;
 }
 
-.v-form-row:last-child {
-  margin-bottom: 0;
+.v-item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .625rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rl);
+  background: var(--sf);
+}
+
+.v-item.is-active {
+  border-color: color-mix(in oklab, var(--ac) 45%, var(--bd));
+  background: var(--ab);
+}
+
+.v-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.v-name {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  font-weight: 700;
+  font-size: .9375rem;
+}
+
+.v-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  margin-top: .25rem;
+}
+
+.v-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .0625rem .4375rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rr);
+  background: var(--sf-2);
+  color: var(--t2);
+  font-size: .6875rem;
+  font-weight: 600;
+}
+
+.v-pill .sw {
+  width: .5rem;
+  height: .5rem;
+}
+
+.v-form {
+  margin-top: .5rem;
+  padding: .875rem;
+  border: 1px solid var(--bd);
+  border-radius: var(--rl);
+  background: var(--sf-2);
+}
+
+.v-form-t {
+  font-size: .9375rem;
+  font-weight: 800;
+  margin-bottom: .75rem;
+}
+
+.v-form-row {
+  margin-bottom: .875rem;
 }
 
 .v-form-actions {
   display: flex;
   gap: .5rem;
-  margin-top: .5rem;
 }
 
-.icon-pk {
+.icon-pk,
+.fuel-pk {
   display: flex;
   flex-wrap: wrap;
-  gap: .3125rem;
+  gap: .375rem;
 }
 
 .icon-pk button {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--r);
+  width: 2.75rem;
+  height: 2.75rem;
   border: 2px solid var(--bd);
+  border-radius: var(--rl);
   background: var(--sf);
-  cursor: pointer;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color var(--dur-1), transform var(--dur-1), background var(--dur-1);
+  font-size: 1.25rem;
+  transition: border-color var(--dur-1), background-color var(--dur-1);
 }
 
 .icon-pk button:hover {
   border-color: var(--bd-2);
-  transform: scale(1.05);
 }
 
-.icon-pk button.sel {
+.icon-pk button[aria-pressed="true"] {
   border-color: var(--ac);
   background: var(--ab);
-  transform: scale(1.05);
-}
-
-.fuel-pk {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .3125rem;
 }
 
 .fuel-tg {
-  padding: .3125rem .625rem;
-  border-radius: var(--r);
-  font-size: .75rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  min-height: 2.5rem;
+  padding: .375rem .75rem;
   border: 2px solid var(--bd);
+  border-radius: var(--rr);
   background: var(--sf);
-  cursor: pointer;
-  transition: all var(--dur-1);
   color: var(--t2);
+  font-size: .875rem;
+  font-weight: 700;
+  cursor: pointer;
   user-select: none;
+  transition: border-color var(--dur-1), background-color var(--dur-1), color var(--dur-1);
 }
 
 .fuel-tg:hover {
   border-color: var(--bd-2);
+}
+
+.fuel-tg:has(input:checked) {
+  border-color: var(--ac);
+  background: var(--ab);
   color: var(--tx);
 }
 
-.fuel-tg.sel {
-  border-color: var(--ac);
-  background: var(--ab);
-  color: var(--ac);
+.fuel-tg:has(input:focus-visible) {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
 }
 
 .fuel-tg input {
-  display: none;
-}
-
-.rng {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-}
-
-.rng input[type="range"] {
-  flex: 1;
+  width: 1rem;
+  height: 1rem;
   accent-color: var(--ac);
-  height: 1.5rem;
-}
-
-.rng-v {
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  min-width: 3.5rem;
-  text-align: right;
-  font-size: .9375rem;
-  color: var(--tx);
 }

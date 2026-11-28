@@ -1,44 +1,57 @@
-/* map.css — Leaflet popup overrides, map placeholder */
+/* map.css — Surcharges Leaflet (popups, contrôles, attribution), pins SVG inline */
+
+.leaflet-container {
+  position: relative;
+  z-index: 0;
+  font-family: var(--font);
+  background: var(--bl);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--sf) !important;
+  color: var(--tx) !important;
+  box-shadow: var(--sh-h) !important;
+}
 
 .leaflet-popup-content-wrapper {
   border-radius: var(--rl) !important;
-  box-shadow: var(--sh-h) !important;
-  background: var(--sf) !important;
-  color: var(--tx) !important;
 }
 
 .leaflet-popup-content {
-  font-family: var(--font) !important;
-  font-size: .75rem !important;
-  margin: .5rem .625rem !important;
+  margin: .625rem .75rem !important;
+  font-size: .8125rem !important;
   line-height: 1.45 !important;
 }
 
-.leaflet-popup-content b {
-  font-weight: 700;
-  color: var(--tx);
+.pop-body {
+  min-width: 9rem;
 }
 
-.leaflet-popup-content .pop-body {
-  min-width: 7.5rem;
-}
-
-.leaflet-popup-content .pop-meta {
-  font-size: .6875rem;
+.pop-meta {
+  font-size: .75rem;
   color: var(--t2);
+}
+
+.pop-price {
+  font-size: .9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pop-btn {
   display: inline-block;
-  margin-top: .0625rem;
+  margin-top: .375rem;
+  padding: .3125rem .625rem;
+  border-radius: var(--r);
+  background: var(--ac);
+  color: var(--ac-tx) !important;
+  font-size: .75rem;
+  font-weight: 700;
 }
 
-.leaflet-popup-tip {
-  background: var(--sf) !important;
-}
-
-.leaflet-container {
-  font-family: var(--font);
-  background: var(--bl);
-  position: relative;
-  z-index: 0;
+.pop-btn:hover {
+  background: var(--ac2);
+  text-decoration: none;
 }
 
 .leaflet-control-zoom a {
@@ -51,28 +64,19 @@
   background: color-mix(in oklab, var(--sf) 85%, transparent) !important;
   color: var(--t2) !important;
   font-size: .625rem !important;
-  padding: 0 .3125rem !important;
 }
 
 .leaflet-control-attribution a {
   color: var(--ac) !important;
 }
 
-.map-empty {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Pins SVG inline générés par mkIcon() — neutraliser le style par défaut des divIcon Leaflet */
+/* Pins générés par map.js : neutraliser le style par défaut des divIcon Leaflet */
 
 .pin-icon {
   background: none;
-  border: none;
+  border: 0;
 }
 
 .pin-icon svg {
-  display: block;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35));
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35));
 }

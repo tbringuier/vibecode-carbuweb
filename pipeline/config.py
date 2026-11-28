@@ -118,8 +118,11 @@ HISTORY_BUILD_DIRNAME = "history"
 # depuis 2007. Le fichier de l'annee en cours est regenere chaque nuit (cumul depuis le 1er janvier).
 HISTORY_ANNUAL_URL = "https://donnees.roulez-eco.fr/opendata/annee/{year}"
 HISTORY_FIRST_YEAR = 2007
-# Annees passees importees par build (import retroactif progressif, de la plus recente a la plus ancienne).
-HISTORY_BACKFILL_PER_RUN = max(0, int(os.environ.get("CARBUWEB_HISTORY_BACKFILL", "2") or 0))
+# Annees passees importees par build (import retroactif, de la plus recente a la plus ancienne).
+# Par defaut toutes les annees manquantes d'un coup (~15 s/an, ~1,2 Go de RAM pour 2007→aujourd'hui),
+# borne par HISTORY_BACKFILL_BUDGET_S : au-dela, les annees restantes attendent le build suivant.
+HISTORY_BACKFILL_PER_RUN = max(0, int(os.environ.get("CARBUWEB_HISTORY_BACKFILL", "30") or 0))
+HISTORY_BACKFILL_BUDGET_S = max(0, int(os.environ.get("CARBUWEB_HISTORY_BACKFILL_BUDGET", "900") or 0))
 # Une annee dont l'import echoue autant de fois n'est plus retentee automatiquement.
 HISTORY_MAX_YEAR_FAILURES = 3
 
@@ -131,6 +134,14 @@ HISTORY_KEEPALIVE_DAYS = 30
 
 # Garde-fou anti-perte : refuser d'ecrire si le nombre de releves chute de plus de 1 %.
 HISTORY_MAX_RECORD_DROP = 0.01
+
+# ---------------------------------------------------------------------------
+# Export navigateur (pipeline/export.py)
+# ---------------------------------------------------------------------------
+
+# Ruptures publiees : seulement les plus recentes. Une « rupture » ouverte depuis des annees
+# signifie que la station ne vend plus ce carburant (absent de la fiche, inutile de l'afficher).
+EXPORT_RUPTURE_MAX_AGE_DAYS = 365
 
 HTTP_NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, max-age=0",

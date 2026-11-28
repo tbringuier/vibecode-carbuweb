@@ -1,42 +1,34 @@
-import { E } from './helpers.js';
-import { uFuels, maxAge } from './state.js';
+// freshness.js — Ancienneté des prix : filtre (préférence maxAge), badges et libellés.
+// Seuils : < 7 j aucun badge · 7–14 j ambre · 15–29 j rouge · ≥ 30 j rouge « > 1 mois ».
+import { prefs } from './state.js';
+import { ago, DAY_MS } from './helpers.js';
 
-export function freshDays(entry) {
-  if (!entry) return null;
-  const iso = entry.maj_iso || entry.date_maj;
-  if (!iso) return null;
-  let d;
-  try { d = entry.maj_iso ? new Date(entry.maj_iso) : new Date(iso + 'T12:00:00'); } catch (e) { return null; }
-  if (isNaN(d.getTime())) return null;
-  return Math.floor((Date.now() - d.getTime()) / 86400000);
+export const freshDays = e => (e && Number.isFinite(e.t) ? Math.floor((Date.now() - e.t) / DAY_MS) : null);
+// Un prix est masqué s'il a plus de `maxAge` jours révolus (0 = jamais masqué).
+export function isExpired(e, maxAge = prefs.maxAge) {
+  if (!maxAge || maxAge <= 0) return false;
+  const d = freshDays(e);
+  return d === null || d > maxAge;
 }
-export function isExpired(entry, maxAgeDays) {
-  if (!maxAgeDays || maxAgeDays <= 0) return false;
-  const d = freshDays(entry);
-  if (d === null) return true;
-  return d > maxAgeDays;
-}
-export const hasActiveFuel = st => !!st?.carburants_disponibles && uFuels.some(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
-export function freshPill(entry) {
-  const d = freshDays(entry);
-  if (d === null) return '<span class="fresh-pill old">?</span>';
-  if (d > 30) return '<span class="fresh-pill old">&gt;1 mois</span>';
-  if (d > 14) return `<span class="fresh-pill old">${d}j</span>`;
-  if (d > 7) return `<span class="fresh-pill warn">${d}j</span>`;
-  if (d === 0) return '<span class="fresh-pill fresh">màj auj</span>';
-  if (d === 1) return '<span class="fresh-pill fresh">Hier</span>';
+// Prix visible (présent et assez récent) d'un carburant pour une station.
+export const visiblePrice = (s, f) => { const e = s?.fuels?.[f]; return e && !isExpired(e) ? e : null; };
+export const hasVisibleFuel = (s, fuels) => fuels.some(f => visiblePrice(s, f));
+
+export function freshBadge(e) {
+  const d = freshDays(e);
+  if (d === null) return '<span class="fresh old">?</span>';
+  if (d >= 30) return '<span class="fresh old">&gt;1 mois</span>';
+  if (d >= 15) return `<span class="fresh old">${d} j</span>`;
+  if (d >= 7) return `<span class="fresh warn">${d} j</span>`;
   return '';
 }
-export function freshLabel(entry) {
-  const d = freshDays(entry);
-  if (d === null) return 'Date inconnue';
-  if (d > 30) return 'Plus d\'un mois';
-  if (d > 1) return `Il y a ${d} jours`;
-  if (d === 1) return 'Hier';
-  return 'Aujourd\'hui';
+// Libellé lisible : « mis à jour il y a 3 h » / « … le 12/11 à 08:15 ».
+export function freshText(e) {
+  if (!e || !Number.isFinite(e.t)) return 'date inconnue';
+  const d = new Date(e.t);
+  const hm = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+  const days = freshDays(e);
+  if (days < 2) return `${ago(e.t)} · ${hm}`;
+  return `${ago(e.t)} · ${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}`;
 }
-export function majHtml(entry) {
-  if (!entry) return '';
-  if (entry.maj_iso) { try { const d = new Date(entry.maj_iso); if (!isNaN(d.getTime())) return E(d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })); } catch (e) { } }
-  return entry.date_maj ? E(entry.date_maj) : '';
-}
+export const freshCls = e => { const d = freshDays(e); return d === null || d >= 15 ? 'old' : d >= 7 ? 'warn' : ''; };

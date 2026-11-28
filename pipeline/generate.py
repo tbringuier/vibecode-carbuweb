@@ -11,6 +11,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .config import BASE_DIR, BUILD_DIR, TEMPLATES_DIR, DB_FILE, TODAY
+from .export import write_frontend_data
 from .helpers import compute_latest_fuel_price_update_meta, footer_fuel_data_update_html
 
 log = logging.getLogger("carbuweb")
@@ -34,6 +35,18 @@ def minify_js(src):
         if stripped:
             lines.append(line.rstrip())
     return "\n".join(lines)
+
+
+_IMPORT_RE = re.compile(r"""((?:\bfrom|\bimport)\s*\(?\s*['"])(\.{1,2}/[^'"?]+\.js)(['"])""")
+
+
+def version_imports(src, version):
+    """Ajoute ?v=<build> aux imports relatifs : un module mis en cache ne survit pas a un deploiement.
+
+    Les modules de build/js/ gardent un nom fixe ; sans cela, une nouvelle app.js pourrait
+    importer une ancienne copie d'un module (exports manquants -> page blanche).
+    """
+    return _IMPORT_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}?v={version}{m.group(3)}", src)
 
 
 def _format_fr_int(n):
@@ -94,7 +107,6 @@ def _git_commit_footer_html(commit_short, commit_url):
 
 def generate_site():
     os.makedirs(BUILD_DIR, exist_ok=True)
-    build_json = os.path.join(BUILD_DIR, "data.json")
 
     with open(DB_FILE, "r", encoding="utf-8") as f:
         db_out = json.load(f)
@@ -108,8 +120,8 @@ def generate_site():
         "latest_fuel_price_update_label_fr", "—"
     )
 
-    with open(build_json, "w", encoding="utf-8") as f:
-        json.dump(db_out, f, ensure_ascii=False, separators=(",", ":"))
+    # Donnees navigateur au format compact (voir pipeline/export.py) — pas la base complete.
+    write_frontend_data(db_out, BUILD_DIR)
 
     # Build timestamp for cache-busting filenames
     build_ts = str(int(time.time()))
@@ -166,11 +178,12 @@ def generate_site():
     with open(os.path.join(TEMPLATES_DIR, "app.js"), "r", encoding="utf-8") as f:
         js = f.read()
     with open(os.path.join(BUILD_DIR, app_js_name), "w", encoding="utf-8") as f:
-        f.write(minify_js(js))
+        f.write(minify_js(version_imports(js, build_ts)))
 
     # JS modules — minify and copy to build/js/
     js_src_dir = os.path.join(TEMPLATES_DIR, "js")
     js_build_dir = os.path.join(BUILD_DIR, "js")
+    shutil.rmtree(js_build_dir, ignore_errors=True)
     os.makedirs(js_build_dir, exist_ok=True)
     if os.path.isdir(js_src_dir):
         for js_file in sorted(os.listdir(js_src_dir)):
@@ -178,7 +191,7 @@ def generate_site():
                 with open(os.path.join(js_src_dir, js_file), "r", encoding="utf-8") as f:
                     js_content = f.read()
                 with open(os.path.join(js_build_dir, js_file), "w", encoding="utf-8") as f:
-                    f.write(minify_js(js_content))
+                    f.write(minify_js(version_imports(js_content, build_ts)))
 
     # icon.svg — copy with timestamped name
     icon_src = os.path.join(TEMPLATES_DIR, "icon.svg")

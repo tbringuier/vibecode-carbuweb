@@ -12,6 +12,10 @@
   "theme_color": "#ffffff",
   "background_color": "#f6f7f9",
   "categories": ["travel", "utilities", "finance"],
+  "shortcuts": [
+    { "name": "Mes favoris", "short_name": "Favoris", "url": "./#favoris" },
+    { "name": "Explorer les prix", "short_name": "Explorer", "url": "./#explorer" }
+  ],
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }

@@ -1,3 +1,5 @@
+// drag-drop.js — Réordonnancement par glisser (souris, tactile, stylet) via une poignée.
+// Seule exception documentée aux styles inline : le fantôme suit le pointeur (left/top/width).
 export class TouchDragReorder {
   constructor(el, opts = {}) {
     this.el = typeof el === 'string' ? document.querySelector(el) : el;
@@ -11,6 +13,7 @@ export class TouchDragReorder {
   destroy() { if (this.el) this.el.removeEventListener('pointerdown', this._b.d); this._clean(); }
   _item(t) { let n = t; while (n && n !== this.el) { if (n.matches?.(this.handleSel)) { let p = n.parentElement; while (p && p !== this.el) { if (p.dataset.di !== undefined) return p; p = p.parentElement; } } n = n.parentElement; } return null; }
   _down(e) {
+    if (e.button !== 0) return;
     const it = this._item(e.target);
     if (!it) return;
     e.preventDefault();

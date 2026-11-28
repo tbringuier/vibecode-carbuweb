@@ -1,43 +1,41 @@
-/* variables.css — Design tokens (2026) : light + dark + motion */
+/* variables.css — Jetons de design : couleurs (clair, sombre, thème forcé), rayons, ombres, typo, mouvement.
+   Le thème suit le système ; Réglages > Thème force <html data-theme="light|dark">. */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
-  /* Palette — surface & background (zinc) */
-  --bg: #f6f7f9;
+  /* Surfaces */
+  --bg: #f4f6f9;
   --sf: #ffffff;
-  --sf-2: #fafbfc;
-  --bl: #f1f2f5;
-  --bd: #e5e7eb;
-  --bd-2: #d1d5db;
+  --sf-2: #f8fafc;
+  --bl: #eef1f5;
+  --bd: #e2e6ec;
+  --bd-2: #cbd2db;
 
-  /* Palette — text */
-  --tx: #0f1115;
-  --t2: #4b5563;
-  --t3: #9ca3af;
+  /* Texte */
+  --tx: #0e1116;
+  --t2: #4a5361;
+  --t3: #6b7482;
 
-  /* Accent — indigo/blue */
+  /* Accent */
   --ac: #2563eb;
   --ac2: #1d4ed8;
-  --ac3: #1e40af;
-  --ab: #eff6ff;
+  --ac-tx: #ffffff;
+  --ab: #eaf1ff;
 
-  /* Semantic — success (green) */
-  --gn: #15803d;
-  --gn2: #16a34a;
-  --gb: #ecfdf5;
+  /* Sémantique : vert = bon prix, ambre = moyen / avertissement, rouge = cher / rupture */
+  --gn: #137a3a;
+  --gn2: #22a356;
+  --gb: #e8f7ee;
+  --am: #a14d00;
+  --am2: #e08a0b;
+  --amb: #fff5e0;
+  --rd: #b42318;
+  --rd2: #e5484d;
+  --rb: #fdeceb;
+  --star: #e3a008;
 
-  /* Semantic — warning (amber) */
-  --am: #b45309;
-  --am2: #d97706;
-  --amb: #fffbeb;
-
-  /* Semantic — danger (red) */
-  --rd: #b91c1c;
-  --rd2: #dc2626;
-  --rb: #fef2f2;
-
-  /* Carburants — une teinte fixe par carburant (ordre FUELS), la même dans tous les graphiques.
+  /* Carburants — une teinte fixe par carburant (ordre FUELS), identique dans tous les graphiques.
      Palette catégorielle validée daltonisme (écart CVD adjacent >= 8) en clair et en sombre. */
   --fuel-gazole: #257de0;
   --fuel-sp95: #f47230;
@@ -46,31 +44,30 @@
   --fuel-e85: #ee7fac;
   --fuel-gplc: #008a17;
 
-  /* Focus ring */
-  --fr: 0 0 0 3px color-mix(in oklab, var(--ac) 30%, transparent);
+  --fr: 0 0 0 3px color-mix(in oklab, var(--ac) 35%, transparent);
 
-  /* Radii */
-  --r: 6px;
-  --rl: 10px;
-  --rx: 14px;
+  /* Rayons */
+  --r: 8px;
+  --rl: 12px;
+  --rx: 16px;
   --rr: 9999px;
 
-  /* Elevation */
-  --sh: 0 1px 2px rgba(15, 17, 21, .05), 0 1px 3px rgba(15, 17, 21, .06);
-  --sh-h: 0 4px 8px rgba(15, 17, 21, .05), 0 10px 20px rgba(15, 17, 21, .08);
-  --sh-l: 0 20px 40px rgba(15, 17, 21, .12);
+  /* Élévation */
+  --sh: 0 1px 2px rgb(16 24 40 / .05), 0 1px 3px rgb(16 24 40 / .06);
+  --sh-h: 0 4px 10px rgb(16 24 40 / .07), 0 12px 24px rgb(16 24 40 / .08);
+  --sh-l: 0 24px 48px rgb(16 24 40 / .18);
 
-  /* Typography */
-  --font: "Inter var", "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Typographie (polices système : aucun téléchargement) */
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-num: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Chrome heights */
+  /* Barres */
   --navh: 3.5rem;
-  --bnavh: 3.5rem;
+  --bnavh: 3.75rem;
   --safeb: env(safe-area-inset-bottom, 0px);
   --safet: env(safe-area-inset-top, 0px);
 
-  /* Motion */
+  /* Mouvement */
   --ease: cubic-bezier(.2, .8, .2, 1);
   --dur-1: 120ms;
   --dur-2: 200ms;
@@ -78,44 +75,75 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0a0b0e;
-    --sf: #15171c;
-    --sf-2: #1a1c22;
-    --bl: #1f2128;
-    --bd: #2a2d35;
-    --bd-2: #3a3d47;
-
-    --tx: #f3f4f6;
-    --t2: #b4b7bf;
-    --t3: #7a7e87;
-
-    --ac: #60a5fa;
-    --ac2: #93bbfd;
-    --ac3: #c6dafe;
-    --ab: #14204b;
-
-    --gn: #34d399;
-    --gn2: #4ade80;
-    --gb: #09261b;
-
-    --am: #fbbf24;
-    --am2: #fcd34d;
-    --amb: #2b1b04;
-
-    --rd: #f87171;
-    --rd2: #fca5a5;
-    --rb: #2b0c0c;
-
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0d12;
+    --sf: #151820;
+    --sf-2: #1a1e27;
+    --bl: #20242e;
+    --bd: #2b303c;
+    --bd-2: #3c4250;
+    --tx: #f1f3f6;
+    --t2: #b8bec9;
+    --t3: #8d94a1;
+    --ac: #6aa5ff;
+    --ac2: #94bdff;
+    --ac-tx: #0b0d12;
+    --ab: #16233f;
+    --gn: #4ad08a;
+    --gn2: #2fae6a;
+    --gb: #0d2a1c;
+    --am: #f7b955;
+    --am2: #d38b16;
+    --amb: #2c1f08;
+    --rd: #ff8a80;
+    --rd2: #e5484d;
+    --rb: #331312;
+    --star: #fcd34d;
     --fuel-gazole: #338ced;
     --fuel-sp95: #e76624;
     --fuel-e10: #00a888;
     --fuel-sp98: #d28e05;
     --fuel-e85: #e24d8b;
     --fuel-gplc: #0aac23;
-
-    --sh: 0 1px 2px rgba(0, 0, 0, .4), 0 1px 3px rgba(0, 0, 0, .35);
-    --sh-h: 0 4px 8px rgba(0, 0, 0, .35), 0 10px 20px rgba(0, 0, 0, .45);
-    --sh-l: 0 20px 40px rgba(0, 0, 0, .55);
+    --sh: 0 1px 2px rgb(0 0 0 / .45), 0 1px 3px rgb(0 0 0 / .35);
+    --sh-h: 0 4px 10px rgb(0 0 0 / .4), 0 12px 24px rgb(0 0 0 / .45);
+    --sh-l: 0 24px 48px rgb(0 0 0 / .6);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --sf: #151820;
+  --sf-2: #1a1e27;
+  --bl: #20242e;
+  --bd: #2b303c;
+  --bd-2: #3c4250;
+  --tx: #f1f3f6;
+  --t2: #b8bec9;
+  --t3: #8d94a1;
+  --ac: #6aa5ff;
+  --ac2: #94bdff;
+  --ac-tx: #0b0d12;
+  --ab: #16233f;
+  --gn: #4ad08a;
+  --gn2: #2fae6a;
+  --gb: #0d2a1c;
+  --am: #f7b955;
+  --am2: #d38b16;
+  --amb: #2c1f08;
+  --rd: #ff8a80;
+  --rd2: #e5484d;
+  --rb: #331312;
+  --star: #fcd34d;
+  --fuel-gazole: #338ced;
+  --fuel-sp95: #e76624;
+  --fuel-e10: #00a888;
+  --fuel-sp98: #d28e05;
+  --fuel-e85: #e24d8b;
+  --fuel-gplc: #0aac23;
+  --sh: 0 1px 2px rgb(0 0 0 / .45), 0 1px 3px rgb(0 0 0 / .35);
+  --sh-h: 0 4px 10px rgb(0 0 0 / .4), 0 12px 24px rgb(0 0 0 / .45);
+  --sh-l: 0 24px 48px rgb(0 0 0 / .6);
 }

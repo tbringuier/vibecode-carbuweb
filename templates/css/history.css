@@ -1,15 +1,5 @@
 /* history.css — Historique des prix : fiche station, évolution par zone (Explorer), contrôles partagés */
 
-/* Titres sémantiques (h2) qui gardent l'apparence du contexte */
-
-.sec-t {
-  margin: 0;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  color: inherit;
-}
-
 /* Pastilles de couleur carburant (légendes, puces, tableaux) */
 
 .sw {
@@ -28,15 +18,7 @@
 .sw-e85 { background: var(--fuel-e85); }
 .sw-gplc { background: var(--fuel-gplc); }
 
-.chip-fuel {
-  gap: .375rem;
-}
-
-.chip[aria-pressed="true"] .sw {
-  box-shadow: 0 0 0 1.5px #fff;
-}
-
-/* Contrôle segmenté (période) — même langage que les onglets du header */
+/* Contrôle segmenté (période) */
 
 .seg {
   display: inline-flex;
@@ -54,20 +36,22 @@
 }
 
 .seg-b {
-  min-height: 1.875rem;
-  padding: .3125rem .625rem;
-  border: 0;
+  min-height: 2rem;
+  padding: .3125rem .6875rem;
   border-radius: var(--rr);
-  background: transparent;
   color: var(--t2);
-  font-size: .75rem;
-  font-weight: 600;
+  font-size: .8125rem;
+  font-weight: 650;
   white-space: nowrap;
   transition: color var(--dur-1), background-color var(--dur-1);
 }
 
-.seg-b:hover {
+.seg-b:hover:not(:disabled) {
   color: var(--tx);
+}
+
+.seg-b:disabled {
+  opacity: .4;
 }
 
 .seg-b[aria-pressed="true"] {
@@ -82,15 +66,20 @@
 
 .inp-sm {
   width: auto;
-  min-height: 2.25rem;
-  padding: .3125rem 1.75rem .3125rem .625rem;
-  font-size: .75rem;
+  min-height: 2.375rem;
+  padding: .3125rem 1.875rem .3125rem .75rem;
+  font-size: .8125rem;
 }
 
-/* Barre de contrôles */
+/* Cartes historique */
 
 .hist {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.hist .sec-l .icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .hist-card,
@@ -108,13 +97,13 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: .5rem .75rem;
+  gap: .625rem .75rem;
   margin-bottom: .75rem;
 }
 
 .hist-fuels {
-  padding: 0;
   min-width: 0;
+  max-width: 100%;
 }
 
 .hist-ctl-r {
@@ -131,12 +120,20 @@
   }
 
   .hist-ctl-r .seg {
-    flex: 1;
+    flex: 1 1 100%;
   }
 
   .hist-ctl-r .seg-b {
     flex: 1;
-    padding: .3125rem .375rem;
+    padding: .3125rem .25rem;
+  }
+
+  .hist-gran {
+    flex: 1;
+  }
+
+  .hist-gran .inp-sm {
+    width: 100%;
   }
 
   .seg-long {
@@ -151,12 +148,7 @@
   .hist-trend td,
   .hist-table th,
   .hist-table td {
-    padding: .4375rem .4375rem;
-  }
-
-  .hist-trend table,
-  .hist-table table {
-    font-size: .6875rem;
+    padding: .4375rem .5rem;
   }
 }
 
@@ -167,7 +159,7 @@
   flex-wrap: wrap;
   gap: .25rem 1rem;
   margin-bottom: .375rem;
-  font-size: .6875rem;
+  font-size: .75rem;
   color: var(--t2);
 }
 
@@ -181,7 +173,6 @@
   width: 1rem;
   height: 3px;
   border-radius: 2px;
-  background: var(--ac);
 }
 
 .lg-band {
@@ -245,33 +236,30 @@
 }
 
 .stat-l {
-  font-size: .625rem;
+  font-size: .6875rem;
   font-weight: 700;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  color: var(--t3);
+  color: var(--t2);
 }
 
 .stat-v {
   margin-top: .125rem;
   font-size: 1.0625rem;
   font-weight: 800;
-  color: var(--tx);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-s {
-  margin-top: .0625rem;
   font-size: .6875rem;
-  color: var(--t2);
+  color: var(--t3);
 }
 
-/* Variations : hausse = rouge, baisse = vert, toujours avec une flèche */
+/* Variations : hausse = rouge, baisse = vert, toujours avec une flèche ou un signe */
 
 .delta {
   display: inline-flex;
   align-items: center;
-  gap: .25rem;
+  gap: .1875rem;
   font-weight: 700;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -287,7 +275,7 @@
   border: 1px solid var(--bd);
   border-radius: var(--rl);
   background: var(--sf-2);
-  font-size: .8125rem;
+  font-size: .875rem;
   color: var(--t2);
 }
 
@@ -309,16 +297,15 @@
   display: inline-flex;
   align-items: center;
   gap: .5rem;
-  margin-bottom: .25rem;
-  font-size: .8125rem;
+  min-height: 2.25rem;
+  font-size: .875rem;
   color: var(--t2);
   cursor: pointer;
 }
 
 .hist-toggle input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--ac);
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .hist-toggle:has(input:disabled) {
@@ -326,7 +313,7 @@
   cursor: not-allowed;
 }
 
-/* Vue tableau (alternative accessible au graphique) */
+/* Tableau (alternative accessible au graphique) */
 
 .hist-table {
   margin-top: .5rem;
@@ -338,8 +325,8 @@
   display: inline-flex;
   align-items: center;
   gap: .375rem;
-  padding: .25rem 0;
-  font-size: .8125rem;
+  min-height: 2.25rem;
+  font-size: .875rem;
   font-weight: 700;
   color: var(--ac);
   cursor: pointer;
@@ -365,11 +352,6 @@
   overflow: auto;
 }
 
-.hist-table tbody tr,
-.hist-trend tbody tr {
-  cursor: default;
-}
-
 .hist-trend {
   margin-bottom: .5rem;
 }
@@ -383,15 +365,11 @@
 .hist-note,
 .hist-src {
   margin-top: .5rem;
-  font-size: .6875rem;
+  font-size: .75rem;
   color: var(--t3);
 }
 
 /* Évolution par zone (Explorer) */
-
-.hist-zone {
-  margin-bottom: .5rem;
-}
 
 .hist-zone-h {
   display: flex;
@@ -402,17 +380,23 @@
   margin-bottom: .75rem;
 }
 
-.hist-zone-h .sec-t {
-  font-size: .9375rem;
-  font-weight: 700;
-  color: var(--tx);
-}
-
 .pill-ac {
-  padding: .1875rem .5rem;
+  padding: .1875rem .625rem;
   background: var(--ab);
   color: var(--ac);
-  font-size: .6875rem;
+  font-size: .75rem;
   letter-spacing: 0;
   text-transform: none;
+}
+
+/* Puces carburants de l'historique : toutes visibles (retour à la ligne) */
+.hist-fuels {
+  flex-wrap: wrap;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.hist-fuels::after {
+  display: none;
 }

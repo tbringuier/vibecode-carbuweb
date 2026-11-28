@@ -3,13 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Carbu'Web — Prix des carburants en France</title>
-<meta name="description" content="Comparez les prix des carburants en France. Données officielles data.economie.gouv.fr, mises à jour en continu.">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)">
+<title>Carbu’Web — Prix des carburants en France</title>
+<meta name="description" content="Trouvez le carburant le moins cher autour de vous : prix officiels de {{STATION_COUNT}} stations en France, historique depuis 2007, mis à jour plusieurs fois par jour.">
+<meta name="theme-color" content="#ffffff">
 <meta name="color-scheme" content="light dark">
-<meta property="og:title" content="Carbu'Web — Prix des carburants en France">
-<meta property="og:description" content="Comparez les prix des carburants en France. Données officielles mises à jour en continu.">
+<meta property="og:title" content="Carbu’Web — Prix des carburants en France">
+<meta property="og:description" content="Comparez les prix officiels des carburants autour de vous, avec l’historique depuis 2007.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="fr_FR">
 <meta property="og:url" content="https://carbuweb.folf.fr/">
@@ -17,208 +16,219 @@
 <link rel="icon" href="{{ICON_SVG}}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{{ICON_SVG}}">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="preconnect" href="https://unpkg.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="preconnect" href="https://tile.openstreetmap.fr" crossorigin>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin defer></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" crossorigin defer></script>
 <link rel="stylesheet" href="{{STYLES_CSS}}">
 </head>
 <body>
-<a href="#mc" class="skip-link">Aller au contenu principal</a>
+<a href="#mc" class="skip-link">Aller au contenu</a>
 
-<nav id="top-nav" aria-label="Navigation principale">
-  <span class="nav-brand">Carbu<span>'Web</span></span>
-  <div class="nav-tabs" role="tablist" aria-label="Onglets">
-    <button class="nav-tab" type="button" role="tab" id="tab-recherche" aria-selected="true" aria-controls="pane-recherche" onclick="switchTab('recherche')">Recherche</button>
-    <button class="nav-tab" type="button" role="tab" id="tab-explorer" aria-selected="false" aria-controls="pane-explorer" onclick="switchTab('explorer')">Explorer</button>
-    <button class="nav-tab" type="button" role="tab" id="tab-favoris" aria-selected="false" aria-controls="fav-box" onclick="switchTab('favoris')">Favoris</button>
+<header id="top-nav">
+  <div class="nav-in">
+    <a class="nav-brand" href="#" aria-label="Carbu’Web, accueil">
+      <img src="{{ICON_SVG}}" alt="" width="28" height="28">
+      <span>Carbu<span class="nav-brand-ac">’Web</span></span>
+    </a>
+    <nav class="nav-tabs" aria-label="Sections">
+      <a class="nav-tab" id="tab-recherche" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Rechercher</a>
+      <a class="nav-tab" id="tab-explorer" href="#explorer"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>Explorer</a>
+      <a class="nav-tab" id="tab-favoris" href="#favoris"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Favoris</a>
+    </nav>
+    <div class="nav-right">
+      <button type="button" class="data-age" id="data-age" data-act="refresh">Prix à jour</button>
+      <button type="button" class="btn btn-g nav-settings" id="btn-settings" data-act="settings" aria-haspopup="dialog">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
+        <span class="nav-settings-l">Réglages</span>
+      </button>
+    </div>
   </div>
-  <div class="nav-right">
-    <button class="btn btn-g btn-i" type="button" id="btn-settings" aria-label="Paramètres" aria-haspopup="dialog" onclick="toggleSettings()">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
-    </button>
-  </div>
-</nav>
+</header>
 
-<main id="mc">
+<main id="mc" tabindex="-1">
   <div id="loading" class="loading-ctr" role="status" aria-live="polite">
     <div class="spinner" aria-hidden="true"></div>
-    <p class="primary">Chargement des données…</p>
-    <p class="secondary">Source&nbsp;: data.economie.gouv.fr</p>
+    <p class="primary">Chargement des prix…</p>
+    <p class="secondary">Données officielles · data.economie.gouv.fr</p>
   </div>
 
   <div id="home-view" class="hidden">
     <div class="ct">
-      <div id="vbar" class="hidden" aria-label="Profils véhicules">
-        <div id="vbar-list" class="chips" role="group" aria-label="Véhicule actif"></div>
-      </div>
-
-      <div id="onboard" class="onboard" role="complementary">
-        <button class="btn btn-g btn-i btn-sm onboard-close" type="button" onclick="dismissOnboard()" aria-label="Masquer le guide d'accueil">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-        <h3>Bienvenue sur Carbu'Web</h3>
-        <p>Trouvez les meilleurs prix de carburant autour de vous, en temps réel.</p>
-        <ul>
-          <li><strong>Recherche</strong> — Tapez une ville ou activez le GPS</li>
-          <li><strong>Explorer</strong> — Classement, statistiques et évolution des prix par zone</li>
-          <li><strong>Historique</strong> — Courbe des prix de chaque station, par semaine, mois ou année</li>
-          <li><strong>Favoris</strong> — Sauvegardez vos lieux et stations</li>
-          <li><strong>Paramètres</strong> — Ajoutez vos véhicules pour estimer le plein</li>
-        </ul>
-        <div class="onboard-legend">
-          <div class="ol-item"><span class="ol-dot ol-green"></span>Meilleur prix local</div>
-          <div class="ol-item"><span class="ol-dot ol-amber"></span>Prix intermédiaire</div>
-          <div class="ol-item"><span class="ol-dot ol-red"></span>Prix élevé</div>
-        </div>
-        <button class="btn btn-p btn-sm" type="button" onclick="dismissOnboard()">C'est compris</button>
-      </div>
-
-      <div class="home-lay">
-        <div class="home-main" id="home-main">
-          <section id="pane-recherche" role="tabpanel" aria-labelledby="tab-recherche">
-            <div class="hero card">
-              <label class="hero-lbl" for="sinput">Où cherchez-vous ?</label>
-              <div class="sbox">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                <input type="search" id="sinput" class="inp" placeholder="Ville, adresse, code postal…" autocomplete="off" enterkeyhint="search" oninput="debouncedSearch()" aria-label="Rechercher une ville, une adresse ou un code postal">
-              </div>
-              <div class="hero-or"><span>ou</span></div>
-              <button class="btn btn-p hero-gps" type="button" onclick="geolocateMe()">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
-                Utiliser ma position
-              </button>
+      <section id="pane-recherche" aria-labelledby="hero-t">
+        <div class="hero">
+          <h1 id="hero-t" class="hero-t">Le carburant le moins cher, près de vous</h1>
+          <p class="hero-s">Prix officiels de {{STATION_COUNT}} stations, mis à jour plusieurs fois par jour.</p>
+          <div class="hero-row">
+            <div class="sbox">
+              <svg class="sbox-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              <label for="sinput" class="sr-only">Rechercher une ville, une adresse, un code postal ou une station</label>
+              <input type="search" id="sinput" class="inp" placeholder="Ville, code postal, adresse ou station…" autocomplete="off" enterkeyhint="search" spellcheck="false" data-input="search">
+              <button type="button" id="sclear" class="sbox-clear" data-act="search-clear" aria-label="Effacer la recherche" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
             </div>
-            <div id="sresults" aria-live="polite"></div>
-          </section>
-
-          <section id="pane-explorer" class="hidden" role="tabpanel" aria-labelledby="tab-explorer">
-            <div id="home-teaser" class="home-teaser hidden" aria-labelledby="home-teaser-t"></div>
-            <div class="explore-row card" role="group" aria-label="Filtres">
-              <div class="field"><label class="lbl" for="exp-fuel">Carburant</label><select id="exp-fuel" class="inp" onchange="onFuelChange()"></select></div>
-              <div class="field"><label class="lbl" for="exp-region">Région</label><select id="exp-region" class="inp" onchange="updateDeptFilter()"><option value="">France entière</option></select></div>
-              <div class="field"><label class="lbl" for="exp-dept">Département</label><select id="exp-dept" class="inp" onchange="onZoneChange()" disabled><option value="">Tous</option></select></div>
-              <div class="field"><label class="lbl" for="exp-sort">Classement</label><select id="exp-sort" class="inp" onchange="findCheapest()"><option value="asc">Moins cher d'abord</option><option value="desc">Plus cher d'abord</option></select></div>
-            </div>
-
-            <section id="zone-hist" class="card hist-zone hidden" aria-labelledby="zone-hist-t">
-              <div class="hist-zone-h">
-                <h2 id="zone-hist-t" class="sec-t">Évolution des prix moyens</h2>
-                <span id="zone-hist-zone" class="pill pill-ac"></span>
-              </div>
-              <div id="zone-hist-body"><div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Chargement de l'historique…</p></div></div>
-            </section>
-
-            <div class="sec-l"><h2 class="sec-t">Classement des stations</h2><span id="palmares-count" class="sec-count"></span></div>
-            <div id="palmares-map" class="hidden" aria-label="Carte des stations classées"></div>
-            <div id="palmares-results" aria-live="polite"></div>
-            <div class="explore-stats">
-              <h2 class="sec-t">Statistiques nationales du jour</h2>
-              <div class="chart-r">
-                <div class="card"><div class="card-hdr">Prix moyen par carburant</div><div class="chart-w"><canvas id="chart-prices" role="img" aria-label="Prix moyen national par carburant, détaillé dans le tableau ci-dessous"></canvas></div></div>
-                <div class="card"><div class="card-hdr">Stations proposant chaque carburant</div><div class="chart-w"><canvas id="chart-fuels" role="img" aria-label="Nombre de stations proposant chaque carburant"></canvas></div></div>
-              </div>
-              <div class="sec-l"><span>Détail par région</span><span class="sec-count">Touchez une région pour ses départements</span></div>
-              <div class="table-w"><table id="table-regions"></table></div>
-            </div>
-          </section>
+            <button type="button" class="btn btn-p hero-gps" data-act="locate">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.94 3A8.99 8.99 0 0013 3.06V1h-2v2.06A8.99 8.99 0 003.06 11H1v2h2.06A8.99 8.99 0 0011 20.94V23h2v-2.06A8.99 8.99 0 0020.94 13H23v-2h-2.06zM12 19a7 7 0 110-14 7 7 0 010 14z"/></svg>
+              Autour de moi
+            </button>
+          </div>
+          <div id="home-filters"></div>
         </div>
 
-        <aside class="home-aside" id="home-aside" aria-label="Favoris">
-          <div id="fav-box" class="hidden">
-            <div class="sec-l">Favoris</div>
-            <div id="fav-list"></div>
+        <div id="onboard" class="onboard hidden" role="note" aria-labelledby="onboard-t">
+          <h2 id="onboard-t">Comment ça marche&nbsp;?</h2>
+          <ol class="onboard-steps">
+            <li><b>Choisissez vos carburants</b> juste au-dessus (vous pouvez en cocher plusieurs).</li>
+            <li><b>Cherchez une ville</b> ou touchez <b>Autour de moi</b>.</li>
+            <li><b>Comparez</b> : <span class="lg-dot cheap"></span>vert = le moins cher du secteur, <span class="lg-dot mid"></span>orange = à moins de 3&nbsp;centimes, <span class="lg-dot dear"></span>rouge = plus cher.</li>
+          </ol>
+          <p class="onboard-more">Touchez l’étoile pour garder une station ou un lieu en favori. Dans <b>Réglages</b>, ajoutez votre véhicule pour voir le prix du plein.</p>
+          <button type="button" class="btn btn-p btn-sm" data-act="welcome-ok">J’ai compris</button>
+        </div>
+
+        <div id="sresults" aria-live="polite"></div>
+        <section id="recent" class="recent" aria-label="Récents"></section>
+      </section>
+
+      <section id="pane-explorer" class="hidden" aria-labelledby="explorer-t">
+        <h1 id="explorer-t" class="page-t">Explorer les prix</h1>
+        <section id="home-teaser" class="teaser" aria-labelledby="home-teaser-t"></section>
+
+        <div id="exp-filters" class="card filters-card" role="group" aria-label="Zone et carburant">
+          <div class="field"><label class="lbl" for="exp-fuel">Carburant</label><select id="exp-fuel" class="inp" data-change="exp"></select></div>
+          <div class="field"><label class="lbl" for="exp-region">Région</label><select id="exp-region" class="inp" data-change="exp"></select></div>
+          <div class="field"><label class="lbl" for="exp-dept">Département</label><select id="exp-dept" class="inp" data-change="exp" disabled><option value="">Tous</option></select></div>
+          <div class="field"><label class="lbl" for="exp-sort">Ordre</label><select id="exp-sort" class="inp" data-change="exp"><option value="asc">Moins chères</option><option value="desc">Plus chères</option></select></div>
+        </div>
+
+        <section id="zone-hist" class="card hist-zone hidden" aria-labelledby="zone-hist-t">
+          <div class="hist-zone-h">
+            <h2 id="zone-hist-t" class="card-t">Évolution des prix moyens</h2>
+            <span id="zone-hist-zone" class="pill pill-ac"></span>
           </div>
-          <div id="fav-empty" class="fav-empty">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="fav-empty-icon"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-            <p class="fav-empty-t">Aucun favori pour l'instant</p>
-            <p class="fav-empty-d">Recherchez un lieu ou une station, puis touchez l'étoile pour le sauvegarder ici.</p>
+          <div id="zone-hist-body"><div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Chargement de l’historique…</p></div></div>
+        </section>
+
+        <section class="ranking" aria-labelledby="ranking-t">
+          <div class="sec-h"><h2 id="ranking-t" class="card-t">Classement des stations</h2><span id="palmares-count" class="sec-count"></span></div>
+          <div class="split">
+            <div class="split-side" id="palmares-map-w"></div>
+            <div class="split-main"><div id="palmares-results" aria-live="polite"></div><div id="palmares-link" class="u-mt-075"></div></div>
           </div>
-        </aside>
-      </div>
+        </section>
+
+        <section class="reg-table" aria-labelledby="reg-t">
+          <div class="sec-h"><h2 id="reg-t" class="card-t">Prix moyens par région</h2><span class="sec-count">Touchez une région pour voir ses départements</span></div>
+          <div class="table-w"><table id="table-regions"></table></div>
+        </section>
+      </section>
+
+      <section id="pane-favoris" class="hidden" aria-labelledby="favoris-t">
+        <h1 id="favoris-t" class="page-t">Mes favoris</h1>
+        <div id="fav-filters"></div>
+        <div id="fav-list"></div>
+      </section>
     </div>
   </div>
 
-  <div id="station-view" class="hidden">
-    <div class="ct">
-      <div class="d-head">
-        <button class="btn btn-g btn-i" type="button" onclick="goBack()" aria-label="Retour">
+  <div id="detail-view" class="hidden">
+    <div class="d-head">
+      <div class="ct d-head-in">
+        <button type="button" class="btn btn-g btn-i d-back" data-act="back" aria-label="Retour">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
-        <h1 id="stitle">Station</h1>
-        <button class="btn btn-g btn-i" type="button" id="btn-fav-header" hidden aria-label="Ajouter ce lieu aux favoris" onclick="handleHeaderFav()">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-        </button>
+        <div class="d-titles"><h1 id="d-title"></h1><p id="d-sub"></p></div>
+        <div id="d-actions" class="d-actions"></div>
       </div>
-      <div id="scontent"></div>
     </div>
+    <div class="ct" id="d-body"></div>
   </div>
 </main>
 
-<div id="settings-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-  <div class="dialog-backdrop" onclick="toggleSettings()">
-    <div class="dialog" onclick="event.stopPropagation()">
+<div id="settings-modal" class="hidden">
+  <div class="dialog-backdrop">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="dialog-head">
-        <h2 id="settings-title">Paramètres</h2>
-        <button class="btn btn-g btn-i" type="button" onclick="toggleSettings()" aria-label="Fermer">
+        <h2 id="settings-title">Réglages</h2>
+        <button type="button" class="btn btn-g btn-i" data-act="settings-close" aria-label="Fermer les réglages">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </div>
 
-      <section class="m-sec">
-        <h3>Véhicules</h3>
+      <section class="m-sec" aria-labelledby="m-veh">
+        <h3 id="m-veh">Mes véhicules</h3>
         <div id="vlist"></div>
-        <button type="button" class="btn btn-sm u-mt-05" id="v-add-btn" onclick="openVForm()">+ Ajouter un véhicule</button>
-        <div id="vform" class="v-form hidden">
+        <button type="button" class="btn btn-sm" id="v-add-btn" data-act="v-add">+ Ajouter un véhicule</button>
+        <div id="vform" class="v-form hidden" role="group" aria-labelledby="vform-title">
+          <h4 id="vform-title" class="v-form-t">Nouveau véhicule</h4>
           <div class="v-form-row">
             <label class="lbl" for="v-name">Nom</label>
-            <input type="text" id="v-name" class="inp" placeholder="Ma voiture" maxlength="30">
-            <p id="v-name-err" class="err hidden">Saisissez un nom.</p>
+            <input type="text" id="v-name" class="inp" placeholder="Ex. : Clio, Moto…" maxlength="30" autocomplete="off">
+            <p id="v-name-err" class="err hidden">Donnez un nom au véhicule.</p>
           </div>
           <div class="v-form-row">
-            <label class="lbl" for="v-icons">Icône</label>
-            <div id="v-icons" class="icon-pk" role="group" aria-label="Icône du véhicule"></div>
-          </div>
-          <div class="v-form-row" id="v-fuels-wrap">
-            <label class="lbl">Carburants</label>
-            <div id="v-fuels" class="fuel-pk" role="group" aria-label="Carburants compatibles"></div>
-            <p id="v-fuels-err" class="err hidden">Sélectionnez au moins un carburant.</p>
+            <span class="lbl" id="v-icons-l">Icône</span>
+            <div id="v-icons" class="icon-pk" role="group" aria-labelledby="v-icons-l"></div>
           </div>
           <div class="v-form-row">
-            <label class="lbl" for="v-tank">Réservoir (L, optionnel)</label>
-            <input type="number" id="v-tank" class="inp" placeholder="55" min="1" max="999" inputmode="numeric">
-            <p id="v-tank-err" class="err hidden">Entre 1 et 999.</p>
+            <span class="lbl" id="v-fuels-l">Carburants compatibles</span>
+            <div id="v-fuels" class="fuel-pk" role="group" aria-labelledby="v-fuels-l"></div>
+            <p id="v-fuels-err" class="err hidden">Cochez au moins un carburant.</p>
+          </div>
+          <div class="v-form-row">
+            <label class="lbl" for="v-tank">Capacité du réservoir en litres <span class="u-text-faint">(facultatif, pour estimer le plein)</span></label>
+            <input type="number" id="v-tank" class="inp inp-short" placeholder="50" min="1" max="999" inputmode="numeric">
+            <p id="v-tank-err" class="err hidden">Indiquez un nombre entre 1 et 999.</p>
           </div>
           <div class="v-form-actions">
-            <button type="button" class="btn btn-p btn-sm" onclick="saveVForm()">Enregistrer</button>
-            <button type="button" class="btn btn-sm" onclick="closeVForm()">Annuler</button>
+            <button type="button" class="btn btn-p btn-sm" data-act="v-save">Enregistrer</button>
+            <button type="button" class="btn btn-sm" data-act="v-cancel">Annuler</button>
           </div>
         </div>
       </section>
 
-      <section class="m-sec">
-        <h3>Rayon de recherche</h3>
+      <section class="m-sec" aria-labelledby="m-search">
+        <h3 id="m-search">Recherche</h3>
+        <label class="lbl" for="rslider">Rayon de recherche par défaut</label>
         <div class="rng">
-          <input type="range" id="rslider" min="1" max="50" step="1" aria-label="Rayon de recherche">
-          <span class="rng-v"><span id="rval">10</span>&nbsp;km</span>
+          <input type="range" id="rslider" min="1" max="50" step="1" data-input="default-radius">
+          <output id="rval" class="rng-v" for="rslider">10 km</output>
+        </div>
+        <p class="m-sec-desc">Modifiable aussi directement au-dessus de chaque liste de stations.</p>
+        <fieldset class="opts">
+          <legend class="lbl">Masquer les prix qui n’ont pas été mis à jour depuis</legend>
+          <label class="opt"><input type="radio" name="maxAge" value="14" data-change="max-age"> 2 semaines</label>
+          <label class="opt"><input type="radio" name="maxAge" value="30" data-change="max-age"> 1 mois</label>
+          <label class="opt"><input type="radio" name="maxAge" value="60" data-change="max-age"> 2 mois</label>
+          <label class="opt"><input type="radio" name="maxAge" value="0" data-change="max-age"> Ne rien masquer</label>
+        </fieldset>
+      </section>
+
+      <section class="m-sec" aria-labelledby="m-display">
+        <h3 id="m-display">Affichage</h3>
+        <fieldset class="opts">
+          <legend class="lbl">Thème</legend>
+          <label class="opt"><input type="radio" name="theme" value="auto" data-change="theme"> Automatique</label>
+          <label class="opt"><input type="radio" name="theme" value="light" data-change="theme"> Clair</label>
+          <label class="opt"><input type="radio" name="theme" value="dark" data-change="theme"> Sombre</label>
+        </fieldset>
+        <label class="switch u-mt-1">
+          <input type="checkbox" id="ds-toggle" data-change="data-saver">
+          <span class="switch-ui" aria-hidden="true"></span>
+          <span class="switch-txt"><b>Économie de données</b><span>Cartes affichées seulement à la demande et en basse définition, pas de mise à jour automatique en arrière-plan. Activé automatiquement si votre téléphone est en mode « économie de données ».</span></span>
+        </label>
+      </section>
+
+      <section class="m-sec" aria-labelledby="m-data">
+        <h3 id="m-data">Mes données</h3>
+        <p id="storage-info" class="m-sec-desc"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-sm" data-act="export">Sauvegarder (fichier)</button>
+          <button type="button" class="btn btn-sm" data-act="import">Restaurer…</button>
+          <input type="file" id="import-file" accept="application/json,.json" class="hidden" data-change="import-file">
+          <button type="button" class="btn btn-sm btn-danger" data-act="reset">Tout effacer</button>
         </div>
       </section>
 
-      <section class="m-sec">
-        <h3>Ancienneté des prix</h3>
-        <p class="m-sec-desc">Masquer les prix mis à jour il y a plus de :</p>
-        <div class="age-opts" id="age-opts" role="radiogroup" aria-label="Ancienneté maximale des prix">
-          <label class="age-opt"><input type="radio" name="maxAge" value="14" onchange="changeMaxAge(14)"> 14 jours</label>
-          <label class="age-opt"><input type="radio" name="maxAge" value="30" onchange="changeMaxAge(30)"> 30 jours</label>
-          <label class="age-opt"><input type="radio" name="maxAge" value="60" onchange="changeMaxAge(60)"> 60 jours</label>
-          <label class="age-opt"><input type="radio" name="maxAge" value="0" onchange="changeMaxAge(0)"> Tous</label>
-        </div>
-      </section>
-
-      <section class="m-sec">
-        <button class="btn btn-sm btn-danger" type="button" onclick="resetAll()">Réinitialiser toutes les préférences</button>
+      <section class="m-sec" aria-labelledby="m-about">
+        <h3 id="m-about">À propos</h3>
+        <p class="m-sec-desc">Prix officiels publiés par l’État (data.economie.gouv.fr), historique depuis 2007 (archives officielles), cartes © OpenStreetMap. Site indépendant, sans publicité ni traceur.</p>
+        <button type="button" class="btn btn-sm" data-act="refresh" id="btn-refresh">Vérifier les nouveaux prix</button>
       </section>
     </div>
   </div>
@@ -226,30 +236,30 @@
 
 <div id="toast" role="status" aria-live="polite"></div>
 
-<nav id="bottom-nav" aria-label="Navigation mobile">
-  <button id="bn-recherche" type="button" aria-selected="true" onclick="switchTab('recherche')">
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-    Recherche
-  </button>
-  <button id="bn-explorer" type="button" aria-selected="false" onclick="switchTab('explorer')">
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
+<nav id="bottom-nav" aria-label="Sections">
+  <a id="bn-recherche" href="#">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    Rechercher
+  </a>
+  <a id="bn-explorer" href="#explorer">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
     Explorer
-  </button>
-  <button id="bn-favoris" type="button" aria-selected="false" onclick="switchTab('favoris')">
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+  </a>
+  <a id="bn-favoris" href="#favoris">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
     Favoris
-  </button>
+  </a>
 </nav>
 
 <footer>
-  <p>Carbu'Web · <span id="ft-count">{{STATION_COUNT}}</span> stations · <a href="https://data.economie.gouv.fr" target="_blank" rel="noopener">data.economie.gouv.fr</a> · <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a></p>
-  <p>{{FUEL_DATA_UPDATE_FOOTER_HTML}} · Build <time datetime="{{BUILD_DATETIME_ISO}}">{{BUILD_DATETIME_PARIS}}</time> · {{GIT_COMMIT_HTML}}</p>
+  <p>Carbu’Web · <span id="ft-count">{{STATION_COUNT}}</span> stations · <a href="https://data.economie.gouv.fr" target="_blank" rel="noopener">data.economie.gouv.fr</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></p>
+  <p>{{FUEL_DATA_UPDATE_FOOTER_HTML}} · Version du <time datetime="{{BUILD_DATETIME_ISO}}">{{BUILD_DATETIME_PARIS}}</time> · {{GIT_COMMIT_HTML}}</p>
 </footer>
 
 <noscript>
   <div class="error-block notice">
     <b>JavaScript désactivé</b>
-    <span>Ce site est une application interactive qui nécessite JavaScript pour fonctionner. Veuillez l'activer puis recharger la page.</span>
+    <span>Carbu’Web est une application interactive : activez JavaScript puis rechargez la page.</span>
   </div>
 </noscript>
 

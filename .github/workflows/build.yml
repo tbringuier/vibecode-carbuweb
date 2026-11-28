@@ -73,10 +73,20 @@ jobs:
           .venv/bin/pip install -U pip wheel
           .venv/bin/pip install --no-compile -r requirements.txt
 
+      # Tests deterministes (sans reseau) : un echec bloque le deploiement, le site garde sa version precedente.
+      - name: Tests
+        run: |
+          .venv/bin/python -m unittest tests.test_pipeline_freshness tests.test_history tests.test_export
+          for f in templates/js/*.js templates/app.js; do node -c "$f"; done
+          node --test tests/front.test.mjs
+
       - name: Build
         env:
           CARBUWEB_HISTORY_DIR: .history
         run: .venv/bin/python main.py
+
+      - name: Verifier les donnees generees
+        run: node --test tests/front.test.mjs
 
       - name: Sauvegarder le cache mapping OpenStreetMap
         if: steps.osm-cache.outputs.cache-hit != 'true' && hashFiles(format('datasets/osm_mapping-{0}.json', steps.builddate.outputs.date)) != ''

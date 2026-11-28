@@ -1,157 +1,135 @@
-import { state, FUELS, maxAge } from './state.js';
-import { E, fmtEur, fmtInt, notice, titleCase, stationName } from './helpers.js';
-import { isExpired } from './freshness.js';
-import { mkMap, mkIcon } from './map.js';
-import { ptag } from './prices.js';
-import { fuelColor, renderZoneHistory } from './history.js';
+// explore.js — Onglet Explorer : prix moyens nationaux, évolution par zone, classement, tableau régional.
+import { state, prefs, FUELS, PAGE } from './state.js';
+import { $, E, fmtP, fmtInt, notice, plural } from './helpers.js';
+import { deptsOfRegion, zoneStats, regionStations, deptByCode, stationCount } from './data.js';
+import { visiblePrice } from './freshness.js';
+import { listHtml, markersFor } from './lists.js';
+import { mapSlot, renderMap } from './map.js';
+import { renderZoneHistory, decorateTeaser } from './history.js';
+import { zoneHash } from './navigation.js';
 
-const L = window.L;
-const Chart = window.Chart;
+// Sélection courante de l'Explorer (gardée pendant la session).
+function ex() { return (state.exp ||= { fuel: prefs.fuels[0] || FUELS[0], region: '', dept: '', sort: 'asc' }); }
 
-export function populateFuels() { const s = document.getElementById('exp-fuel'); if (!s) return; s.innerHTML = FUELS.map(f => `<option>${f}</option>`).join(''); }
-export function populateRegions() { const s = document.getElementById('exp-region'); if (!s || !state.db) return; const rs = Object.keys(state.db.region_index || {}).filter(r => r !== 'Inconnue').sort((a, b) => a.localeCompare(b, 'fr')); s.innerHTML = '<option value="">France entière</option>' + rs.map(r => `<option value="${E(r)}">${E(r)}</option>`).join(''); }
-export function updateDeptFilter() {
-  const rg = document.getElementById('exp-region').value, s = document.getElementById('exp-dept');
-  if (!rg) { s.innerHTML = '<option value="">Tous</option>'; s.disabled = true; onZoneChange(); return; }
-  const ds = Object.entries(state.db.dept_index).filter(([, d]) => d.region === rg).sort((a, b) => a[1].nom.localeCompare(b[1].nom, 'fr'));
-  s.innerHTML = '<option value="">Tous</option>' + ds.map(([c, d]) => `<option value="${E(d.nom)}">${E(d.nom)} (${E(c)})</option>`).join('');
-  s.disabled = false;
-  onZoneChange();
-}
-// Zone changée (région / département) : classement et évolution suivent la même sélection.
-export function onZoneChange() { findCheapest(); renderZoneHistory(); }
-// Carburant changé : l'évolution suit tant qu'elle n'affiche qu'un carburant.
-export function onFuelChange() {
-  findCheapest();
-  const f = document.getElementById('exp-fuel')?.value;
-  if (f && (!state.zoneFuels || state.zoneFuels.length <= 1)) { state.zoneFuels = [f]; renderZoneHistory(); }
-}
-
-export function renderExploreMap() {
-  const el = document.getElementById('palmares-map');
-  el.classList.remove('hidden');
-  if (!state.exploreMap) {
-    state.exploreMap = mkMap('palmares-map');
-    state.exploreMap.setView([46.6, 2.5], 6);
-    state.exploreMarkers = L.layerGroup().addTo(state.exploreMap);
-  }
-  setTimeout(() => state.exploreMap.invalidateSize(), 100);
-}
-
-export function findCheapest() {
-  const fuel = document.getElementById('exp-fuel').value;
-  const sort = document.getElementById('exp-sort').value;
-  const rg = document.getElementById('exp-region').value;
-  const dept = document.getElementById('exp-dept').value;
-  const sts = [];
-  for (const [id, s] of Object.entries(state.db.stations)) {
-    const e = s.carburants_disponibles[fuel];
-    if (!e || isExpired(e, maxAge)) continue;
-    if (rg && s.region !== rg) continue;
-    if (dept && s.departement !== dept) continue;
-    sts.push({ id, station: s, prix: parseFloat(e.prix) });
-  }
-  sts.sort((a, b) => sort === 'asc' ? a.prix - b.prix : b.prix - a.prix);
-  const top = sts.slice(0, 50);
-  const c = document.getElementById('palmares-results');
-  const cnt = document.getElementById('palmares-count');
-  if (cnt) cnt.textContent = sts.length ? `${top.length} sur ${fmtInt(sts.length)} station${sts.length > 1 ? 's' : ''}` : '';
-  if (!top.length) { c.innerHTML = notice('Aucun résultat', 'Changez de carburant ou élargissez la zone.'); state.exploreMarkers?.clearLayers(); return; }
-  let h = '<div class="card card-list">';
-  top.forEach((r, i) => {
-    const s = r.station;
-    const cls = sort === 'asc' && i < 3 ? 'cheap' : sort === 'desc' && i < 3 ? 'dear' : '';
-    const h24 = s.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
-    h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-rank">${i + 1}</div><div class="s-info"><div class="s-name">${E(stationName(s))}${h24}</div><div class="s-addr">${E(titleCase(s.adresse))}, ${E(s.code_postal)} ${E(titleCase(s.ville))}</div></div>${ptag(r.id, fuel, s.carburants_disponibles[fuel], cls)}</div>`;
-  });
-  h += '</div>';
-  c.innerHTML = h;
-
-  if (state.exploreMarkers) {
-    state.exploreMarkers.clearLayers();
-    const icons = { cheap: mkIcon('green'), dear: mkIcon('red'), def: mkIcon('blue') };
-    const bounds = [];
-    top.forEach((s, i) => {
-      if (!s.station.lat || !s.station.lon) return;
-      const ic = sort === 'asc' && i < 3 ? icons.cheap : sort === 'desc' && i < 3 ? icons.dear : icons.def;
-      const pop = `<div class="pop-body"><b>${i + 1}. ${E(stationName(s.station))}</b><br><span class="pop-meta">${E(titleCase(s.station.ville))}</span><br><b>${fmtEur(s.prix)}</b><br><button type="button" class="pop-btn" onclick="showStation('${s.id}')">Voir la station</button></div>`;
-      L.marker([s.station.lat, s.station.lon], { icon: ic }).bindPopup(pop).addTo(state.exploreMarkers);
-      bounds.push([s.station.lat, s.station.lon]);
-    });
-    if (bounds.length) state.exploreMap.fitBounds(bounds, { padding: [25, 25], maxZoom: 11 });
-  }
-}
-
-// Barres horizontales fines (une couleur par carburant, la même partout dans le site).
-function barChart(canvas, fuels, values, fmt) {
-  const cs = getComputedStyle(document.documentElement);
-  const txt = cs.getPropertyValue('--t2').trim(), grid = cs.getPropertyValue('--bl').trim();
-  return new Chart(canvas, {
-    type: 'bar',
-    data: { labels: fuels, datasets: [{ data: values, backgroundColor: fuels.map(fuelColor), borderRadius: 4, borderSkipped: 'start', barPercentage: 0.7, categoryPercentage: 0.85 }] },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmt(c.raw) } } },
-      scales: {
-        x: { beginAtZero: true, ticks: { color: txt, maxTicksLimit: 5 }, grid: { color: grid }, border: { display: false } },
-        y: { ticks: { color: txt }, grid: { display: false } }
-      }
-    }
-  });
-}
-
-export function renderDash() {
-  if (!state.chartsInit) {
-    state.chartsInit = true;
-    if (state.chartP) { state.chartP.destroy(); state.chartP = null; }
-    if (state.chartF) { state.chartF.destroy(); state.chartF = null; }
-    const d = state.db.dashboard, fs = FUELS.filter(f => d.national.avg_prices[f] > 0);
-    if (Chart) {
-      state.chartP = barChart(document.getElementById('chart-prices'), fs, fs.map(f => d.national.avg_prices[f]), fmtEur);
-      state.chartF = barChart(document.getElementById('chart-fuels'), fs, fs.map(f => d.national.fuel_presence[f] || 0), v => `${fmtInt(v)} stations`);
-    }
-  }
+export function renderExplorer() {
+  const e = ex();
+  renderTeaser();
+  const fuelSel = $('exp-fuel'), regSel = $('exp-region'), deptSel = $('exp-dept'), sortSel = $('exp-sort');
+  fuelSel.innerHTML = FUELS.map(f => `<option value="${f}"${f === e.fuel ? ' selected' : ''}>${f}</option>`).join('');
+  regSel.innerHTML = '<option value="">France entière</option>' + state.db.regions.slice().sort((a, b) => a.localeCompare(b, 'fr')).map(r => `<option value="${E(r)}"${r === e.region ? ' selected' : ''}>${E(r)}</option>`).join('');
+  fillDepts();
+  sortSel.value = e.sort;
+  renderRanking();
+  renderZoneHistory();
   renderRegTable();
 }
 
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  state.chartsInit = false;
-  if (state.db && !document.getElementById('pane-explorer')?.classList.contains('hidden')) renderDash();
-});
-export function sortDash(f) { if (state.dashSortFuel === f) state.dashSortDir = state.dashSortDir === 'asc' ? 'desc' : 'asc'; else { state.dashSortFuel = f; state.dashSortDir = 'asc'; } renderRegTable(); }
-export function toggleReg(r, row) {
-  const rows = document.querySelectorAll(`.dr-${CSS.escape(r)}`);
-  const open = rows[0]?.classList.contains('hidden');
-  rows.forEach(x => x.classList.toggle('hidden', !open));
-  row?.querySelector('.reg-btn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+function fillDepts() {
+  const e = ex(), s = $('exp-dept');
+  if (!e.region) { s.innerHTML = '<option value="">Tous</option>'; s.disabled = true; e.dept = ''; return; }
+  s.innerHTML = '<option value="">Tous</option>' + deptsOfRegion(e.region).map(d => `<option value="${d.code}"${d.code === e.dept ? ' selected' : ''}>${E(d.name)} (${d.code})</option>`).join('');
+  s.disabled = false;
 }
-function priceCells(avg, nat, fs) {
+
+// Filtres (délégation : data-change="exp").
+export function onExploreChange(el) {
+  const e = ex();
+  if (el.id === 'exp-fuel') {
+    e.fuel = el.value;
+    if (!state.zoneFuels || state.zoneFuels.length <= 1) state.zoneFuels = [e.fuel];
+    syncTeaser();
+  } else if (el.id === 'exp-region') { e.region = el.value; e.dept = ''; fillDepts(); }
+  else if (el.id === 'exp-dept') e.dept = el.value;
+  else if (el.id === 'exp-sort') e.sort = el.value;
+  state.expLimit = 0;
+  renderRanking();
+  if (el.id !== 'exp-sort') renderZoneHistory();
+}
+export function exploreFuel(f) {
+  const e = ex(); e.fuel = f; state.zoneFuels = [f]; state.expLimit = 0;
+  $('exp-fuel').value = f;
+  syncTeaser();
+  renderRanking(); renderZoneHistory();
+  $('exp-filters')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderTeaser() {
+  const st = zoneStats().fr;
+  const cards = FUELS.filter(f => st[f].n).map(f => `<button type="button" class="teaser-card" data-act="exp-fuel" data-fuel="${f}" aria-pressed="${f === ex().fuel}"><span class="teaser-card-f"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${f}</span><span class="teaser-card-v">${fmtP(st[f].avg)}<span class="teaser-card-u"> €/L</span></span><span class="teaser-card-t"></span><span class="teaser-card-n">${fmtInt(st[f].n)} stations · mini ${fmtP(st[f].min)}</span></button>`).join('');
+  $('home-teaser').innerHTML = `<div class="sec-h"><h2 id="home-teaser-t" class="sec-l">Prix moyens en France aujourd’hui</h2><span class="sec-count">${plural(stationCount(), 'station', 'stations')}</span></div><div class="teaser-grid">${cards}</div>`;
+  decorateTeaser();
+}
+
+// Cartes de prix moyens : la carte du carburant choisi reste mise en avant.
+function syncTeaser() { document.querySelectorAll('.teaser-card[data-fuel]').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.fuel === ex().fuel))); }
+
+function zoneList() {
+  const e = ex();
+  if (e.dept) return deptByCode(e.dept)?.stations || [];
+  if (e.region) return regionStations(e.region);
+  return state.db.list;
+}
+
+export function renderRanking() {
+  const e = ex();
+  const items = [];
+  for (const s of zoneList()) { const p = visiblePrice(s, e.fuel); if (p) items.push({ s, dist: NaN, p: p.p }); }
+  items.sort((a, b) => (e.sort === 'asc' ? a.p - b.p : b.p - a.p));
+  const zone = e.dept ? `${deptByCode(e.dept)?.name || ''}` : e.region || 'France';
+  const link = e.dept ? zoneHash('d', e.dept) : e.region ? zoneHash('r', e.region) : '';
+  $('palmares-count').textContent = items.length ? `${plural(items.length, 'station', 'stations')} · ${zone}` : '';
+  $('palmares-link').innerHTML = link ? `<a class="btn btn-sm" href="${link}">Ouvrir ${E(zone)} en liste complète</a>` : '';
+  const lim = Math.max(PAGE, state.expLimit || 0);
+  // Podium : les 3 moins chères en vert (ou les 3 plus chères en rouge si l'ordre est inversé).
+  const top = e.sort === 'asc' ? 'cheap' : 'dear';
+  $('palmares-results').innerHTML = listHtml(items, e.fuel, { key: 'explore', ranks: true, showDist: false, limit: lim, classOf: (_, i) => (i < 3 ? top : ''), empty: notice('Aucun résultat', 'Changez de carburant ou de zone.') });
+  $('palmares-map-w').innerHTML = mapSlot('explore-map', 'd-map d-map-sticky');
+  const mk = markersFor(items, e.fuel, 50);
+  mk.forEach((m, i) => { m.cls = i < 3 ? top : ''; m.rank = String(i + 1); });
+  renderMap('explore-map', mk);
+}
+
+// ---------------------------------------------------------------------------
+// Tableau régional (moyennes sur les prix visibles), départements dépliables
+// ---------------------------------------------------------------------------
+
+export function sortDash(f) {
+  const d = state.dashSort;
+  if (d.fuel === f) d.dir = d.dir === 'asc' ? 'desc' : 'asc'; else { d.fuel = f; d.dir = 'asc'; }
+  renderRegTable();
+}
+export function toggleReg(btn) {
+  const key = btn.dataset.reg;
+  const open = btn.getAttribute('aria-expanded') !== 'true';
+  btn.setAttribute('aria-expanded', String(open));
+  document.querySelectorAll(`tr[data-parent="${CSS.escape(key)}"]`).forEach(r => r.classList.toggle('hidden', !open));
+}
+function priceCells(z, nat, fs) {
   return fs.map(f => {
-    const p = avg[f], na = nat[f];
+    const p = z?.[f]?.avg, na = nat[f].avg;
     let cc = '';
     if (p > 0 && na > 0) { if (p < na - 0.01) cc = ' td-cheap'; else if (p > na + 0.01) cc = ' td-dear'; }
-    return `<td class="tnum${cc}">${p > 0 ? fmtEur(p) : '—'}</td>`;
+    return `<td class="tnum${cc}">${Number.isFinite(p) ? fmtP(p) : '—'}</td>`;
   }).join('');
 }
 export function renderRegTable() {
-  const d = state.db.dashboard, nat = d.national.avg_prices, fs = FUELS.filter(f => nat[f] > 0);
-  const regs = Object.entries(d.regional).filter(([r]) => r !== 'Inconnue');
-  if (state.dashSortFuel) regs.sort((a, b) => { const va = a[1].avg_prices[state.dashSortFuel] || 999, vb = b[1].avg_prices[state.dashSortFuel] || 999; return state.dashSortDir === 'asc' ? va - vb : vb - va; });
-  else regs.sort((a, b) => a[0].localeCompare(b[0], 'fr'));
+  const st = zoneStats(), nat = st.fr, fs = FUELS.filter(f => nat[f].n);
+  const { fuel: sf, dir } = state.dashSort;
+  const regs = state.db.regions.slice();
+  if (sf) regs.sort((a, b) => { const va = st.reg[a]?.[sf]?.avg || 99, vb = st.reg[b]?.[sf]?.avg || 99; return dir === 'asc' ? va - vb : vb - va; });
+  else regs.sort((a, b) => a.localeCompare(b, 'fr'));
   let t = '<caption class="sr-only">Prix moyens par région ; dépliez une région pour voir ses départements</caption><thead><tr><th scope="col" class="th-s">Région</th><th scope="col" class="tnum">Stations</th>';
-  fs.forEach(f => {
-    const on = state.dashSortFuel === f;
-    const sortAttr = on ? ` aria-sort="${state.dashSortDir === 'asc' ? 'ascending' : 'descending'}"` : '';
-    t += `<th scope="col" class="tnum"${sortAttr}><button type="button" class="th-btn" onclick="sortDash('${f}')">${f}<span class="th-ar" aria-hidden="true">${on ? (state.dashSortDir === 'asc' ? '↑' : '↓') : '↕'}</span></button></th>`;
-  });
-  t += '</tr></thead><tbody>';
-  for (const [r, data] of regs) {
-    const sl = r.replace(/[^a-zA-Z0-9]/g, '_');
-    t += `<tr class="tr-reg" onclick="toggleReg('${sl}',this)"><td class="td-s"><button type="button" class="reg-btn" aria-expanded="false">${E(r)}</button></td><td class="tnum">${fmtInt(data.station_count)}</td>${priceCells(data.avg_prices, nat, fs)}</tr>`;
-    if (d.departemental) Object.values(d.departemental).filter(x => x.region === r).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')).forEach(dp => {
-      t += `<tr class="tdept dr-${sl} hidden"><td class="td-s">${E(dp.nom)}</td><td class="tnum">${fmtInt(dp.station_count)}</td>${priceCells(dp.avg_prices, nat, fs)}</tr>`;
-    });
+  for (const f of fs) {
+    const on = sf === f;
+    t += `<th scope="col" class="tnum"${on ? ` aria-sort="${dir === 'asc' ? 'ascending' : 'descending'}"` : ''}><button type="button" class="th-btn" data-act="dash-sort" data-fuel="${f}">${f}<span class="th-ar" aria-hidden="true">${on ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span></button></th>`;
   }
-  t += `</tbody><tfoot><tr><td class="td-s">France</td><td class="tnum">${fmtInt(Object.keys(state.db.stations).length)}</td>${fs.map(f => `<td class="tnum">${fmtEur(nat[f])}</td>`).join('')}</tr></tfoot>`;
-  document.getElementById('table-regions').innerHTML = t;
+  t += '</tr></thead><tbody>';
+  regs.forEach((r, i) => {
+    t += `<tr class="tr-reg"><td class="td-s"><button type="button" class="reg-btn" data-act="reg-toggle" data-reg="r${i}" aria-expanded="false">${E(r)}</button></td><td class="tnum">${fmtInt(st.counts.reg[r] || 0)}</td>${priceCells(st.reg[r], nat, fs)}</tr>`;
+    for (const d of deptsOfRegion(r)) {
+      t += `<tr class="tdept hidden" data-parent="r${i}"><td class="td-s"><a href="${zoneHash('d', d.code)}">${E(d.name)} <span class="u-text-faint">${d.code}</span></a></td><td class="tnum">${fmtInt(st.counts.dep[d.name] || 0)}</td>${priceCells(st.dep[d.name], nat, fs)}</tr>`;
+    }
+  });
+  t += `</tbody><tfoot><tr><td class="td-s">France</td><td class="tnum">${fmtInt(st.counts.fr)}</td>${fs.map(f => `<td class="tnum">${fmtP(nat[f].avg)}</td>`).join('')}</tr></tfoot>`;
+  $('table-regions').innerHTML = t;
 }

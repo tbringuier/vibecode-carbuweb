@@ -1,79 +1,107 @@
-import { state, favs } from './state.js';
-import { coord } from './helpers.js';
-import { renderFavs, favKey, toggleFavAddr } from './favorites.js';
-import { renderExploreMap, renderDash, findCheapest } from './explore.js';
-import { renderZoneHistory } from './history.js';
-import { findNear } from './geolocation.js';
-import { searchGeo } from './geo-zones.js';
-import { showStation } from './station.js';
+// navigation.js — Routeur par fragment d'URL : chaque écran a une adresse partageable,
+// « retour » (bouton ou geste) restaure l'écran précédent et sa position de défilement.
+//
+//   #                      accueil (onglet Recherche)   #explorer · #favoris
+//   #s/<id>                fiche station
+//   #p/<lat>,<lon>/<nom>   stations autour d'un point
+//   #z/r/<région>          stations d'une région      #z/d/<code>   d'un département
+import { state } from './state.js';
+import { $, E, ICON, toast } from './helpers.js';
+import { destroyMap } from './map.js';
 
-export function switchTab(tab) {
-  const sv = document.getElementById('station-view');
-  if (sv && !sv.classList.contains('hidden')) goHome();
-  document.getElementById('home-view')?.classList.toggle('fav-tab', tab === 'favoris');
-  document.getElementById('home-view')?.classList.toggle('explorer-tab', tab === 'explorer');
-  ['recherche', 'explorer', 'favoris'].forEach(t => {
-    document.getElementById(`tab-${t}`)?.setAttribute('aria-selected', t === tab ? 'true' : 'false');
-    const p = document.getElementById(`pane-${t}`);
-    if (p) { if (t === tab) p.classList.remove('hidden'); else p.classList.add('hidden'); }
-  });
-  ['recherche', 'explorer', 'favoris'].forEach(t => document.getElementById(`bn-${t}`)?.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
-  if (tab === 'explorer') { renderExploreMap(); findCheapest(); renderDash(); renderZoneHistory(); }
+export const TABS = ['recherche', 'explorer', 'favoris'];
+const dec = s => { try { return decodeURIComponent(s); } catch { return s; } };
+
+export function parseHash(h = location.hash) {
+  const [a, ...rest] = h.replace(/^#\/?/, '').split('/');
+  if (a === 'explorer' || a === 'favoris') return { view: 'home', tab: a };
+  if (a === 's' && rest[0]) return { view: 'station', id: dec(rest[0]) };
+  if (a === 'p' && rest[0]) {
+    const [lat, lon] = rest[0].split(',').map(Number);
+    if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return { view: 'near', lat, lon, label: dec(rest.slice(1).join('/')) || 'Lieu' };
+  }
+  if (a === 'z' && (rest[0] === 'r' || rest[0] === 'd') && rest[1]) return { view: 'zone', kind: rest[0], key: dec(rest.slice(1).join('/')) };
+  return { view: 'home', tab: 'recherche' };
+}
+export const stationHash = id => `#s/${encodeURIComponent(id)}`;
+export const nearHash = (lat, lon, label) => `#p/${(+lat).toFixed(5)},${(+lon).toFixed(5)}/${encodeURIComponent(label || '')}`;
+export const zoneHash = (kind, key) => `#z/${kind}/${encodeURIComponent(key)}`;
+
+// Vues enregistrées par app.js (évite les imports circulaires) : {home(tab), station(r), near(r), zone(r)}.
+let views = {};
+export function registerViews(v) { views = v; }
+
+let depth = history.state?.d || 0;
+history.scrollRestoration = 'manual';
+
+export function go(hash, { replace = false } = {}) {
+  // Même écran (ex. « Rechercher » touché depuis l'accueil) : remonter en haut, sans empiler l'historique.
+  if (!replace && JSON.stringify(parseHash(hash)) === JSON.stringify(parseHash())) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (replace) history.replaceState({ d: depth }, '', hash || location.pathname);
+  else {
+    history.replaceState({ ...(history.state || {}), d: depth, y: window.scrollY }, '');
+    depth++;
+    history.pushState({ d: depth }, '', hash);
+  }
+  render();
+}
+export function back() { if (depth > 0) history.back(); else go('#', { replace: true }); }
+export function initRouter() {
+  window.addEventListener('popstate', e => { depth = e.state?.d || 0; render({ scroll: e.state?.y ?? 0 }); });
 }
 
-export function pushNav(s) { if (state.isRestoring) return; state.navStack.push(s); history.pushState({ idx: state.navStack.length }, ''); }
-
-export function goHome() {
-  state.navStack = []; state.proxSearch = null; state.detailAnchor = null; state.geoZone = null;
-  document.getElementById('station-view').classList.add('hidden');
-  document.getElementById('station-view').removeAttribute('data-sid');
-  document.getElementById('home-view').classList.remove('hidden');
-  document.getElementById('btn-fav-header').hidden = true;
-  renderFavs();
+let lastKey = '';
+// Rend la route courante. `keep` : même écran redessiné (filtres changés) — garder le défilement.
+export function render({ scroll = 0, keep = false } = {}) {
+  if (!state.db) return;
+  const r = parseHash();
+  const key = JSON.stringify(r);
+  if (key !== lastKey) { state.listLimit = 0; state.expLimit = 0; }
+  const same = key === lastKey;
+  lastKey = key;
+  state.route = r;
+  const y = keep || same ? window.scrollY : scroll;
+  const home = r.view === 'home';
+  $('home-view').classList.toggle('hidden', !home);
+  $('detail-view').classList.toggle('hidden', home);
+  Object.keys(state.maps).forEach(destroyMap);
+  syncNav(home ? r.tab : null);
+  if (home) { state.origin = null; views.home?.(r.tab); setTitle(''); }
+  else {
+    $('d-actions').innerHTML = '';
+    $('d-sub').textContent = '';
+    views[r.view]?.(r);
+  }
+  requestAnimationFrame(() => window.scrollTo(0, y));
 }
+export const rerender = () => render({ keep: true });
 
-export function goBack() { if (state.navStack.length) history.back(); else goHome(); }
-
-export function initPopstate() {
-  window.addEventListener('popstate', () => {
-    if (!state.navStack.length) { goHome(); return; }
-    const p = state.navStack.pop(); state.isRestoring = true;
-    try {
-      if (p.type === 'prox') findNear(p.lat, p.lon, p.label, p.customR);
-      else if (p.type === 'geo') searchGeo(p.gType, p.name);
-      else if (p.type === 'station') showStation(p.sid);
-      else goHome();
-    } finally {
-      state.isRestoring = false;
-    }
-  });
-}
-
-export function handleHeaderFav() {
-  if (!state.proxSearch) return;
-  const a = coord(state.proxSearch.lat), o = coord(state.proxSearch.lon);
-  if (Number.isFinite(a) && Number.isFinite(o)) { toggleFavAddr(a, o, state.proxSearch.label || 'Lieu'); syncHeaderFav(); }
-}
-
-const STAR_SVG_FILLED = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
-const STAR_SVG_EMPTY = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
-
-export function syncHeaderFav() {
-  const btn = document.getElementById('btn-fav-header');
-  if (!btn) return;
-  const sv = document.getElementById('station-view');
-  const sid = sv?.getAttribute('data-sid');
-  if (sid) { btn.hidden = true; return; }
-  if (state.proxSearch) {
-    const a = coord(state.proxSearch.lat), o = coord(state.proxSearch.lon);
-    if (Number.isFinite(a) && Number.isFinite(o)) {
-      btn.hidden = false;
-      const k = favKey(a, o), is = k && favs.some(f => f.type === 'address' && favKey(f.lat, f.lon) === k);
-      btn.innerHTML = is ? STAR_SVG_FILLED : STAR_SVG_EMPTY;
-      btn.classList.toggle('btn-star-on', !!is);
-      btn.setAttribute('aria-label', is ? 'Retirer ce lieu des favoris' : 'Ajouter ce lieu aux favoris');
-      return;
+function syncNav(tab) {
+  for (const t of TABS) {
+    for (const el of [$(`tab-${t}`), $(`bn-${t}`)]) {
+      if (!el) continue;
+      if (t === tab) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
     }
   }
-  btn.hidden = true;
+}
+
+// En-tête des écrans de détail.
+export function setHeader(title, sub = '', actions = '') {
+  $('d-title').textContent = title;
+  $('d-sub').textContent = sub;
+  $('d-actions').innerHTML = actions;
+  setTitle(title);
+}
+export function setTitle(t) { document.title = t ? `${t} · Carbu'Web` : 'Carbu’Web — Prix des carburants en France'; }
+
+export const starBtn = (on, label) => `<button type="button" class="btn btn-g btn-i${on ? ' btn-star-on' : ''}" data-act="fav-current" aria-pressed="${on}" aria-label="${on ? 'Retirer' : 'Ajouter'} ${E(label)} ${on ? 'des' : 'aux'} favoris" title="${on ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${on ? ICON.star : ICON.starO}</button>`;
+export const shareBtn = () => `<button type="button" class="btn btn-g btn-i" data-act="share" aria-label="Partager cette page" title="Partager">${ICON.share}</button>`;
+
+export async function share() {
+  const url = location.href, title = document.title;
+  try {
+    if (navigator.share) { await navigator.share({ title, url }); return; }
+    await navigator.clipboard.writeText(url);
+    toast('Lien copié');
+  } catch (e) { if (e?.name !== 'AbortError') toast('Partage impossible'); }
 }

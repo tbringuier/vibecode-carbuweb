@@ -1,130 +1,114 @@
-import { state, uFuels, favs, FUELS, maxAge } from './state.js';
-import { norm, E, jsStr, notice, titleCase, stationName, fmtP } from './helpers.js';
-import { ptag } from './prices.js';
-import { isExpired, hasActiveFuel } from './freshness.js';
-import { favKey } from './favorites.js';
-import { decorateTeaser } from './history.js';
+// search.js — Recherche de l'accueil : zones et stations locales (instantané), puis villes et
+// adresses via Nominatim (OpenStreetMap, externe : requête débouncée et annulable) ; récents.
+import { state, prefs, favKey, clearRecent } from './state.js';
+import { $, E, ICON, norm, notice, loader, hav, plural } from './helpers.js';
+import { searchIndex, cpIndex, zoneIndex, station } from './data.js';
+import { hasVisibleFuel, visiblePrice } from './freshness.js';
+import { stationRow, sortFuelFor } from './lists.js';
+import { nearHash, zoneHash } from './navigation.js';
 
-export function debouncedSearch() { clearTimeout(state.searchTimeout); state.searchTimeout = setTimeout(doSearch, 400); }
+const MAX_STATIONS = 30;
+// Réponses Nominatim gardées pour la session : redessiner (changement de carburant…) ne relance pas l'API.
+const osmCache = new Map();
 
-export function renderHomeTeaser() {
-  const c = document.getElementById('home-teaser');
-  if (!c || !state.db?.dashboard?.national) return;
-  const avg = state.db.dashboard.national.avg_prices || {};
-  const cards = FUELS
-    .filter(f => typeof avg[f] === 'number' && avg[f] > 0)
-    .map(f => `<button type="button" class="teaser-card" data-fuel="${f}" onclick="jumpToExplorer('${f}')"><span class="teaser-card-f"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${E(f)}</span><span class="teaser-card-v">${fmtP(avg[f])}<span class="teaser-card-u">\u202f€/L</span></span><span class="teaser-card-t"></span></button>`)
-    .join('');
-  if (!cards) return;
-  c.innerHTML = `<div class="teaser-head"><h2 id="home-teaser-t" class="teaser-title">Prix moyens en France</h2><span class="teaser-hint">Touchez un carburant pour voir le classement</span></div><div class="teaser-grid">${cards}</div>`;
-  c.classList.remove('hidden');
-  decorateTeaser();
+export function onSearchInput() {
+  clearTimeout(state.searchT);
+  $('sclear').hidden = !$('sinput').value;
+  state.searchT = setTimeout(doSearch, 300);
 }
+export function clearSearch() { $('sinput').value = ''; $('sclear').hidden = true; doSearch(); $('sinput').focus(); }
 
-export function jumpToExplorer(fuel) {
-  window.switchTab?.('explorer');
-  const s = document.getElementById('exp-fuel');
-  if (s && fuel) { s.value = fuel; window.onFuelChange?.(); }
-}
+const zoneRow = (href, name, sub) => `<a class="s-item" href="${href}"><span class="s-info"><span class="s-name"><span class="s-name-t">${E(name)}</span></span><span class="s-addr">${sub}</span></span>${ICON.chev}</a>`;
+const group = (title, body, extra = '') => `<section class="s-group"><h2 class="sec-l">${title}${extra}</h2><div class="card card-list">${body}</div></section>`;
 
 export async function doSearch() {
-  if (state.searchAC) state.searchAC.abort();
-  state.searchAC = new AbortController();
-  const sig = state.searchAC.signal;
-  const q = document.getElementById('sinput').value;
+  state.searchAC?.abort();
+  const ac = state.searchAC = new AbortController();
+  const q = $('sinput').value.trim();
   const n = norm(q);
-  const res = document.getElementById('sresults');
-  state.proxSearch = null;
-  state.detailAnchor = null;
-  const isCode = /^\d{2,3}$/.test(n);
-  if (!n || (n.length < 3 && !isCode)) { res.innerHTML = ''; return; }
-  let h = '';
-  const regs = [], depts = [];
-  if (isCode && state.db.dept_index[n]) {
-    const d = state.db.dept_index[n];
-    depts.push({ code: n, nom: d.nom, region: d.region, count: d.stations.length });
-  }
-  if (!isCode) {
-    for (const [c, d] of Object.entries(state.db.dept_index))
-      if (d.nom_norm.includes(n)) depts.push({ code: c, nom: d.nom, region: d.region, count: d.stations.length });
-    for (const r of Object.values(state.db.region_index))
-      if (r.nom_norm.includes(n)) regs.push({ nom: r.nom, count: r.stations.length });
-  }
-  if (regs.length) {
-    h += '<div class="s-group"><div class="sec-l">Régions</div>';
-    regs.forEach(g => {
-      h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('region','${jsStr(g.nom)}')"><div class="s-info"><div class="s-name">${E(g.nom)}</div><div class="s-addr">${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
-    });
-    h += '</div>';
-  }
-  if (depts.length) {
-    h += '<div class="s-group"><div class="sec-l">Départements</div>';
-    depts.forEach(g => {
-      h += `<div class="s-item" role="button" tabindex="0" onclick="searchGeo('dept','${jsStr(g.nom)}')"><div class="s-info"><div class="s-name">${E(g.nom)} (${E(g.code)})</div><div class="s-addr">${E(g.region)} · ${g.count} stations</div></div><span class="s-arrow">→</span></div>`;
-    });
-    h += '</div>';
-  }
-  const local = [];
-  if (!isCode && state.db.cp_index[n]) {
-    state.db.cp_index[n].forEach(id => { if (hasActiveFuel(state.db.stations[id])) local.push({ id, station: state.db.stations[id] }); });
-  } else if (!isCode) {
-    for (const [id, d] of Object.entries(state.db.recherche_texte)) {
-      if (d.texte_norm.includes(n) && hasActiveFuel(state.db.stations[id])) {
-        local.push({ id, station: state.db.stations[id] });
-        if (local.length >= 80) break;
-      }
+  const res = $('sresults');
+  $('recent').classList.toggle('hidden', !!n);
+  $('onboard').classList.toggle('hidden', !!n || prefs.welcomed);
+  if (!n) { res.innerHTML = ''; renderRecent(); return; }
+  if (n.length < 2) { res.innerHTML = ''; return; }
+  const zi = zoneIndex();
+  const digits = /^\d+$/.test(n);
+  // Numéro de département (01, 69, 974, 2A, 20 = Corse) ; sinon début de code postal (« 130 » → 130xx).
+  const codeMatch = d => d.code.toLowerCase() === n || (n === '20' && /^2[ab]$/i.test(d.code));
+  const depts = /^(\d{2,3}|2[ab])$/.test(n) ? zi.depts.filter(codeMatch) : digits ? [] : zi.depts.filter(d => d.n.includes(n));
+  const isDeptCode = depts.length > 0 && /^(\d{2,3}|2[ab])$/.test(n);
+  const regs = digits || isDeptCode ? [] : zi.regions.filter(r => r.n.includes(n));
+  let found = [];
+  if (/^\d{5}$/.test(n)) found = cpIndex().get(n) || [];
+  else if (digits && n.length >= 3 && !isDeptCode) { for (const [cp, list] of cpIndex()) if (cp.startsWith(n)) found.push(...list); }
+  else if (!isDeptCode && n.length >= 3) {
+    const words = n.split(' ');
+    for (const [t, s] of searchIndex()) {
+      if (words.every(w => t.includes(w))) { found.push(s); if (found.length >= 200) break; }
     }
   }
-  const useOsm = !isCode;
-  if (useOsm) h += '<div id="osm-slot"><div class="inline-loader"><div class="spinner" aria-hidden="true"></div><p>Recherche de villes & adresses…</p></div></div>';
-  if (local.length) {
-    h += '<div class="s-group"><div class="sec-l">Stations <span class="pill">data.gouv</span></div>';
-    local.forEach(r => {
-      const pCol = searchPrices(r.id, r.station);
-      const h24 = r.station.horaires?.automate_24_24 ? '<span class="b24-sm">ouvert 24/7</span>' : '';
-      h += `<div class="s-item" role="button" tabindex="0" onclick="showStation('${r.id}')"><div class="s-info"><div class="s-name">${E(stationName(r.station))}${h24}</div><div class="s-addr">${E(titleCase(r.station.adresse))}, ${E(r.station.code_postal)} ${E(titleCase(r.station.ville))}</div></div><div class="s-prices">${pCol}</div></div>`;
-    });
-    h += '</div>';
+  found = found.filter(s => hasVisibleFuel(s, prefs.fuels));
+  // Avec une position connue : les stations les plus proches d'abord.
+  const g = state.geo;
+  const items = found.map(s => ({ s, dist: g ? hav(g.lat, g.lon, s.lat, s.lon) : NaN }));
+  if (g) items.sort((a, b) => a.dist - b.dist);
+  const fuel = sortFuelFor(false);
+  for (const it of items) it.p = visiblePrice(it.s, fuel)?.p;
+
+  let h = '';
+  if (regs.length) h += group('Régions', regs.map(r => zoneRow(zoneHash('r', r.name), r.name, plural(r.count, 'station', 'stations'))).join(''));
+  if (depts.length) h += group('Départements', depts.slice(0, 12).map(d => zoneRow(zoneHash('d', d.code), `${d.name} (${d.code})`, `${E(d.region)} · ${plural(d.count, 'station', 'stations')}`)).join(''));
+  const useOsm = !isDeptCode && n.length >= 3 && (!digits || n.length === 5);
+  if (useOsm) h += `<div id="osm-slot">${loader('Recherche de villes et d’adresses…')}</div>`;
+  if (items.length) {
+    const more = items.length > MAX_STATIONS ? ` <span class="sec-count">${MAX_STATIONS} sur ${items.length}</span>` : '';
+    h += group(`Stations${g ? ' · les plus proches d’abord' : ''}`, items.slice(0, MAX_STATIONS).map(it => stationRow(it, { fuel: it.p != null ? fuel : null, cls: '', showDist: !!g })).join(''), more);
   }
-  const hasLocal = !!(regs.length || depts.length || local.length);
-  if (!hasLocal && !useOsm) { res.innerHTML = notice('Aucun résultat', 'Essayez un autre mot-clé.'); return; }
-  // Résultats locaux affichés immédiatement ; Nominatim (externe, plus lent) remplit son emplacement ensuite.
+  if (!h) { res.innerHTML = notice('Aucun résultat', 'Essayez un nom de ville, un code postal ou un numéro de département.'); return; }
   res.innerHTML = h;
   if (!useOsm) return;
-  let osmH = '';
+
+  let osm = '';
   try {
-    const or = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=fr&limit=4`, { signal: sig });
-    if (or.ok) {
-      const odRaw = await or.json();
-      const seen = new Set();
-      const od = odRaw.filter(p => {
-        const k = p.display_name.split(',')[0].trim() + '|' + (+p.lat).toFixed(3) + '|' + (+p.lon).toFixed(3);
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
-      if (od.length) {
-        osmH += '<div class="s-group"><div class="sec-l">Villes & adresses <span class="pill">OSM</span></div>';
-        od.forEach(p => {
-          const nm = p.display_name.split(',')[0];
-          const desc = p.display_name.split(',').slice(1, -2).join(',').trim();
-          const k = favKey(p.lat, p.lon);
-          const is = k && favs.some(f => f.type === 'address' && favKey(f.lat, f.lon) === k);
-          const safeName = jsStr(nm);
-          osmH += `<div class="s-item"><div class="s-info" role="button" tabindex="0" onclick="findNear(${+p.lat},${+p.lon},'${safeName}')"><div class="s-name">${E(nm)}</div><div class="s-addr">${E(desc)}</div></div><button class="btn btn-g btn-i btn-sm${is ? ' btn-star-on' : ''}" type="button" data-favkey="${k}" onclick="event.stopPropagation();toggleFavAddr(${+p.lat},${+p.lon},'${safeName}')" aria-label="${is ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${is ? '★' : '☆'}</button></div>`;
-        });
-        osmH += '</div>';
-      }
+    const key = n;
+    if (!osmCache.has(key)) {
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&countrycodes=fr&limit=5&accept-language=fr`;
+      const r = await fetch(url, { signal: ac.signal });
+      if (r.ok) osmCache.set(key, await r.json());
     }
-  } catch (e) { if (e.name !== 'AbortError') console.error('OSM', e); }
-  if (sig.aborted) return;
-  const slot = document.getElementById('osm-slot');
-  if (slot) slot.outerHTML = osmH;
-  if (!hasLocal && !osmH) res.innerHTML = notice('Aucun résultat', 'Essayez un autre mot-clé.');
+    if (osmCache.has(key)) {
+      const seen = new Set();
+      const places = osmCache.get(key).filter(p => {
+        const k = `${p.name || p.display_name.split(',')[0]}|${(+p.lat).toFixed(3)}|${(+p.lon).toFixed(3)}`;
+        if (seen.has(k)) return false; seen.add(k); return true;
+      });
+      osm = places.map(p => {
+        const name = (p.name || p.display_name.split(',')[0]).trim();
+        const desc = p.display_name.split(',').slice(1, -2).join(',').trim();
+        const lat = +p.lat, lon = +p.lon;
+        const on = prefs.favs.some(f => f.type === 'address' && f.id === favKey(lat, lon));
+        return `<div class="s-item s-place"><a class="s-link" href="${nearHash(lat, lon, name)}"><span class="s-info"><span class="s-name"><span class="s-name-t">${E(name)}</span></span><span class="s-addr">${E(desc)}</span></span></a><button type="button" class="btn btn-g btn-i${on ? ' btn-star-on' : ''}" data-act="fav-place" data-lat="${lat}" data-lon="${lon}" data-name="${E(name)}" aria-pressed="${on}" aria-label="${on ? 'Retirer' : 'Ajouter'} ${E(name)} ${on ? 'des' : 'aux'} favoris">${on ? ICON.star : ICON.starO}</button></div>`;
+      }).join('');
+    }
+  } catch (e) { if (e.name !== 'AbortError') console.warn('Nominatim', e); }
+  if (ac.signal.aborted) return;
+  const slot = $('osm-slot');
+  if (slot) slot.outerHTML = osm ? group('Villes et adresses <span class="pill">OpenStreetMap</span>', osm) : '';
+  if (!res.textContent.trim()) res.innerHTML = notice('Aucun résultat', 'Essayez un autre nom de ville ou un code postal.');
 }
 
-export function searchPrices(sid, st) {
-  const fs = uFuels.filter(f => st.carburants_disponibles[f] && !isExpired(st.carburants_disponibles[f], maxAge));
-  if (!fs.length) return '<span class="s-arrow">→</span>';
-  return fs.map(f => ptag(sid, f, st.carburants_disponibles[f])).join('');
+// Récents : lieux cherchés et stations consultées (stockés sur l'appareil uniquement).
+export function renderRecent() {
+  const box = $('recent'); if (!box) return;
+  const fuel = sortFuelFor(false);
+  const rows = prefs.recent.map(r => {
+    if (r.t === 'p') return `<a class="s-item" href="${nearHash(r.lat, r.lon, r.label)}"><span class="s-ico">${ICON.pin}</span><span class="s-info"><span class="s-name"><span class="s-name-t">${E(r.label)}</span></span><span class="s-addr">Stations autour de ce lieu</span></span>${ICON.chev}</a>`;
+    const s = station(r.id);
+    if (!s) return '';
+    const e = visiblePrice(s, fuel);
+    return stationRow({ s, dist: NaN, p: e?.p }, { fuel: e ? fuel : null, cls: '', showDist: false });
+  }).filter(Boolean);
+  if (!rows.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="sec-h"><h2 class="sec-l">${ICON.history} Récents</h2><button type="button" class="btn btn-g btn-sm" data-act="recent-clear">Effacer</button></div><div class="card card-list">${rows.join('')}</div>`;
 }
+export function clearRecentList() { clearRecent(); renderRecent(); }

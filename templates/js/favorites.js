@@ -1,96 +1,128 @@
-import { state, radius, uFuels, favs, setFavs, saveFavs, maxAge } from './state.js';
-import { E, jsStr, coord, hav, fmtKm, fmtEur, maxKmFav, toast, stationName, titleCase } from './helpers.js';
-import { pickBest, tankInline, ptag } from './prices.js';
-import { isExpired, hasActiveFuel } from './freshness.js';
+// favorites.js — Favoris : lieux (meilleurs prix dans un rayon) et stations (prix suivis).
+// Réordonnables (glisser la poignée, ou flèches ↑/↓ au clavier) ; suppression annulable.
+import { state, prefs, saveFavs, favKey, RADIUS_MIN, RADIUS_MAX } from './state.js';
+import { $, E, ICON, fmtEur, fmtKm, crowKm, toast, notice } from './helpers.js';
+import { station } from './data.js';
+import { within, pickBest, ptag, tankTxt } from './prices.js';
+import { openBadge } from './hours.js';
+import { fuelChips } from './filters.js';
 import { TouchDragReorder } from './drag-drop.js';
-import { showStation } from './station.js';
-import { findNear } from './geolocation.js';
+import { nearHash, stationHash, starBtn } from './navigation.js';
 
-export function favKey(lat, lon) { const a = coord(lat), o = coord(lon); return (Number.isFinite(a) && Number.isFinite(o)) ? `${a.toFixed(6)}-${o.toFixed(6)}` : ''; }
-export function migrateFavs() { let ch = false; const seen = new Set(), next = []; for (const f of favs) { if (f.type !== 'address') { next.push(f); continue; } const a = coord(f.lat), o = coord(f.lon); if (!Number.isFinite(a) || !Number.isFinite(o)) { ch = true; continue; } const k = favKey(a, o); if (!k || seen.has(k)) { ch = true; continue; } seen.add(k); if (f.id !== k || f.lat !== a || f.lon !== o) ch = true; next.push({ ...f, id: k, lat: a, lon: o }); } if (ch) { setFavs(next); saveFavs(); } }
+export function isPlaceFav(lat, lon) { const k = favKey(lat, lon); return prefs.favs.some(f => f.type === 'address' && f.id === k); }
+export const isStationFav = id => prefs.favs.some(f => f.type === 'station' && f.id === id);
 
-export function toggleFavAddr(lat, lon, name) {
-  const a = coord(lat), o = coord(lon); if (!Number.isFinite(a) || !Number.isFinite(o)) return;
-  const k = favKey(a, o), i = favs.findIndex(f => f.type === 'address' && favKey(f.lat, f.lon) === k);
-  if (i > -1) favs.splice(i, 1); else favs.push({ id: k, type: 'address', name, lat: a, lon: o });
-  saveFavs(); renderFavs();
-  const is = i === -1;
-  document.querySelectorAll(`[data-favkey="${k}"]`).forEach(btn => {
-    btn.classList.toggle('btn-star-on', is);
-    btn.textContent = is ? '★' : '☆';
-    btn.setAttribute('aria-label', is ? 'Retirer des favoris' : 'Ajouter aux favoris');
+function removeAt(i, label) {
+  const [old] = prefs.favs.splice(i, 1);
+  saveFavs();
+  toast(`${label} retiré des favoris`, { label: 'Annuler', fn: () => { prefs.favs.splice(Math.min(i, prefs.favs.length), 0, old); saveFavs(); afterChange(); } });
+}
+function afterChange() {
+  syncFavButtons();
+  if (state.route?.view === 'home' && state.route.tab === 'favoris') renderFavs();
+}
+
+export function togglePlace(lat, lon, name) {
+  const k = favKey(lat, lon), i = prefs.favs.findIndex(f => f.type === 'address' && f.id === k);
+  if (i > -1) removeAt(i, 'Lieu');
+  else { prefs.favs.push({ type: 'address', id: k, name: name || 'Lieu', lat: +(+lat).toFixed(5), lon: +(+lon).toFixed(5) }); saveFavs(); toast('Lieu ajouté aux favoris'); }
+  afterChange();
+}
+export function toggleStation(id) {
+  const s = station(id);
+  const i = prefs.favs.findIndex(f => f.type === 'station' && f.id === id);
+  if (i > -1) removeAt(i, 'Station');
+  else if (s) { prefs.favs.push({ type: 'station', id, name: s.name, adresse: `${s.addr}, ${s.city}` }); saveFavs(); toast('Station ajoutée aux favoris'); }
+  afterChange();
+}
+// Étoile de l'en-tête (et bouton de la fiche) : agit sur l'écran affiché.
+export function toggleCurrent() {
+  const r = state.route;
+  if (r?.view === 'station') toggleStation(r.id);
+  else if (r?.view === 'near') togglePlace(r.lat, r.lon, r.label);
+}
+export function removeFav(i) { const f = prefs.favs[i]; if (f) { removeAt(i, f.type === 'station' ? 'Station' : 'Lieu'); afterChange(); } }
+
+// Met à jour les étoiles visibles sans redessiner la page (carte et graphique conservés).
+export function syncFavButtons() {
+  const r = state.route;
+  let on = null, label = '';
+  if (r?.view === 'station') { on = isStationFav(r.id); label = 'cette station'; }
+  else if (r?.view === 'near') { on = isPlaceFav(r.lat, r.lon); label = 'ce lieu'; }
+  if (on !== null) {
+    const head = document.querySelector('#d-actions [data-act="fav-current"]');
+    if (head) head.outerHTML = starBtn(on, label);
+    document.querySelectorAll('#d-body [data-act="fav-current"]').forEach(b => {
+      b.classList.toggle('btn-star-on', on); b.setAttribute('aria-pressed', String(on));
+      b.innerHTML = `${on ? ICON.star : ICON.starO} ${on ? 'Dans vos favoris' : 'Ajouter aux favoris'}`;
+    });
+  }
+  document.querySelectorAll('[data-act="fav-place"]').forEach(b => {
+    const v = isPlaceFav(b.dataset.lat, b.dataset.lon);
+    b.classList.toggle('btn-star-on', v); b.setAttribute('aria-pressed', String(v)); b.innerHTML = v ? ICON.star : ICON.starO;
+    b.setAttribute('aria-label', `${v ? 'Retirer' : 'Ajouter'} ${b.dataset.name} ${v ? 'des' : 'aux'} favoris`);
   });
-  window.syncHeaderFav?.();
-  toast(i > -1 ? 'Lieu retiré' : 'Lieu ajouté aux favoris');
 }
-export function toggleFavStation() {
-  const sid = document.getElementById('station-view').getAttribute('data-sid');
-  const s = state.db.stations[sid], i = favs.findIndex(f => f.id === sid);
-  if (i > -1) favs.splice(i, 1); else favs.push({ id: sid, type: 'station', name: stationName(s), adresse: `${s.adresse}, ${s.ville}` });
-  saveFavs(); renderFavs(); toast(i > -1 ? 'Station retirée' : 'Station ajoutée');
-  showStation(sid);
+
+export function adjFavRadius(i, delta) {
+  const f = prefs.favs[i]; if (!f || f.type !== 'address') return;
+  f.radius = Math.max(RADIUS_MIN, Math.min(RADIUS_MAX, (f.radius || prefs.radius) + delta));
+  saveFavs(); renderFavs();
 }
-export function removeFav(id) { setFavs(favs.filter(f => f.id !== id)); saveFavs(); renderFavs(); toast('Favori retiré'); }
-export function adjFavR(id, d) { const i = favs.findIndex(f => f.id === id); if (i === -1) return; const f = favs[i]; favs[i] = { ...f, radius: Math.max(1, Math.min(100, (f.radius ? +f.radius : radius) + d)) }; saveFavs(); renderFavs(); }
+export function moveFav(i, dir) {
+  const j = i + dir; if (j < 0 || j >= prefs.favs.length) return;
+  const [it] = prefs.favs.splice(i, 1); prefs.favs.splice(j, 0, it); saveFavs(); renderFavs();
+  document.querySelector(`.fav[data-di="${j}"] .fav-h`)?.focus();
+}
 
 export function renderFavs() {
-  const box = document.getElementById('fav-box'), list = document.getElementById('fav-list');
-  migrateFavs();
-  if (!favs.length) { box.classList.add('hidden'); if (state.favDnD) { state.favDnD.destroy(); state.favDnD = null; } return; }
-  box.classList.remove('hidden');
-  const stationView = document.getElementById('station-view');
-  const activeStationId = stationView && !stationView.classList.contains('hidden') ? stationView.getAttribute('data-sid') : '';
-  const activeAddressId = state.proxSearch ? favKey(state.proxSearch.lat, state.proxSearch.lon) : '';
-  let h = '';
-  for (let i = 0; i < favs.length; i++) {
-    const f = favs[i];
-    if (f.type === 'station') {
-      const st = state.db?.stations[f.id];
-      const activeCls = activeStationId === f.id ? ' is-active' : '';
-      const fid = jsStr(f.id);
-      let section = '<div class="fav-note">Aucun prix visible avec les filtres actuels.</div>';
-      if (st?.carburants_disponibles) {
-        const tags = [];
-        for (const [c, d] of Object.entries(st.carburants_disponibles)) {
-          if (!uFuels.includes(c)) continue;
-          if (isExpired(d, maxAge)) continue;
-          tags.push(ptag(f.id, c, d));
-        }
-        if (tags.length) section = `<div class="fav-section"><div class="fav-section-title">Prix suivis</div><div class="fav-p">${tags.join('')}</div></div>`;
-      }
-      // Station absente du jeu de données du jour : conserver le favori (elle peut réapparaître au prochain build).
-      const main = st
-        ? `<button type="button" class="fav-main" onclick="showStation('${fid}')"><div class="fav-s">${E(titleCase(f.adresse))}</div><div class="fav-cta">${activeCls ? 'Station ouverte actuellement' : 'Voir le détail de la station'}</div></button>`
-        : `<div class="fav-main fav-main-off"><div class="fav-s">${E(titleCase(f.adresse))}</div><div class="fav-cta">Station absente des données du jour — elle réapparaîtra si la source la republie.</div></div>`;
-      if (!st) section = '';
-      h += `<article data-di="${i}" class="fav fav-station${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Station</span><span class="fav-name-inline">⛽ ${E(f.name)}</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer la station des favoris">✕</button></div>${main}${section}</div></article>`;
-    } else {
-      const fr = f.radius ? +f.radius : radius;
-      const activeCls = activeAddressId === f.id ? ' is-active' : '';
-      const fid = jsStr(f.id);
-      const sn = jsStr(f.name);
-      let section = `<div class="fav-note">Aucune station compatible n'a été trouvée dans ${fr}\u202fkm.</div>`;
-      if (state.db && f.lat && f.lon) {
-        const la = coord(f.lat), lo = coord(f.lon);
-        if (Number.isFinite(la) && Number.isFinite(lo)) {
-          const near = [], mk = maxKmFav(f);
-          for (const [id, s] of Object.entries(state.db.stations)) { if (!s.lat || !s.lon || !hasActiveFuel(s)) continue; const dist = hav(la, lo, s.lat, s.lon); if (dist <= mk) near.push({ id, station: s, dist }); }
-          const cards = [];
-          uFuels.forEach(fuel => {
-            const b = pickBest(near, fuel);
-            if (b) {
-              cards.push(`<div class="best-c" role="button" tabindex="0" onclick="event.stopPropagation();showStationFav('${b.id}',${f.lat},${f.lon},'${sn}')"><div class="best-f">${fuel}</div><div class="best-v">${fmtEur(b.prix)}</div>${tankInline(b.prix)}<div class="best-n">${E(b.nom)}</div><div class="best-d">${fmtKm(b.dist)}</div></div>`);
-            }
-          });
-          if (cards.length) section = `<div class="fav-section"><div class="fav-section-title">Meilleurs prix dans ${fr}\u202fkm</div><div class="best-g">${cards.join('')}</div></div>`;
-        }
-      }
-      h += `<article data-di="${i}" class="fav fav-address${activeCls}"><div class="fav-card"><div class="fav-top"><div class="fav-rail"><span class="fav-h" title="Déplacer">⠿</span><span class="fav-kind">Lieu</span><span class="fav-name-inline">📍 ${E(f.name)}</span></div><button type="button" class="btn btn-g btn-i btn-sm fav-r" onclick="removeFav('${fid}')" aria-label="Retirer le lieu des favoris">✕</button></div><div class="fav-toolbar"><div class="fav-radius-ctrl"><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',-5)" aria-label="Réduire le rayon">−</button><span class="tank">${fr}\u202fkm</span><button type="button" class="btn btn-i btn-sm" onclick="adjFavR('${fid}',5)" aria-label="Augmenter le rayon">+</button></div><button type="button" class="btn btn-p btn-sm fav-see" onclick="findNearFav(${f.lat},${f.lon},'${sn}','${fid}')">${activeCls ? 'Recherche active' : 'Lancer la recherche'}</button></div>${section}</div></article>`;
-    }
+  $('fav-filters').innerHTML = prefs.favs.length ? fuelChips() : '';
+  const list = $('fav-list');
+  state.favDnD?.destroy(); state.favDnD = null;
+  if (!prefs.favs.length) {
+    list.innerHTML = `<div class="empty"><span class="empty-ico" aria-hidden="true">${ICON.star}</span><p class="empty-t">Aucun favori pour l’instant</p><p class="empty-d">Touchez l’étoile ${ICON.starO} d’une station ou d’un lieu pour le retrouver ici en un geste, avec ses prix à jour.</p><a class="btn btn-p btn-sm" href="#">Rechercher une station</a></div>`;
+    return;
   }
-  list.innerHTML = h;
-  if (state.favDnD) state.favDnD.destroy(); state.favDnD = null;
-  if (favs.length > 1) state.favDnD = new TouchDragReorder(list, { onReorder: (f, t) => { const [it] = favs.splice(f, 1); favs.splice(t, 0, it); saveFavs(); renderFavs(); } });
+  list.innerHTML = prefs.favs.map((f, i) => (f.type === 'station' ? stationCard(f, i) : placeCard(f, i))).join('')
+    + (prefs.favs.length > 1 ? '<p class="fav-tip">Astuce : maintenez la poignée ⠿ pour réordonner vos favoris.</p>' : '');
+  if (prefs.favs.length > 1) state.favDnD = new TouchDragReorder(list, { onReorder: (from, to) => { const [it] = prefs.favs.splice(from, 1); prefs.favs.splice(to, 0, it); saveFavs(); renderFavs(); } });
 }
-export function findNearFav(lat, lon, name, fid) { const f = favs.find(x => x.id === fid); findNear(lat, lon, name, f?.radius ? +f.radius : null); }
-export function showStationFav(sid, lat, lon, label) { const a = coord(lat), o = coord(lon); state.detailAnchor = (Number.isFinite(a) && Number.isFinite(o)) ? { lat: a, lon: o, label } : null; showStation(sid); }
+
+const handle = (i, name) => `<button type="button" class="fav-h" data-di-h="${i}" aria-label="Déplacer ${E(name)} (flèches haut et bas)" title="Glisser pour réordonner">${ICON.drag}</button>`;
+const removeBtn = (i, name) => `<button type="button" class="btn btn-g btn-i btn-sm fav-r" data-act="fav-remove" data-i="${i}" aria-label="Retirer ${E(name)} des favoris" title="Retirer">${ICON.close}</button>`;
+
+function stationCard(f, i) {
+  const s = station(f.id);
+  if (!s) {
+    return `<article class="fav fav-off" data-di="${i}"><div class="fav-top">${handle(i, f.name)}<span class="fav-name">${E(f.name || 'Station')}</span>${removeBtn(i, f.name)}</div><p class="fav-sub">${E(f.adresse)}</p>${notice('Absente des données du jour', 'Elle réapparaîtra automatiquement si la source officielle la republie.', 'notice-sm')}</article>`;
+  }
+  const tags = prefs.fuels.map(fu => ptag(s, fu)).filter(Boolean).join('');
+  return `<article class="fav" data-di="${i}">
+    <div class="fav-top">${handle(i, s.name)}<a class="fav-name" href="${stationHash(s.id)}"><span class="fav-kind" aria-hidden="true">⛽</span>${E(s.name)}</a>${openBadge(s)}${removeBtn(i, s.name)}</div>
+    <p class="fav-sub">${E(s.addr)}, ${E(s.cp)} ${E(s.city)}</p>
+    <a class="fav-prices" href="${stationHash(s.id)}" aria-label="Voir la fiche de ${E(s.name)}">${tags || '<span class="u-text-muted">Aucun des carburants choisis ici.</span>'}<span class="fav-go">Fiche ${ICON.chev}</span></a>
+  </article>`;
+}
+
+function placeCard(f, i) {
+  const r = f.radius || prefs.radius;
+  const near = within(f.lat, f.lon, crowKm(r));
+  const cards = prefs.fuels.map(fu => {
+    const b = pickBest(near, fu);
+    if (!b) return '';
+    const t = tankTxt(b.p);
+    return `<a class="best-c" href="${stationHash(b.s.id)}"><span class="best-f"><span class="sw sw-${fu.toLowerCase()}" aria-hidden="true"></span>${fu}</span><span class="best-v">${fmtEur(b.p)}</span><span class="best-n">${E(b.s.name)}</span><span class="best-d">${fmtKm(b.dist)}</span>${t ? `<span class="tank">plein ${t}</span>` : ''}</a>`;
+  }).join('');
+  return `<article class="fav" data-di="${i}">
+    <div class="fav-top">${handle(i, f.name)}<a class="fav-name" href="${nearHash(f.lat, f.lon, f.name)}"><span class="fav-kind" aria-hidden="true">📍</span>${E(f.name)}</a>${removeBtn(i, f.name)}</div>
+    ${cards ? `<p class="fav-sub">Meilleurs prix à ${r} km</p><div class="best-g">${cards}</div>` : `<p class="fav-sub">Aucune station avec les carburants choisis à ${r} km.</p>`}
+    <div class="fav-foot">
+      <div class="stepper" role="group" aria-label="Rayon de recherche de ${E(f.name)}">
+        <button type="button" class="btn btn-i btn-sm" data-act="fav-radius" data-i="${i}" data-d="-5" aria-label="Réduire le rayon"${r <= RADIUS_MIN ? ' disabled' : ''}>−</button>
+        <span class="stepper-v">${r} km</span>
+        <button type="button" class="btn btn-i btn-sm" data-act="fav-radius" data-i="${i}" data-d="5" aria-label="Augmenter le rayon"${r >= RADIUS_MAX ? ' disabled' : ''}>+</button>
+      </div>
+      <a class="btn btn-p btn-sm" href="${nearHash(f.lat, f.lon, f.name)}">Voir toutes les stations ${ICON.chev}</a>
+    </div>
+  </article>`;
+}

@@ -213,6 +213,8 @@ class MainOrchestrationTests(unittest.TestCase):
             patch("pipeline.main.resolve_osm_mapping", return_value="osm.json") as osm_mock,
             patch("pipeline.main.build_database") as build_mock,
             patch("pipeline.main.generate_site") as site_mock,
+            # Sans ce patch, le test lancerait la vraie phase historique (reseau + depot .history local).
+            patch("pipeline.main.run_history_phase") as history_mock,
         ):
             main_module.main()
 
@@ -222,6 +224,7 @@ class MainOrchestrationTests(unittest.TestCase):
         osm_mock.assert_called_once_with()
         build_mock.assert_called_once_with("osm.json")
         site_mock.assert_called_once_with()
+        history_mock.assert_called_once_with()
 
 
 class OsmFallbackTests(unittest.TestCase):

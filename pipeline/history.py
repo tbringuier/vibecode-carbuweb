@@ -4,8 +4,8 @@ Deux sources, fusionnees jour par jour :
 
 1. Archives annuelles officielles (donnees.roulez-eco.fr/opendata/annee/AAAA) : tous les
    changements de prix depuis 2007. Elles font foi pour les jours qu'elles couvrent.
-   L'annee en cours est republiee chaque nuit ; les annees passees sont importees
-   progressivement (HISTORY_BACKFILL_PER_RUN par build, de la plus recente a la plus ancienne).
+   L'annee en cours est republiee chaque nuit ; les annees passees manquantes sont importees
+   au build suivant (HISTORY_BACKFILL_PER_RUN au plus, dans la limite de HISTORY_BACKFILL_BUDGET_S).
 2. Releves du build courant (database du jour) : completent la journee en cours avant
    que l'archive de la nuit ne la consolide.
 
@@ -47,6 +47,7 @@ from .config import (
     DB_FILE,
     FUEL_PRICE_RANGES,
     HISTORY_ANNUAL_URL,
+    HISTORY_BACKFILL_BUDGET_S,
     HISTORY_BACKFILL_PER_RUN,
     HISTORY_BUILD_DIRNAME,
     HISTORY_DIR,
@@ -805,8 +806,13 @@ def _dept_info(manifest, db):
 
 
 def update_history(store_dir=HISTORY_DIR, db_file=DB_FILE, years=None, backfill=HISTORY_BACKFILL_PER_RUN,
-                   local_zips=None, rebuild_zones=False):
-    """Met a jour le depot d'historique. N'ecrit rien si une etape echoue ou si l'integrite est douteuse."""
+                   local_zips=None, rebuild_zones=False, budget_s=HISTORY_BACKFILL_BUDGET_S):
+    """Met a jour le depot d'historique. N'ecrit rien si une etape echoue ou si l'integrite est douteuse.
+
+    `budget_s` borne la duree de l'import retroactif automatique : l'annee courante et la
+    precedente sont toujours verifiees, les annees passees ne sont entamees que tant que le
+    budget n'est pas depasse (0 = sans limite). Ignore pour un import explicite (`years`).
+    """
     t0 = time.time()
     store = HistoryStore(store_dir).load()
     prev_st, prev_rec = int(store.manifest.get("stations") or 0), int(store.manifest.get("records") or 0)
@@ -819,8 +825,13 @@ def update_history(store_dir=HISTORY_DIR, db_file=DB_FILE, years=None, backfill=
     dirty = []
 
     local_zips = local_zips or {}
-    plan = years if years is not None else _plan_years(store.manifest, date.fromisoformat(TODAY).year, backfill)
+    year_now = date.fromisoformat(TODAY).year
+    plan = years if years is not None else _plan_years(store.manifest, year_now, backfill)
     for year in plan:
+        if years is None and budget_s and year < year_now - 1 and time.time() - t0 > budget_s:
+            log.info("Historique : budget d'import atteint, annees %s au prochain build.",
+                     ", ".join(str(y) for y in plan if y <= year))
+            break
         try:
             r = _ingest_year(store, year, today, local_zip=local_zips.get(year), force=years is not None)
             if r:

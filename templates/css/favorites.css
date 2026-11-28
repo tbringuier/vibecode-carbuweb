@@ -1,102 +1,86 @@
-/* favorites.css — Dedicated favorites cards */
+/* favorites.css — Cartes de favoris (lieux et stations), poignée de réordonnancement, état vide */
 
-#fav-box .sec-l {
-  margin-bottom: .75rem;
+#fav-filters:not(:empty) {
+  margin-bottom: 1rem;
+}
+
+#fav-list {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
 }
 
 .fav {
-  margin-bottom: .875rem;
-}
-
-.fav-card {
-  border: 1px solid var(--bd);
-  border-radius: calc(var(--rx) + .125rem);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--sf) 92%, var(--ab) 8%) 0%, var(--sf) 100%);
-  box-shadow: var(--sh);
+  display: flex;
+  flex-direction: column;
+  gap: .625rem;
   padding: .875rem;
-  transition: box-shadow var(--dur-2), border-color var(--dur-2), transform var(--dur-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--rx);
+  background: var(--sf);
+  box-shadow: var(--sh);
 }
 
-@media (hover: hover) {
-  .fav:hover .fav-card {
-    box-shadow: var(--sh-h);
-    border-color: var(--bd-2);
-    transform: translateY(-1px);
-  }
-}
-
-.fav.is-active .fav-card {
-  border-color: color-mix(in oklab, var(--ac) 40%, var(--bd));
-  background: linear-gradient(180deg, color-mix(in oklab, var(--ab) 48%, var(--sf) 52%) 0%, var(--sf) 100%);
+.fav-off {
+  border-style: dashed;
+  box-shadow: none;
 }
 
 .fav-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-  margin-bottom: .75rem;
-}
-
-.fav-rail {
-  display: flex;
-  align-items: center;
   gap: .5rem;
-  min-width: 0;
-  flex: 1;
-}
-
-.fav-name-inline {
-  font-size: .8125rem;
-  font-weight: 700;
-  color: var(--tx);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
 }
 
 .fav-h {
-  cursor: grab;
-  color: var(--t3);
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 999px;
-  border: 1px solid var(--bd);
-  background: var(--sf);
-  flex-shrink: 0;
-  font-size: .875rem;
-  user-select: none;
+  margin-left: -.25rem;
+  border-radius: var(--r);
+  color: var(--t3);
+  cursor: grab;
   touch-action: none;
-  transition: color var(--dur-1), border-color var(--dur-1), background var(--dur-1);
+  user-select: none;
 }
 
 .fav-h:hover {
+  background: var(--bl);
   color: var(--t2);
-  border-color: var(--bd-2);
-  background: var(--sf-2);
+}
+
+.fav-h .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.fav-name {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--tx);
+}
+
+.fav-name:hover {
+  color: var(--ac);
+  text-decoration: none;
 }
 
 .fav-kind {
-  display: inline-flex;
-  align-items: center;
-  padding: .25rem .5625rem;
-  border-radius: 999px;
-  border: 1px solid var(--bd);
-  background: var(--bl);
-  color: var(--t2);
-  font-size: .6875rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .fav-r {
   flex-shrink: 0;
-  align-self: flex-start;
+  margin-right: -.25rem;
   color: var(--t3);
 }
 
@@ -105,220 +89,126 @@
   background: var(--rb);
 }
 
-.fav-main {
-  width: 100%;
-  display: block;
-  text-align: left;
-  appearance: none;
-  border: 1px solid var(--bd);
-  border-radius: var(--r);
-  background: color-mix(in oklab, var(--sf) 76%, var(--ab) 24%);
-  padding: .8125rem .875rem;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: border-color var(--dur-1), background var(--dur-1), box-shadow var(--dur-1);
-}
-
-.fav-main:hover {
-  border-color: color-mix(in oklab, var(--ac) 36%, var(--bd));
-  background: color-mix(in oklab, var(--sf) 62%, var(--ab) 38%);
-}
-
-.fav-main:focus-visible {
-  outline: 2px solid var(--ac);
-  outline-offset: 2px;
-}
-
-/* Station favorite absente des données du jour : carte inerte, non cliquable */
-
-.fav-main-off {
-  cursor: default;
-  opacity: .72;
-  border-style: dashed;
-}
-
-.fav-main-off .fav-cta {
-  color: var(--t2);
-}
-
-.fav-n {
-  font-weight: 800;
-  font-size: .9375rem;
-  line-height: 1.3;
-  color: var(--tx);
-  display: flex;
-  align-items: center;
-  gap: .4375rem;
-}
-
-.fav-s {
+.fav-sub {
   font-size: .8125rem;
   color: var(--t2);
-  margin-top: .3125rem;
-  line-height: 1.45;
 }
 
-.fav-cta {
-  margin-top: .625rem;
-  font-size: .75rem;
+.fav-prices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .375rem;
+  color: inherit;
+}
+
+.fav-prices:hover {
+  text-decoration: none;
+}
+
+.fav-go {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: .125rem;
+  font-size: .8125rem;
   font-weight: 700;
   color: var(--ac);
 }
 
-.fav-toolbar {
+.fav-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: .75rem;
-  flex-wrap: wrap;
-  margin-top: .75rem;
-  padding-top: .75rem;
+  gap: .625rem;
+  padding-top: .625rem;
   border-top: 1px solid var(--bl);
 }
 
-.fav-see {
-  flex-shrink: 0;
-}
-
-.fav-radius-ctrl {
+.stepper {
   display: inline-flex;
   align-items: center;
-  gap: .375rem;
-  padding: .25rem;
-  border: 1px solid var(--bd);
-  border-radius: 999px;
-  background: var(--sf);
-}
-
-.fav-radius-ctrl span.tank {
-  min-width: 5rem;
-  justify-content: center;
-  font-size: .75rem;
-  color: var(--tx);
-  font-weight: 700;
-}
-
-.fav-section {
-  margin-top: .875rem;
-}
-
-.fav-section-title {
-  font-size: .6875rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--t3);
-  margin-bottom: .5rem;
-}
-
-.fav-p {
-  display: flex;
-  gap: .375rem;
-  flex-wrap: wrap;
-}
-
-.fav .ptag {
-  min-width: 4.5rem;
-}
-
-.fav .best-g {
-  margin-top: 0;
-  margin-bottom: 0;
-  grid-template-columns: repeat(auto-fit, minmax(8.25rem, 1fr));
-  gap: .625rem;
-}
-
-.fav .best-c {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--sf) 74%, var(--gb) 26%) 0%, var(--sf) 100%);
-  border-color: var(--bd);
-}
-
-.fav .best-c:hover {
-  border-color: var(--gn2);
-}
-
-.fav-note {
-  margin-top: .875rem;
-  padding: .6875rem .75rem;
-  border: 1px dashed var(--bd);
-  border-radius: var(--r);
-  background: var(--sf-2);
-  color: var(--t2);
-  font-size: .75rem;
-  line-height: 1.5;
-}
-
-.v-pills {
-  display: flex;
-  flex-wrap: wrap;
   gap: .25rem;
-  margin-top: .25rem;
-}
-
-.v-pill {
-  font-size: .625rem;
-  padding: .125rem .3125rem;
+  padding: .1875rem;
   border: 1px solid var(--bd);
-  border-radius: var(--r);
-  color: var(--t2);
-  background: var(--sf-2);
-  font-weight: 600;
+  border-radius: var(--rr);
 }
 
-@media (max-width: 479px) {
-  .fav-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .fav-radius-ctrl {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .fav-radius-ctrl span.tank {
-    min-width: 0;
-    flex: 1;
-  }
-
-  .fav-see {
-    width: 100%;
-  }
+.stepper .btn {
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
-/* Empty state for favorites */
-
-.fav-empty {
-  padding: 1.75rem 1rem;
-  border: 1px dashed var(--bd);
-  border-radius: var(--rx);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--sf-2) 84%, var(--ab) 16%) 0%, var(--sf-2) 100%);
+.stepper-v {
+  min-width: 3.75rem;
   text-align: center;
+  font-size: .875rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.fav-tip {
+  font-size: .75rem;
+  color: var(--t3);
+  text-align: center;
+}
+
+/* Glisser-déposer */
+
+.dragging-item {
+  opacity: .25;
+}
+
+.dnd-ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: .95;
+  box-shadow: var(--sh-l);
+  transform: rotate(1deg);
+}
+
+.dnd-placeholder {
+  border: 2px dashed var(--ac);
+  border-radius: var(--rx);
+  background: var(--ab);
+}
+
+/* État vide */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .375rem;
+  padding: 2.5rem 1.25rem;
+  border: 1px dashed var(--bd-2);
+  border-radius: var(--rx);
+  background: var(--sf);
+  text-align: center;
+}
+
+.empty-ico .icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--star);
+}
+
+.empty-t {
+  font-weight: 800;
+  font-size: 1.0625rem;
+}
+
+.empty-d {
+  max-width: 26rem;
+  margin-bottom: .5rem;
+  font-size: .875rem;
   color: var(--t2);
 }
 
-.fav-empty-icon {
-  width: 2rem;
-  height: 2rem;
-  color: var(--t3);
-  margin: 0 auto .5rem;
-  opacity: .7;
-}
-
-.fav-empty-t {
-  font-weight: 700;
-  font-size: .875rem;
-  color: var(--tx);
-  margin-bottom: .25rem;
-}
-
-.fav-empty-d {
-  font-size: .75rem;
-  line-height: 1.5;
-}
-
-/* Hide empty state when there are favorites */
-#fav-box:not(.hidden) ~ .fav-empty {
-  display: none;
+.empty-d .icon {
+  display: inline-block;
+  color: var(--star);
 }

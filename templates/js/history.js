@@ -1,50 +1,42 @@
-// history.js — Historique des prix : station (vue détail), zones (Explorer), tendance (accueil).
-// Données statiques générées par pipeline/history.py (branche `history`) et servies sous history/.
-import { state, FUELS, uFuels, histPrefs, setHistPrefs } from './state.js';
-import { E, fmtP, fmtEur, fmtCts, fmtPct, notice } from './helpers.js';
+// history.js — Historique des prix : fiche station, évolution par zone (Explorer), tendance 7 j.
+// Données statiques générées par pipeline/history.py (branche `history`), servies sous history/,
+// depuis 2007 (archives officielles). Un fichier par station (~5 Ko gzip), un par zone.
+import { state, prefs, FUELS, setHist } from './state.js';
+import { E, norm, fmtP, fmtEur, fmtCts, fmtPct, notice, DAY_MS, todayDay, fmtDay, longDay, shortDay, plural } from './helpers.js';
+import { station, deptByCode } from './data.js';
+import { loadChart } from './vendor.js';
+import { visiblePrice } from './freshness.js';
 
-const Chart = window.Chart;
 const BASE = 'history/';
-const DAY_MS = 86400000;
 
 // [clé, libellé, libellé court (mobile), nombre de jours]
-export const PERIODS = [['1m', '1 mois', '1M', 31], ['3m', '3 mois', '3M', 92], ['6m', '6 mois', '6M', 183], ['1y', '1 an', '1A', 366], ['5y', '5 ans', '5A', 1827], ['all', 'Tout', 'Tout', Infinity]];
+export const PERIODS = [['1m', '1 mois', '1M', 31], ['3m', '3 mois', '3M', 92], ['1y', '1 an', '1A', 366], ['5y', '5 ans', '5A', 1827], ['10y', '10 ans', '10A', 3653], ['all', 'Tout', 'Tout', Infinity]];
 const GRANS = [['auto', 'Auto'], ['day', 'Jour'], ['week', 'Semaine'], ['month', 'Mois'], ['year', 'Année']];
-const GRAN_TABLE = { day: 'jour', week: 'semaine', month: 'mois', year: 'année' };
+const GRAN_NAME = { day: 'jour', week: 'semaine', month: 'mois', year: 'année' };
 
 // ---------------------------------------------------------------------------
-// Chargement (fetch mis en cache par URL ; revalidation HTTP à chaque session)
+// Chargement (réponses mises en cache par URL ; revalidation HTTP conditionnelle)
 // ---------------------------------------------------------------------------
 
 function getJSON(url) {
   if (!state.histCache.has(url)) {
-    state.histCache.set(url, fetch(url, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => null));
+    state.histCache.set(url, fetch(url, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => { state.histCache.delete(url); return null; }));
   }
   return state.histCache.get(url);
 }
 export const histIndex = () => getJSON(`${BASE}index.json`);
 export function clearHistCache() { state.histCache.clear(); }
 const stationUrl = sid => `${BASE}stations/${encodeURIComponent(String(sid).slice(-2))}/${encodeURIComponent(sid)}.json`;
-export const deptCodeFromCp = cp => { const s = String(cp || ''); return s.length < 2 ? '' : (s.startsWith('97') ? s.slice(0, 3) : s.slice(0, 2)); };
+// Les fichiers de zone départementale sont indexés par préfixe de code postal (Corse : 20).
+export const histDeptCode = cp => { const s = String(cp || ''); return s.length < 2 ? '' : s.startsWith('97') ? s.slice(0, 3) : s.slice(0, 2); };
 function zoneUrl(z) {
   if (z.kind === 'region') return `${BASE}zones/region/${encodeURIComponent(z.key)}.json`;
   if (z.kind === 'dept') return `${BASE}zones/dept/${encodeURIComponent(z.key)}.json`;
   return `${BASE}zones/fr.json`;
 }
 
-// ---------------------------------------------------------------------------
-// Jours (numéro de jour depuis le 1970-01-01, calendrier sans fuseau)
-// ---------------------------------------------------------------------------
-
-export const todayDay = () => { const n = new Date(); return Math.floor(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) / DAY_MS); };
-const isoDay = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / DAY_MS) : null; };
-const fmtDay = (d, o) => new Date(d * DAY_MS).toLocaleDateString('fr-FR', { timeZone: 'UTC', ...o });
-const longDay = d => fmtDay(d, { day: 'numeric', month: 'long', year: 'numeric' });
-// Même convention que le pipeline : date UTC de maj_iso (l'export source décale l'heure locale).
-function liveDay(e) {
-  if (e?.maj_iso) { const t = Date.parse(e.maj_iso); if (Number.isFinite(t)) return Math.floor(t / DAY_MS); }
-  return isoDay(e?.date_maj);
-}
+// Prix live (data.json) au format de l'historique : [jour UTC, millimes] — même convention que le pipeline.
+const liveRec = e => (e && Number.isFinite(e.t) ? [Math.floor(e.t / DAY_MS), Math.round(e.p * 1000)] : null);
 
 // ---------------------------------------------------------------------------
 // Décodage et séries journalières
@@ -58,14 +50,8 @@ export function decodeSeries(a) {
   }
   return r;
 }
-function decodeDaily(a, n) {
-  const avg = new Array(a.length), cnt = new Array(a.length); let pa = 0, pn = 0;
-  for (let i = 0; i < a.length; i++) { pa += a[i]; pn += n[i]; avg[i] = pa; cnt[i] = pn; }
-  return { avg, cnt };
-}
 
 // Prix (€/L) en vigueur chaque jour de [from, to] ; NaN = aucun relevé valable.
-// `live` = prix actuel de data.json : la courbe se termine sur le prix affiché par la fiche.
 export function stationDaily(recs, from, to, ttl, live) {
   const out = new Float64Array(to - from + 1).fill(NaN);
   const rs = recs.slice();
@@ -85,15 +71,15 @@ export function stationDaily(recs, from, to, ttl, live) {
   return out;
 }
 
-// Moyenne de zone par jour, en masquant les jours trop peu couverts (début de série, import partiel).
+// Moyenne de zone par jour ; jours trop peu couverts masqués (< 25 % du nombre médian de stations).
 function zoneDaily(doc, fuel, from, to) {
-  const f = doc?.f?.[fuel]; const out = new Float64Array(to - from + 1).fill(NaN);
+  const f = doc?.f?.[fuel]; const out = new Float64Array(Math.max(0, to - from + 1)).fill(NaN);
   if (!f) return out;
   if (!f._dec) {
-    const dec = decodeDaily(f.a, f.n);
-    const nz = dec.cnt.filter(c => c > 0).sort((x, y) => x - y);
-    dec.min = Math.max(3, Math.round((nz[nz.length >> 1] || 0) * 0.25));
-    f._dec = dec;
+    const avg = new Array(f.a.length), cnt = new Array(f.a.length); let pa = 0, pn = 0;
+    for (let i = 0; i < f.a.length; i++) { pa += f.a[i]; pn += f.n[i]; avg[i] = pa; cnt[i] = pn; }
+    const nz = cnt.filter(c => c > 0).sort((x, y) => x - y);
+    f._dec = { avg, cnt, min: Math.max(3, Math.round((nz[nz.length >> 1] || 0) * 0.25)) };
   }
   const { avg, cnt, min } = f._dec;
   for (let d = Math.max(from, doc.d0); d <= Math.min(to, doc.d0 + doc.len - 1); d++) {
@@ -141,7 +127,7 @@ function aggregate(vals, from, gran) {
 const autoGran = span => (span <= 200 ? 'day' : span <= 800 ? 'week' : 'month');
 
 // ---------------------------------------------------------------------------
-// Graphique (Chart.js, axe linéaire en jours : pas d'adaptateur de dates)
+// Graphique (Chart.js chargé à la demande, axe linéaire en jours : pas d'adaptateur de dates)
 // ---------------------------------------------------------------------------
 
 const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -160,7 +146,7 @@ function calendarTicks(min, max) {
   } else {
     for (let y = y0; ; y++) { const d = bucketStart(y, 'year'); if (d > max) break; if (d >= min) ticks.push(d); }
   }
-  const step = Math.ceil(ticks.length / 8);
+  const step = Math.ceil(ticks.length / (window.innerWidth < 560 ? 5 : 8));
   return ticks.filter((_, i) => i % step === 0);
 }
 function tickLabel(v, span) {
@@ -169,12 +155,18 @@ function tickLabel(v, span) {
   return String(new Date(v * DAY_MS).getUTCFullYear());
 }
 
-function drawLineChart(stateKey, canvas, datasets, opt) {
-  if (state[stateKey]) { state[stateKey].destroy(); state[stateKey] = null; }
-  if (!canvas || !Chart) return;
+export function destroyChart(key) { if (state.charts[key]) { state.charts[key].destroy(); delete state.charts[key]; } }
+
+async function drawLineChart(key, canvasId, datasets, opt, isCurrent) {
+  destroyChart(key);
+  let Chart;
+  try { Chart = await loadChart(); } catch { const c = document.getElementById(canvasId); if (c) c.parentElement.innerHTML = notice('Graphique indisponible', 'Le tableau ci-dessous reprend les valeurs.'); return; }
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !isCurrent()) return;
+  destroyChart(key);
   const t2 = tok('--t2'), grid = tok('--bl'), axis = tok('--bd');
   const span = Math.max(1, opt.max - opt.min);
-  state[stateKey] = new Chart(canvas, {
+  state.charts[key] = new Chart(canvas, {
     type: 'line',
     data: { datasets },
     options: {
@@ -184,7 +176,7 @@ function drawLineChart(stateKey, canvas, datasets, opt) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          filter: it => !it.dataset.band,
+          filter: it => !it.dataset.band && it.raw.y != null,
           callbacks: {
             title: items => (items[0] ? bucketLabel(items[0].raw.x, opt.gran, false) : ''),
             label: it => `${it.dataset.label} : ${fmtEur(it.raw.y)}`,
@@ -199,42 +191,39 @@ function drawLineChart(stateKey, canvas, datasets, opt) {
           ticks: { color: t2, maxRotation: 0, autoSkip: false, callback: v => tickLabel(v, span) },
           grid: { color: grid }, border: { color: axis }
         },
-        y: {
-          ticks: { color: t2, callback: v => NF_AXIS.format(v) + ' €', maxTicksLimit: 6 },
-          grid: { color: grid }, border: { display: false }
-        }
+        y: { ticks: { color: t2, callback: v => NF_AXIS.format(v) + ' €', maxTicksLimit: 6 }, grid: { color: grid }, border: { display: false } }
       }
     }
   });
 }
 
-// Série moyenne (+ bande min–max si regroupée) alignée sur une liste de seaux commune.
-function seriesFromBuckets(buckets, gran, withRange) {
-  return buckets.map(b => ({ x: b.start, y: b.n ? b.avg : null, lo: withRange && b.n ? b.min : null, hi: withRange && b.n ? b.max : null }));
-}
+const seriesOf = (buckets, withRange) => buckets.map(b => ({ x: b.start, y: b.n ? b.avg : null, lo: withRange && b.n ? b.min : null, hi: withRange && b.n ? b.max : null }));
 
 function periodBounds(period, first, last) {
-  const days = (PERIODS.find(p => p[0] === period) || PERIODS[3])[3];
-  const from = Number.isFinite(days) ? Math.max(first, last - days + 1) : first;
-  return { from, to: last };
+  const days = (PERIODS.find(p => p[0] === period) || PERIODS[2])[3];
+  return { from: Number.isFinite(days) ? Math.max(first, last - days + 1) : first, to: last };
 }
 
-// Contrôles partagés : période (boutons) + regroupement (liste).
-function periodControls(gran) {
-  const seg = PERIODS.map(([k, l, s]) => `<button type="button" class="seg-b" aria-pressed="${histPrefs.period === k}" aria-label="${l}" onclick="histSet('period','${k}')"><span class="seg-long" aria-hidden="true">${l}</span><span class="seg-short" aria-hidden="true">${s}</span></button>`).join('');
-  const opts = GRANS.map(([k, l]) => `<option value="${k}"${histPrefs.gran === k ? ' selected' : ''}>${k === 'auto' ? `Auto (${GRAN_TABLE[gran]})` : l}</option>`).join('');
-  return `<div class="seg" role="group" aria-label="Période">${seg}</div><label class="hist-gran"><span class="sr-only">Regrouper par</span><select class="inp inp-sm" onchange="histSet('gran',this.value)" aria-label="Regrouper par">${opts}</select></label>`;
+// Contrôles partagés : période (segments) + regroupement (liste). Les périodes plus longues
+// que l'historique disponible sont désactivées.
+function periodControls(gran, span) {
+  const seg = PERIODS.map(([k, l, s, days], i) => {
+    const useless = i > 0 && Number.isFinite(days) && PERIODS[i - 1][3] >= span && prefs.hist.period !== k;
+    return `<button type="button" class="seg-b" data-act="hist-period" data-period="${k}" aria-pressed="${prefs.hist.period === k}" aria-label="${l}"${useless ? ' disabled' : ''}><span class="seg-long" aria-hidden="true">${l}</span><span class="seg-short" aria-hidden="true">${s}</span></button>`;
+  }).join('');
+  const opts = GRANS.map(([k, l]) => `<option value="${k}"${prefs.hist.gran === k ? ' selected' : ''}>${k === 'auto' ? `Auto (${GRAN_NAME[gran]})` : l}</option>`).join('');
+  return `<div class="seg" role="group" aria-label="Période">${seg}</div><label class="hist-gran"><span class="sr-only">Regrouper par</span><select class="inp inp-sm" data-change="hist-gran" aria-label="Regrouper par">${opts}</select></label>`;
 }
 
 const deltaCls = d => (d > 0.0005 ? 'up' : d < -0.0005 ? 'down' : 'flat');
-const deltaHtml = (d, txt) => `<span class="delta ${deltaCls(d)}"><span aria-hidden="true">${d > 0.0005 ? '▲' : d < -0.0005 ? '▼' : '='}</span> ${txt}</span>`;
+export const deltaHtml = (d, txt) => `<span class="delta ${deltaCls(d)}">${d > 0.0005 ? '<span aria-hidden="true">▲</span> ' : d < -0.0005 ? '<span aria-hidden="true">▼</span> ' : ''}${txt}</span>`;
 
 function bucketTable(buckets, gran, label) {
   const rows = buckets.filter(b => b.n).reverse();
   if (!rows.length) return '';
-  const MAX = 120, range = gran !== 'day';  // par jour : une seule valeur, min/max redondants
+  const MAX = 120, range = gran !== 'day';
   const head = range ? '<th scope="col" class="tnum">Moyenne</th><th scope="col" class="tnum">Min</th><th scope="col" class="tnum">Max</th>' : '<th scope="col" class="tnum">Prix</th>';
-  let h = `<details class="hist-table"><summary>Détail par ${GRAN_TABLE[gran]} <span class="pill">${rows.length}</span></summary><div class="table-w"><table><caption class="sr-only">${E(label)} — prix par ${GRAN_TABLE[gran]}</caption><thead><tr><th scope="col">Période</th>${head}<th scope="col" class="tnum">Var.</th></tr></thead><tbody>`;
+  let h = `<details class="hist-table"><summary>Tableau par ${GRAN_NAME[gran]} <span class="pill">${rows.length}</span></summary><div class="table-w"><table><caption class="sr-only">${E(label)} — prix par ${GRAN_NAME[gran]}</caption><thead><tr><th scope="col">Période</th>${head}<th scope="col" class="tnum">Var.</th></tr></thead><tbody>`;
   rows.slice(0, MAX).forEach((b, i) => {
     const prev = rows[i + 1];
     const v = prev ? deltaHtml(b.avg - prev.avg, fmtCts(b.avg - prev.avg)) : '—';
@@ -246,53 +235,55 @@ function bucketTable(buckets, gran, label) {
   return h + '</details>';
 }
 
+// Actions des contrôles (délégation, voir app.js).
 export function histSet(key, val) {
   if (key === 'fuel') state.histFuel = val;
-  else if (key === 'period' || key === 'gran') setHistPrefs({ [key]: val });
-  else if (key === 'cmp') setHistPrefs({ cmp: !!val });
-  const sv = document.getElementById('station-view');
-  const sid = sv && !sv.classList.contains('hidden') ? sv.getAttribute('data-sid') : null;
-  if (sid) renderStationHistory(sid);
-  if (!document.getElementById('pane-explorer')?.classList.contains('hidden')) renderZoneHistory();
+  else if (key === 'period' || key === 'gran') setHist({ [key]: val });
+  else if (key === 'cmp') setHist({ cmp: !!val });
+  const r = state.route;
+  if (r?.view === 'station') renderStationHistory(r.id);
+  if (r?.view === 'home' && r.tab === 'explorer') renderZoneHistory();
 }
 
 // ---------------------------------------------------------------------------
-// Vue station
+// Fiche station
 // ---------------------------------------------------------------------------
 
-const isCurrentStation = sid => document.getElementById('station-view')?.getAttribute('data-sid') === sid;
+const isCurrentStation = sid => state.route?.view === 'station' && document.getElementById('hist-body')?.dataset.sid === sid;
 
 export async function renderStationHistory(sid) {
   const req = ++state.histReq;
+  const ok = () => req === state.histReq && isCurrentStation(sid);
+  const idx = await histIndex();
+  const doc = idx ? await getJSON(stationUrl(sid)) : null;
+  if (!ok()) return;
   const box = document.getElementById('hist-body');
-  if (!box) return;
-  const [idx, doc] = await Promise.all([histIndex(), histIndex().then(i => (i ? getJSON(stationUrl(sid)) : null))]);
-  if (req !== state.histReq || !isCurrentStation(sid) || !document.getElementById('hist-body')) return;
-  const st = state.db?.stations?.[sid];
-  if (!idx) { box.innerHTML = notice('Historique indisponible', 'Les données historiques n\'ont pas encore été publiées.'); return; }
+  const s = station(sid);
+  if (!idx) { box.innerHTML = notice('Historique indisponible', 'Les données historiques n’ont pas encore été publiées.'); return; }
   const recs = {};
   for (const [f, a] of Object.entries(doc?.f || {})) { const r = decodeSeries(a); if (r.length) recs[f] = r; }
   const live = {};
-  for (const [f, e] of Object.entries(st?.carburants_disponibles || {})) { const d = liveDay(e), p = Math.round(parseFloat(e.prix) * 1000); if (d != null && Number.isFinite(p)) live[f] = [d, p]; }
+  // Prix live seulement s'il est encore valable (sinon la courbe le prolongerait jusqu'à aujourd'hui).
+  for (const f of FUELS) { const r = liveRec(visiblePrice(s, f)); if (r) live[f] = r; }
   let fuels = FUELS.filter(f => recs[f]);
-  const preferred = fuels.filter(f => uFuels.includes(f));
+  const preferred = fuels.filter(f => prefs.fuels.includes(f));
   if (preferred.length) fuels = preferred;
-  if (!fuels.length) { box.innerHTML = notice('Pas encore d\'historique pour cette station', 'Les relevés s\'accumulent à chaque mise à jour des données.'); return; }
+  if (!fuels.length) { box.innerHTML = notice('Pas encore d’historique pour cette station', 'Les relevés s’accumulent à chaque mise à jour des données.'); return; }
   const fuel = fuels.includes(state.histFuel) ? state.histFuel : fuels[0];
 
   const ttl = idx.ttl_days || 45, today = todayDay();
   const first = recs[fuel][0][0];
-  const { from, to } = periodBounds(histPrefs.period, first, today);
-  const gran = histPrefs.gran === 'auto' ? autoGran(to - from) : histPrefs.gran;
+  const { from, to } = periodBounds(prefs.hist.period, first, today);
+  const gran = prefs.hist.gran === 'auto' ? autoGran(to - from) : prefs.hist.gran;
   const vals = stationDaily(recs[fuel], from, to, ttl, live[fuel]);
 
-  // Moyenne du département de la station (même seaux), chargée à la demande.
-  const dc = deptCodeFromCp(st?.code_postal || doc?.m?.cp);
+  // Moyenne du département de la station (mêmes seaux), chargée à la demande.
+  const dc = histDeptCode(s?.cp || doc?.m?.cp);
   let zvals = null, zname = '';
-  if (histPrefs.cmp && dc) {
+  if (prefs.hist.cmp && dc) {
     const zdoc = await getJSON(zoneUrl({ kind: 'dept', key: dc }));
-    if (req !== state.histReq || !isCurrentStation(sid)) return;
-    if (zdoc?.f?.[fuel]) { zvals = zoneDaily(zdoc, fuel, from, to); zname = zdoc.label || dc; }
+    if (!ok()) return;
+    if (zdoc?.f?.[fuel]) { zvals = zoneDaily(zdoc, fuel, from, to); zname = s?.dept || (zdoc.label !== dc && zdoc.label) || `département ${dc}`; }
   }
   const zlabel = `Moyenne ${zname}`;
 
@@ -301,7 +292,7 @@ export async function renderStationHistory(sid) {
   const col = fuelColor(fuel), muted = tok('--t3');
   const datasets = [];
   if (withRange) {
-    const pts = seriesFromBuckets(buckets, gran, true);
+    const pts = seriesOf(buckets, true);
     datasets.push({ label: 'max', band: true, data: pts.map(p => ({ x: p.x, y: p.hi })), borderWidth: 0, pointRadius: 0, pointHoverRadius: 0, fill: false, order: 3 });
     datasets.push({ label: 'min', band: true, data: pts.map(p => ({ x: p.x, y: p.lo })), borderWidth: 0, pointRadius: 0, pointHoverRadius: 0, fill: '-1', backgroundColor: alpha(col, 0.16), order: 3 });
   }
@@ -309,9 +300,9 @@ export async function renderStationHistory(sid) {
     const zb = aggregate(zvals, from, gran);
     datasets.push({ label: zlabel, data: zb.map(b => ({ x: b.start, y: b.n ? b.avg : null })), borderColor: muted, backgroundColor: muted, borderWidth: 1.5, order: 2 });
   }
-  datasets.push({ label: 'Cette station', data: seriesFromBuckets(buckets, gran, withRange), borderColor: col, backgroundColor: col, pointHoverBackgroundColor: col, order: 1 });
+  datasets.push({ label: 'Cette station', data: seriesOf(buckets, withRange), borderColor: col, backgroundColor: col, pointHoverBackgroundColor: col, order: 1 });
 
-  // Indicateurs sur la période affichée (valeurs journalières, pas les seaux).
+  // Indicateurs sur la période affichée (valeurs journalières).
   let lo = Infinity, hi = -Infinity, loD = 0, hiD = 0, sum = 0, n = 0, firstV = NaN, lastV = NaN, lastD = 0;
   vals.forEach((v, i) => {
     if (Number.isNaN(v)) return;
@@ -332,28 +323,29 @@ export async function renderStationHistory(sid) {
     }
   }
 
-  const chips = fuels.map(f => `<button type="button" class="chip chip-fuel" aria-pressed="${f === fuel}" onclick="histSet('fuel','${f}')"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${f}</button>`).join('');
+  const chips = fuels.map(f => `<button type="button" class="chip chip-fuel" data-act="hist-fuel" data-fuel="${f}" aria-pressed="${f === fuel}"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${f}</button>`).join('');
   const legend = [`<span class="lg"><span class="lg-line sw-${fuel.toLowerCase()}"></span>Cette station</span>`];
   if (withRange) legend.push(`<span class="lg"><span class="lg-band sw-${fuel.toLowerCase()}"></span>Plage min–max</span>`);
   if (zvals) legend.push(`<span class="lg"><span class="lg-line lg-muted"></span>${E(zlabel)}</span>`);
   const d = lastV - firstV;
+  const dfmt = x => shortDay(x);
   const tiles = n ? `<div class="hist-stats">
-      <div class="stat"><div class="stat-l">Dernier prix</div><div class="stat-v">${fmtEur(lastV)}</div><div class="stat-s">${fmtDay(lastD, { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
+      <div class="stat"><div class="stat-l">Dernier prix</div><div class="stat-v">${fmtEur(lastV)}</div><div class="stat-s">${dfmt(lastD)}</div></div>
       <div class="stat"><div class="stat-l">Évolution</div><div class="stat-v">${deltaHtml(d, fmtCts(d))}</div><div class="stat-s">${firstV ? fmtPct(d / firstV) : ''} sur la période</div></div>
-      <div class="stat"><div class="stat-l">Plus bas</div><div class="stat-v">${fmtEur(lo)}</div><div class="stat-s">${fmtDay(loD, { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
-      <div class="stat"><div class="stat-l">Plus haut</div><div class="stat-v">${fmtEur(hi)}</div><div class="stat-s">${fmtDay(hiD, { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
-      <div class="stat"><div class="stat-l">Moyenne</div><div class="stat-v">${fmtEur(sum / n)}</div><div class="stat-s">${n} jour${n > 1 ? 's' : ''} relevé${n > 1 ? 's' : ''}</div></div>
+      <div class="stat"><div class="stat-l">Plus bas</div><div class="stat-v">${fmtEur(lo)}</div><div class="stat-s">${dfmt(loD)}</div></div>
+      <div class="stat"><div class="stat-l">Plus haut</div><div class="stat-v">${fmtEur(hi)}</div><div class="stat-s">${dfmt(hiD)}</div></div>
+      <div class="stat"><div class="stat-l">Moyenne</div><div class="stat-v">${fmtEur(sum / n)}</div><div class="stat-s">${plural(n, 'jour relevé', 'jours relevés')}</div></div>
       <div class="stat"><div class="stat-l">Changements</div><div class="stat-v">${changes}</div><div class="stat-s">de prix</div></div>
-    </div>` : notice('Aucun relevé sur cette période', 'Élargissez la période.');
+    </div>` : notice('Aucun relevé sur cette période', 'Choisissez une période plus longue.');
 
-  box.innerHTML = `<div class="hist-ctl"><div class="chips hist-fuels" role="group" aria-label="Carburant">${chips}</div><div class="hist-ctl-r">${periodControls(gran)}</div></div>
+  box.innerHTML = `<div class="hist-ctl"><div class="chips hist-fuels" role="group" aria-label="Carburant">${chips}</div><div class="hist-ctl-r">${periodControls(gran, today - first)}</div></div>
     <div class="hist-legend">${legend.join('')}</div>
     <div class="hist-chart"><canvas id="hist-chart" role="img" aria-label="Évolution du prix ${E(fuel)} de la station, du ${longDay(from)} au ${longDay(to)}"></canvas></div>
     ${tiles}${cmpHtml}
-    <label class="hist-toggle"><input type="checkbox"${histPrefs.cmp ? ' checked' : ''} onchange="histSet('cmp',this.checked)"${dc ? '' : ' disabled'}> Comparer à la moyenne du département</label>
+    <label class="hist-toggle"><input type="checkbox"${prefs.hist.cmp ? ' checked' : ''} data-change="hist-cmp"${dc ? '' : ' disabled'}> Comparer à la moyenne du département</label>
     ${bucketTable(buckets, gran, `${fuel} — cette station`)}
-    <p class="hist-src">Historique depuis le ${longDay(first)} · archives officielles + relevés Carbu'Web.</p>`;
-  drawLineChart('histChart', document.getElementById('hist-chart'), datasets, { min: buckets[0].start, max: Math.max(buckets[buckets.length - 1].start, buckets[0].start + 1), gran });
+    <p class="hist-src">Historique depuis le ${longDay(first)} · archives officielles (depuis 2007) + relevés Carbu’Web.</p>`;
+  drawLineChart('station', 'hist-chart', datasets, { min: buckets[0].start, max: Math.max(buckets[buckets.length - 1].start, buckets[0].start + 1), gran }, ok);
 }
 
 // ---------------------------------------------------------------------------
@@ -361,13 +353,13 @@ export async function renderStationHistory(sid) {
 // ---------------------------------------------------------------------------
 
 function currentZone(idx) {
-  const rg = document.getElementById('exp-region')?.value || '';
-  const dn = document.getElementById('exp-dept')?.value || '';
-  if (dn) {
-    const code = Object.entries(state.db?.dept_index || {}).find(([, d]) => d.nom === dn)?.[0];
-    if (code) return { kind: 'dept', key: code, label: `${dn} (${code})` };
+  const ex = state.exp || {};
+  if (ex.dept) {
+    const d = deptByCode(ex.dept);
+    if (d) return { kind: 'dept', key: d.code === '2A' || d.code === '2B' ? '20' : d.code, label: `${d.name} (${d.code})` };
   }
-  if (rg && idx.regions?.[rg]) return { kind: 'region', key: idx.regions[rg], label: rg };
+  // Slug = pipeline region_slug() (normalize_text) : recalculé si le manifeste ne le fournit pas.
+  if (ex.region) return { kind: 'region', key: idx.regions?.[ex.region] || norm(ex.region).replace(/ /g, '-'), label: ex.region };
   return { kind: 'fr', key: 'fr', label: 'France entière' };
 }
 
@@ -388,29 +380,30 @@ export async function renderZoneHistory() {
   const box = document.getElementById('zone-hist');
   if (!box) return;
   const req = ++state.zoneReq;
+  const ok = () => req === state.zoneReq && state.route?.tab === 'explorer';
   const idx = await histIndex();
-  if (req !== state.zoneReq) return;
+  if (!ok()) return;
   if (!idx) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
   const zone = currentZone(idx);
-  const doc = await getJSON(zoneUrl(zone));
-  if (req !== state.zoneReq) return;
-  const body = document.getElementById('zone-hist-body');
   document.getElementById('zone-hist-zone').textContent = zone.label;
-  if (!doc?.f) { body.innerHTML = notice('Pas d\'historique pour cette zone', ''); return; }
+  const doc = await getJSON(zoneUrl(zone));
+  if (!ok()) return;
+  const body = document.getElementById('zone-hist-body');
+  if (!doc?.f) { body.innerHTML = notice('Pas d’historique pour cette zone', ''); return; }
   const avail = FUELS.filter(f => doc.f[f]);
-  if (!state.zoneFuels) { const sel = document.getElementById('exp-fuel')?.value; state.zoneFuels = [avail.includes(sel) ? sel : avail[0]]; }
+  if (!state.zoneFuels) { const sel = state.exp?.fuel; state.zoneFuels = [avail.includes(sel) ? sel : avail[0]]; }
   let shown = state.zoneFuels.filter(f => avail.includes(f));
   if (!shown.length) shown = avail.slice(0, 1);
 
   const today = Math.min(todayDay(), doc.d0 + doc.len - 1);
-  const { from, to } = periodBounds(histPrefs.period, doc.d0, today);
-  const gran = histPrefs.gran === 'auto' ? autoGran(to - from) : histPrefs.gran;
+  const { from, to } = periodBounds(prefs.hist.period, doc.d0, today);
   const series = {};
-  for (const f of avail) series[f] = zoneDaily(doc, f, from, to);
+  for (const f of shown) series[f] = zoneDaily(doc, f, from, to);
   // Début de l'axe : premier jour couvert par l'un des carburants affichés.
   let start = from;
   while (start < to && shown.every(f => Number.isNaN(series[f][start - from]))) start++;
+  const gran = prefs.hist.gran === 'auto' ? autoGran(to - start) : prefs.hist.gran;
   const datasets = shown.map(f => {
     const b = aggregate(series[f].subarray(start - from), start, gran);
     const c = fuelColor(f);
@@ -418,33 +411,30 @@ export async function renderZoneHistory() {
   });
   const xs = datasets[0]?.data || [];
 
-  const chips = avail.map(f => `<button type="button" class="chip chip-fuel" aria-pressed="${shown.includes(f)}" onclick="zoneToggleFuel('${f}')"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${f}</button>`).join('');
-  // Tableau de tendances (toujours sur les données complètes, indépendant de la période).
-  const full = {};
-  const fFrom = Math.max(doc.d0, today - 400);
+  const chips = avail.map(f => `<button type="button" class="chip chip-fuel" data-act="zone-fuel" data-fuel="${f}" aria-pressed="${shown.includes(f)}"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span>${f}</button>`).join('');
+  // Tendances (indépendantes de la période choisie).
+  const BACK = [[7, '7 jours'], [30, '1 mois'], [365, '1 an'], [1826, '5 ans'], [3652, '10 ans']];
+  const fFrom = Math.max(doc.d0, today - 3660);
   let rows = '';
   for (const f of avail) {
-    full[f] = zoneDaily(doc, f, fFrom, today);
-    const now = valueAt(full[f], fFrom, today);
+    const full = zoneDaily(doc, f, fFrom, today);
+    const now = valueAt(full, fFrom, today);
     if (Number.isNaN(now)) continue;
-    const cell = back => { const v = valueAt(full[f], fFrom, today - back); return Number.isNaN(v) ? '<td class="tnum">—</td>' : `<td class="tnum">${deltaHtml(now - v, fmtCts(now - v))}</td>`; };
-    rows += `<tr><td class="td-s"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span> ${f}</td><td class="tnum">${fmtEur(now)}</td>${cell(7)}${cell(30)}${cell(365)}</tr>`;
+    const cell = back => { const v = valueAt(full, fFrom, today - back); return Number.isNaN(v) ? '<td class="tnum">—</td>' : `<td class="tnum">${deltaHtml(now - v, fmtCts(now - v))}</td>`; };
+    rows += `<tr><td class="td-s"><span class="sw sw-${f.toLowerCase()}" aria-hidden="true"></span> ${f}</td><td class="tnum">${fmtEur(now)}</td>${BACK.map(([b]) => cell(b)).join('')}</tr>`;
   }
-  const trend = rows ? `<div class="table-w hist-trend"><table><caption class="sr-only">Prix moyen actuel et variations — ${E(zone.label)}</caption><thead><tr><th scope="col" class="th-s">Carburant</th><th scope="col" class="tnum">Moyenne</th><th scope="col" class="tnum">7 jours</th><th scope="col" class="tnum">30 jours</th><th scope="col" class="tnum">1 an</th></tr></thead><tbody>${rows}</tbody></table></div>` : '';
+  const trend = rows ? `<div class="table-w hist-trend"><table><caption class="sr-only">Prix moyen actuel et variations — ${E(zone.label)}</caption><thead><tr><th scope="col" class="th-s">Carburant</th><th scope="col" class="tnum">Moyenne</th>${BACK.map(([, l]) => `<th scope="col" class="tnum">${l}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : '';
   const one = shown.length === 1 ? aggregate(series[shown[0]].subarray(start - from), start, gran) : null;
 
-  body.innerHTML = `<div class="hist-ctl"><div class="chips hist-fuels" role="group" aria-label="Carburants affichés">${chips}</div><div class="hist-ctl-r">${periodControls(gran)}</div></div>
+  body.innerHTML = `<div class="hist-ctl"><div class="chips hist-fuels" role="group" aria-label="Carburants affichés">${chips}</div><div class="hist-ctl-r">${periodControls(gran, today - doc.d0)}</div></div>
     <div class="hist-chart hist-chart-lg"><canvas id="zone-chart" role="img" aria-label="Évolution des prix moyens — ${E(zone.label)}, du ${longDay(start)} au ${longDay(to)}"></canvas></div>
     ${trend}
     ${one ? bucketTable(one, gran, `${shown[0]} — ${zone.label}`) : ''}
-    <p class="hist-src">Moyenne journalière des stations de la zone · données depuis le ${longDay(doc.d0)}.</p>`;
-  if (xs.length) drawLineChart('zoneChart', document.getElementById('zone-chart'), datasets, { min: xs[0].x, max: Math.max(xs[xs.length - 1].x, xs[0].x + 1), gran });
+    <p class="hist-src">Moyenne journalière des stations de la zone · données depuis le ${longDay(doc.d0)} (archives officielles).</p>`;
+  if (xs.length) drawLineChart('zone', 'zone-chart', datasets, { min: xs[0].x, max: Math.max(xs[xs.length - 1].x, xs[0].x + 1), gran }, ok);
 }
 
-// ---------------------------------------------------------------------------
-// Accueil Explorer : variation sur 7 jours des moyennes nationales
-// ---------------------------------------------------------------------------
-
+// Variation sur 7 jours des moyennes nationales (cartes de l'Explorer).
 export async function decorateTeaser() {
   const idx = await histIndex(); if (!idx) return;
   const doc = await getJSON(zoneUrl({ kind: 'fr' })); if (!doc?.f) return;
@@ -454,8 +444,6 @@ export async function decorateTeaser() {
     const now = valueAt(v, from, today), before = valueAt(v, from, today - 7);
     const slot = card.querySelector('.teaser-card-t');
     if (!slot || Number.isNaN(now) || Number.isNaN(before)) return;
-    slot.innerHTML = `${deltaHtml(now - before, fmtCts(now - before))} <span class="teaser-card-p">7 j</span>`;
+    slot.innerHTML = `${deltaHtml(now - before, fmtCts(now - before))} <span class="teaser-card-p">sur 7 j</span>`;
   });
 }
-
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.histChart || state.zoneChart) histSet('theme'); });
